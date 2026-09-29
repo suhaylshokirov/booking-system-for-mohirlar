@@ -3,7 +3,7 @@
 from fastapi import Depends, FastAPI
 
 from app.api.csrf import csrf_protect
-from app.api.v1 import auth, health, services, settings
+from app.api.v1 import auth, health, providers, services, settings
 from app.core.errors import register_error_handlers
 
 API_PREFIX = "/api/v1"
@@ -21,6 +21,7 @@ TAGS = [
     {"name": "auth", "description": "Register, log in and out, and who am I."},
     {"name": "settings", "description": "Timezone, currency and booking rules of the business."},
     {"name": "services", "description": "What can be booked: name, duration and price."},
+    {"name": "providers", "description": "The staff who perform services, and what each offers."},
     {"name": "health", "description": "Liveness and database connectivity."},
 ]
 
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(settings.router, prefix=API_PREFIX)
     app.include_router(services.router, prefix=API_PREFIX)
+    app.include_router(providers.router, prefix=API_PREFIX)
     app.include_router(health.router, prefix=API_PREFIX)
     return app
 

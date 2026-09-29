@@ -294,7 +294,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: negative price; zero duration; oversized input; deactivating a service with future bookings (bookings kept).
 
 ### P3.3 — Providers CRUD and offered services
-- [ ] Status
+- [x] Status
 - Goal: the admin manages staff and what each offers.
 - Requirement(s) served: **Create providers / employees**
 - Acceptance criteria: public `GET /providers?service_id=` (active only) and `GET /providers/{id}` (includes offered services); admin `POST`, `PATCH`, deactivate/activate, `PUT /providers/{id}/services` (replace set; unknown/inactive service ids → 422 `UNKNOWN_SERVICE`).

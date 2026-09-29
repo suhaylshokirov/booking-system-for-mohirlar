@@ -152,6 +152,33 @@ curl -X POST localhost:8000/api/v1/services -H "Authorization: Bearer $ADMIN_TOK
 curl 'localhost:8000/api/v1/services?limit=10&offset=0'
 ```
 
+## Providers
+The staff customers book with. Providers are records the admin manages; they
+have no login.
+
+| Endpoint | Who | Success | Notes |
+|---|---|---|---|
+| `GET /providers` | public | 200 page | Active providers, alphabetical, each with the services they offer. `?service_id=` keeps only providers who offer that service (an unknown or inactive service matches nobody). `include_inactive=true` is admin-only (`401` anonymous, `403` customer). |
+| `GET /providers/{id}` | public | 200 provider | Includes `services`. An inactive provider is `404` for everyone but admins. |
+| `POST /providers` | admin | 201 provider | `name` 1–100 and `bio` up to 1000 characters, trimmed (a blank bio becomes `null`). The new provider offers nothing until you `PUT` their services. |
+| `PATCH /providers/{id}` | admin | 200 provider | Partial. `bio: null` clears it; `name` cannot be null; an empty body is `422`. |
+| `POST /providers/{id}/deactivate` | admin | 200 provider | Hides them from customers. No hard delete exists. Repeating it is a no-op. |
+| `POST /providers/{id}/activate` | admin | 200 provider | |
+| `PUT /providers/{id}/services` | admin | 200 provider | Body `{"service_ids": [1, 2]}` **replaces** the whole set; `[]` means "offers nothing"; repeated ids count once. Any id that is not an existing, active service is `422 UNKNOWN_SERVICE` (`details.service_ids` lists them) and nothing is changed. |
+
+Customers only ever see **active** services inside a provider; the admin also
+sees inactive ones (with `is_active: false`), so a link to a retired service
+can be found and removed. Deactivating a provider or changing what they offer
+never touches bookings that already exist.
+
+```bash
+curl -X POST localhost:8000/api/v1/providers -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name": "Jasur", "bio": "Classic cuts."}'
+curl -X PUT localhost:8000/api/v1/providers/1/services -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"service_ids": [1, 2]}'
+curl 'localhost:8000/api/v1/providers?service_id=1'
+```
+
 ## Walkthrough: book an appointment with curl
 _Built up in P5.3, P6.3, P7.3; verified end to end in P10.4._
 
@@ -190,6 +217,7 @@ _One row per code, added by the task that introduces it._
 | `INVALID_TIMEZONE` | 422 | Settings: the timezone is not an IANA name such as `Asia/Tashkent` |
 | `GRANULARITY_CONFLICT` | 409 | Settings: an active service's duration is not a multiple of the new slot granularity; `details.services` lists them |
 | `DURATION_NOT_ALIGNED` | 422 | A service's duration is not a multiple of the slot granularity; `details` has both numbers |
+| `UNKNOWN_SERVICE` | 422 | Setting a provider's services: an id is not an existing, active service; `details.service_ids` lists them |
 | `FORBIDDEN` | 403 | Logged in, but the endpoint needs the admin role (or a generic framework 403) |
 | `NOT_FOUND` | 404 | No such route (or, for our own endpoints, no such resource) |
 | `METHOD_NOT_ALLOWED` | 405 | Route exists but not for this HTTP method; `Allow` header lists the valid ones |

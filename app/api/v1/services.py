@@ -1,14 +1,10 @@
 """/services: the catalog customers pick from, managed by the admin."""
 
-from typing import Annotated
+from fastapi import APIRouter, status
 
-from fastapi import APIRouter, Depends, Query, status
-
-from app.api.deps import AdminUser, OptionalUser
+from app.api.deps import AdminUser, IncludeInactive, OptionalUser, is_admin
 from app.core.db import DbSession
-from app.core.errors import AppError
 from app.core.pagination import PageParamsDep
-from app.models.user import User, UserRole
 from app.schemas.errors import ErrorResponse
 from app.schemas.pagination import Page
 from app.schemas.service import ServiceCreate, ServiceResponse, ServiceUpdate
@@ -30,30 +26,6 @@ _NOT_ALIGNED = {
 }
 
 
-def _is_admin(user: User | None) -> bool:
-    return user is not None and user.role == UserRole.ADMIN
-
-
-def inactive_allowed(
-    user: OptionalUser,
-    include_inactive: Annotated[
-        bool, Query(description="Admin only: also list deactivated services.")
-    ] = False,
-) -> bool:
-    """Whether this list request may include inactive services.
-
-    Asking for them without being an admin is refused rather than quietly
-    ignored, so a client never mistakes a filtered list for a complete one.
-    """
-    if not include_inactive:
-        return False
-    if user is None:
-        raise AppError("UNAUTHENTICATED", "Log in to continue.", status_code=401)
-    if not _is_admin(user):
-        raise AppError("FORBIDDEN", "This action needs an administrator.", status_code=403)
-    return True
-
-
 @router.get(
     "",
     response_model=Page[ServiceResponse],
@@ -66,7 +38,7 @@ def inactive_allowed(
 def list_services(
     db: DbSession,
     params: PageParamsDep,
-    include_inactive: Annotated[bool, Depends(inactive_allowed)],
+    include_inactive: IncludeInactive,
 ) -> Page[ServiceResponse]:
     """Active services, alphabetical. Admins may pass `include_inactive=true`."""
     items, total = service_catalog.list_services(db, params, include_inactive=include_inactive)
@@ -86,7 +58,7 @@ def list_services(
 )
 def read_service(service_id: int, db: DbSession, user: OptionalUser) -> ServiceResponse:
     """An inactive service is `404` for everyone but admins."""
-    service = service_catalog.get_service(db, service_id, include_inactive=_is_admin(user))
+    service = service_catalog.get_service(db, service_id, include_inactive=is_admin(user))
     return ServiceResponse.model_validate(service)
 
 

@@ -14,7 +14,7 @@ Three levels, used as `CurrentUser`, `OptionalUser` and `AdminUser`:
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.cookies import ACCESS_COOKIE
@@ -88,6 +88,35 @@ def require_admin(user: Annotated[User, Depends(get_current_user)]) -> User:
     return user
 
 
+def is_admin(user: User | None) -> bool:
+    """For public endpoints that show admins more (inactive items) than others."""
+    return user is not None and user.role == UserRole.ADMIN
+
+
+def include_inactive_allowed(
+    user: Annotated[User | None, Depends(get_optional_user)],
+    include_inactive: Annotated[
+        bool, Query(description="Admin only: also list deactivated items.")
+    ] = False,
+) -> bool:
+    """Whether this list request may include deactivated items.
+
+    Asking for them without being an admin is refused rather than quietly
+    ignored, so a client never mistakes a filtered list for a complete one.
+
+    Raises:
+        AppError: 401 `UNAUTHENTICATED` when anonymous; 403 `FORBIDDEN` for a
+            customer. Only when `include_inactive=true` was asked for.
+    """
+    if not include_inactive:
+        return False
+    if user is None:
+        raise AppError("UNAUTHENTICATED", "Log in to continue.", status_code=401)
+    if not is_admin(user):
+        raise AppError("FORBIDDEN", "This action needs an administrator.", status_code=403)
+    return True
+
+
 @lru_cache
 def get_login_limiter() -> LoginAttemptLimiter:
     """The process-wide login limiter. Tests override this with a fresh one."""
@@ -100,3 +129,4 @@ def get_login_limiter() -> LoginAttemptLimiter:
 CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 AdminUser = Annotated[User, Depends(require_admin)]
+IncludeInactive = Annotated[bool, Depends(include_inactive_allowed)]
