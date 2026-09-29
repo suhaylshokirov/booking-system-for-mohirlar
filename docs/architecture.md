@@ -34,8 +34,33 @@ _P6.5._ Mermaid sequence diagram, including the exclusion-constraint path
 _P6.5 / P11.4._ Component diagram.
 
 ## Time model
-_P4.1._ UTC storage, one business timezone, half-open `[start, end)` ranges,
-DST policy.
+_P4.1._ Three rules (ADR 0006):
+
+- **Storage is UTC.** Every timestamp is `timestamptz`; the API rejects
+  datetimes without an offset (`UtcDatetime` in `app/schemas/types.py`, 422) and
+  converts any offset it accepts to UTC.
+- **Availability is local.** Working hours are `time` / `date` values in the one
+  business timezone (`business_settings.timezone`). `app/core/timezones.py` is
+  the only place that turns them into instants:
+  `local_to_utc`, `local_window_to_utc(day, start, end, tz)`,
+  `local_day_bounds_utc(day, tz)` and `utc_to_local`.
+- **Ranges are half-open `[start, end)`**, so a day's bounds are
+  `[local midnight, next local midnight)` and neighbouring days tile exactly.
+
+A local date is not a UTC date: 02:00 on 5 October in Tashkent is 21:00 UTC on
+the 4th, so "bookings on the 5th" is always a query on `local_day_bounds_utc`,
+never on `start_at::date`.
+
+**DST policy** (Tashkent has none; this matters for other zones):
+
+| Wall-clock time | Example (`Europe/Berlin`) | Result |
+|---|---|---|
+| Inside a spring-forward gap | 02:30 on 2026-03-29 does not exist | Moved forward to the first instant that exists: 03:00 CEST (01:00 UTC) |
+| Inside a fall-back overlap | 02:30 on 2026-10-25 happens twice | The first occurrence (`fold=0`, summer time: 00:30 UTC) |
+
+A window lying wholly inside a gap collapses to nothing (start == end) and
+yields no slots. A window across a gap is an hour shorter than its wall-clock
+length, and across an overlap an hour longer. Days are 23 or 25 hours long.
 
 ## Slot algorithm
 _P5.1._

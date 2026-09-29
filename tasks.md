@@ -316,7 +316,7 @@ checklist (P11.4) is verified against this table.
 ## P4 — Availability
 
 ### P4.1 — Timezone conversion module
-- [ ] Status
+- [x] Status
 - Goal: the **one** place local wall-clock time becomes UTC.
 - Requirement(s) served: Set availability; see slots; bonus 5
 - Acceptance criteria: `app/core/timezones.py` — `local_window_to_utc(date, start_time, end_time, tz)`, `utc_to_local(dt, tz)`, `local_day_bounds_utc(date, tz)`. DST policy (documented): a wall-clock time in a spring-forward gap is shifted forward to the first valid instant; an ambiguous fall-back time takes the first occurrence (`fold=0`). Schemas reject naive datetimes (`AwareDatetime`).
