@@ -14,6 +14,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # The placeholder shipped in .env.example. Anyone can read it in the repo, so a
 # production deployment using it would have forgeable tokens.
 _PLACEHOLDER_JWT_SECRET = "change-me-to-a-long-random-string"
+# Likewise public: the create-admin script refuses it in production.
+PLACEHOLDER_ADMIN_PASSWORD = "change-me-admin-password"
 
 
 class Settings(BaseSettings):
@@ -30,7 +32,7 @@ class Settings(BaseSettings):
     login_rate_limit_window_seconds: int = 300
 
     admin_email: str = "admin@navbat.local"
-    admin_password: str = "change-me-admin-password"
+    admin_password: str = PLACEHOLDER_ADMIN_PASSWORD
 
     # Docker entrypoint: run `python -m scripts.seed` before starting the app.
     seed_demo_data: bool = False

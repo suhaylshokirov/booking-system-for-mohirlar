@@ -18,7 +18,7 @@ is not quietly replaced by the cookie. Tokens last `JWT_EXPIRE_MINUTES`
 account locks it out immediately.
 
 ```bash
-# 1. Create an account (always a customer; admins come from the create-admin CLI)
+# 1. Create an account (always a customer; admins come from the create-admin script, see the README)
 curl -X POST localhost:8000/api/v1/auth/register -H 'Content-Type: application/json' \
   -d '{"email": "aziza@example.com", "password": "a long passphrase", "full_name": "Aziza Karimova"}'
 

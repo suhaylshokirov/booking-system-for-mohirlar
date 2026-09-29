@@ -263,7 +263,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: login brute force.
 
 ### P2.6 — Create-admin CLI
-- [ ] Status
+- [x] Status
 - Goal: the first admin exists without an open "become admin" endpoint.
 - Requirement(s) served: Authentication
 - Acceptance criteria: `python -m scripts.create_admin --email --password` (falls back to `ADMIN_EMAIL`/`ADMIN_PASSWORD`); idempotent (promotes/updates an existing user); refuses weak passwords.

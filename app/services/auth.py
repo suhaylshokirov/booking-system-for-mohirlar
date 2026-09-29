@@ -4,7 +4,7 @@ Rules:
 - Emails are compared case-insensitively: they are stored trimmed and
   lower-cased, and the unique index on `lower(email)` is the real guarantee.
 - Registration can only ever create a `customer`. Admins come from the
-  create-admin CLI (P2.6), never from an endpoint.
+  create-admin CLI (`ensure_admin`, P2.6), never from an endpoint.
 - A wrong email and a wrong password are indistinguishable to the caller
   (same error, and a password hash is computed either way), so the login
   endpoint cannot be used to find out who has an account.
@@ -158,3 +158,39 @@ def login(
         raise
     limiter.reset(key)
     return user
+
+
+def ensure_admin(db: Session, *, email: str, password: str, full_name: str) -> tuple[User, str]:
+    """Make sure an active admin with this email and password exists.
+
+    Idempotent, for the create-admin script. A new email creates the account. An
+    existing account (any letter case, customer or admin) is promoted to admin,
+    reactivated and given this password; nothing is duplicated and its name is
+    kept. Returns the user and what happened: `"created"`, `"updated"` or
+    `"unchanged"` (so rerunning the same command changes no row).
+
+    Checking that the email and password are acceptable is the caller's job
+    (the script validates with the same schema as registration).
+    """
+    user = _find_by_email(db, email)
+    if user is None:
+        user = User(
+            email=normalize_email(email),
+            password_hash=hash_password(password),
+            full_name=full_name.strip(),
+            role=UserRole.ADMIN,
+        )
+        db.add(user)
+        db.flush()
+        return user, "created"
+
+    changed = False
+    if user.role != UserRole.ADMIN:
+        user.role, changed = UserRole.ADMIN, True
+    if not user.is_active:
+        user.is_active, changed = True, True
+    # Compare before hashing: a new salt would "change" the hash on every rerun.
+    if not verify_password(password, user.password_hash):
+        user.password_hash, changed = hash_password(password), True
+    db.flush()
+    return user, "updated" if changed else "unchanged"

@@ -89,8 +89,27 @@ Compose runs it on start while `SEED_DEMO_DATA=true`.
 | Admin | `ADMIN_EMAIL` (`admin@navbat.local`) | `ADMIN_PASSWORD` |
 | Customer | `demo@navbat.local` | `demo-customer-password` |
 
-The demo customer's password is public on purpose and is not a secret. Log-in
-itself arrives with P2.
+The demo customer's password is public on purpose and is not a secret. Log in
+with either through `POST /api/v1/auth/login` (see [`docs/api.md`](docs/api.md)).
+
+### Create the first admin
+
+There is no endpoint that makes an admin (registration always creates a
+customer). Create one from the command line:
+
+```bash
+python -m scripts.create_admin --email owner@example.com --password 'a long passphrase'
+# or take both from ADMIN_EMAIL / ADMIN_PASSWORD (preferred on a shared machine:
+# command-line arguments are visible in `ps` and shell history)
+python -m scripts.create_admin
+# inside Docker:
+docker compose exec app python -m scripts.create_admin --email ... --password ...
+```
+
+It is safe to run again: an existing account with that email (any letter case)
+is promoted to admin, reactivated and given that password; nothing is
+duplicated. The email and password must pass the same rules as registration,
+and in production the placeholder password from `.env.example` is refused.
 
 ## Local development
 
