@@ -51,7 +51,27 @@ implemented once it exists.
 
 ## Quick start (Docker)
 
-_Completed in P0.4._
+Requires Docker with the Compose plugin. Nothing else to install or configure.
+
+```bash
+docker compose up --build
+curl http://localhost:8000/api/v1/health     # {"status":"ok","database":"ok"}
+```
+
+- App: <http://localhost:8000> · API reference: <http://localhost:8000/docs>
+- Two services: `db` (Postgres 16, with a healthcheck) and `app`. The app
+  starts only once the database reports healthy, so a slow Postgres start
+  never crashes it.
+- The first start creates two databases: `navbat` (the app) and `navbat_test`
+  (pytest, so tests never touch app data). Postgres runs the init script only
+  on a fresh volume; to recreate the test database run `docker compose down -v`.
+- Postgres is published on host port 5432 so pytest and Alembic can reach it
+  from your machine. If that port is already used, run
+  `DB_HOST_PORT=5433 docker compose up --build` and point `DATABASE_URL` and
+  `TEST_DATABASE_URL` at `localhost:5433`.
+- Only the database is needed for local development:
+  `docker compose up -d db`.
+- Migrations and seed data (`docker compose exec app ...`) arrive with P1.
 
 ## Local development
 

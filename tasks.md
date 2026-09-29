@@ -108,7 +108,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: consistent error shape for framework-level errors (404 route, 405, malformed JSON).
 
 ### P0.4 — Docker Compose and Dockerfile
-- [ ] Status
+- [x] Status
 - Goal: `docker compose up --build` gives a running app + Postgres with no other setup.
 - Requirement(s) served: Bonus 3 (Docker), README quick start
 - Acceptance criteria: `Dockerfile` (python:3.12-slim, non-root user, deps layer cached); `docker-compose.yml` with `db` (postgres:16, healthcheck, volume, init script creating `navbat_test`) and `app` (depends on healthy db, runs `alembic upgrade head` then uvicorn); `.dockerignore`. Health endpoint answers from the container.
@@ -142,7 +142,7 @@ checklist (P11.4) is verified against this table.
 - [ ] Status
 - Goal: one engine/session setup used by app, scripts, tests, and migrations.
 - Requirement(s) served: Backend API (foundation)
-- Acceptance criteria: `app/core/db.py` (engine from settings, `SessionLocal`, `get_db` dependency that commits/rolls back per request); `app/models/base.py` with a naming convention (so constraint names are predictable — the 23P01 mapping depends on them) and `created_at`/`updated_at` mixin (`timestamptz`, server defaults); `alembic.ini` + `migrations/env.py` reading `DATABASE_URL` from settings; `alembic upgrade head` on an empty DB works.
+- Acceptance criteria: `app/core/db.py` (engine from settings, `SessionLocal`, `get_db` dependency that commits/rolls back per request); `app/models/base.py` with a naming convention (so constraint names are predictable — the 23P01 mapping depends on them) and `created_at`/`updated_at` mixin (`timestamptz`, server defaults); `alembic.ini` + `migrations/env.py` reading `DATABASE_URL` from settings; `alembic upgrade head` on an empty DB works; the compose `app` command gets `alembic upgrade head &&` in front of uvicorn (P0.4 deviation).
 - Tests: migration upgrade → downgrade → upgrade round-trip on the test DB.
 - Docs to update: `docs/database.md` conventions section; ADR 0003 (sync SQLAlchemy).
 - Edge cases covered: —
@@ -723,3 +723,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 |---|---|---|---|
 | 2026-09-29 | P0.1 | Repo root is `booking-system-for-mohirlar/` (not `navbat/`) | Folder and public GitHub remote already existed under this name; the product is still called Navbat |
 | 2026-09-29 | P0.3 | Minimal `app/core/db.py` (engine, `SessionLocal`, `get_db` without commit/rollback) pulled forward from P1.1 | The health endpoint needs a session for `SELECT 1`; P1.1 still owns the commit/rollback policy, naming convention and Alembic wiring |
+| 2026-09-29 | P0.4 | The `app` service runs only `uvicorn`, not `alembic upgrade head && uvicorn` | `alembic.ini` and `migrations/env.py` do not exist until P1.1. P1.1 must add the `alembic upgrade head &&` step to the compose `command` |
