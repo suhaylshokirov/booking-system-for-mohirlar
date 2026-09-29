@@ -122,11 +122,71 @@ broken by `id`. `ix_booking_events_booking_created (booking_id, created_at)`
 serves the history query. The three status columns share one Postgres enum type.
 
 ## Constraints and indexes
-_Every constraint and index, and **why** it exists._
+
+Every constraint and index, with the reason it exists. Names are the real ones
+(the API maps a violated constraint to an error by name).
+
+| Constraint / index | Table | Why |
+|---|---|---|
+| `no_provider_overlap` (EXCLUDE) | `bookings` | One provider cannot have two overlapping pending/confirmed bookings → 409 `SLOT_TAKEN` |
+| `no_customer_overlap` (EXCLUDE) | `bookings` | One customer cannot be in two places at once → 409 `CUSTOMER_OVERLAP` |
+| `no_availability_rule_overlap` (EXCLUDE) | `availability_rules` | Overlapping weekly windows would make hours ambiguous and duplicate slots |
+| `ck_bookings_end_after_start` | `bookings` | A booking must have positive length |
+| `ck_bookings_price_not_negative`, `ck_bookings_duration_positive` | `bookings` | The snapshots must be valid on their own |
+| `ck_bookings_cancellation_fields_only_when_cancelled` | `bookings` | Cancellation data on a live booking would falsify its history |
+| `ck_services_duration_positive`, `ck_services_price_not_negative` | `services` | A zero-length or negatively priced service is nonsense |
+| `ck_*_name_not_blank` | `services`, `providers`, `business_settings` | Names made only of spaces |
+| `ck_availability_rules_weekday_range` | `availability_rules` | Weekday is 0–6 |
+| `ck_availability_rules_end_after_start` | `availability_rules` | A window needs positive length |
+| `ck_availability_exceptions_day_off_or_valid_hours` | `availability_exceptions` | Both times NULL (day off) or both set with end after start |
+| `uq_availability_exceptions_provider_date` | `availability_exceptions` | One override per provider per date |
+| `ck_business_settings_single_row` | `business_settings` | Exactly one settings row |
+| `ck_business_settings_*` (granularity, lead time, horizon, cutoff) | `business_settings` | Values that would break slot generation or booking rules |
+| `uq_users_email_lower` (unique index on `lower(email)`) | `users` | Emails are unique ignoring case |
+| `pk_provider_services` (composite) | `provider_services` | A provider cannot offer a service twice |
+| all `fk_*` | all | `ON DELETE RESTRICT`: referenced rows are deactivated, never deleted |
+| `ix_bookings_customer_start` | `bookings` | "My bookings", ordered by time |
+| `ix_bookings_provider_start` | `bookings` | A provider's day, and the slot query |
+| `ix_bookings_status` | `bookings` | Admin filter by status |
+| `ix_booking_events_booking_created` | `booking_events` | A booking's history in order |
+
+The three exclusion constraints also create GiST indexes, which is what makes
+the overlap check fast as well as safe.
 
 ## The exclusion constraints, in plain language
-_How `EXCLUDE USING gist (provider_id WITH =, tstzrange(start_at, end_at, '[)') WITH &&)`
-makes double booking impossible, and why only pending/confirmed bookings count._
+
+A normal `UNIQUE` constraint says "no two rows may have the *same* value". An
+**exclusion constraint** generalises it: "no two rows may have values that
+*conflict*", where you choose what conflict means.
+
+```sql
+EXCLUDE USING gist (provider_id WITH =, tstzrange(start_at, end_at, '[)') WITH &&)
+WHERE (status IN ('pending', 'confirmed'))
+```
+
+Read it as: *for any two bookings, if they have the same provider **and** their
+time ranges overlap, reject the second one, but only look at pending and
+confirmed bookings.*
+
+- `provider_id WITH =` — same provider.
+- `tstzrange(start_at, end_at, '[)') WITH &&` — build the time range and test
+  whether the two ranges overlap (`&&` is Postgres's overlap operator).
+- `'[)'` — half-open: the start belongs to the booking, the end does not. So
+  10:00–10:30 and 10:30–11:00 do **not** overlap (back-to-back is fine).
+- `WHERE status IN ('pending', 'confirmed')` — a cancelled or completed booking
+  no longer occupies the time. The moment a booking is cancelled it drops out
+  of the constraint and the slot is free again, with no cleanup code.
+
+Why this beats "check, then insert": Postgres checks the constraint *while
+inserting*, holding its own locks, so two simultaneous transactions cannot both
+get through. The loser gets SQLSTATE `23P01` (`exclusion_violation`), which the
+service turns into a friendly 409. The customer constraint is the same idea with
+`customer_id` in place of `provider_id`. Plain integers work inside a GiST
+constraint because of the `btree_gist` extension. See
+[ADR 0001](decisions/0001-exclusion-constraints.md).
+
+`no_availability_rule_overlap` is the same idea for weekly hours; `time` has no
+range type, so both times are attached to a dummy date to make a `tsrange`.
 
 ## Snapshot fields
 
