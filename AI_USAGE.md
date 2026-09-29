@@ -173,6 +173,66 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P3 — Catalog
+
+- **Asked:** from the P3 tasks in `tasks.md`, build the business settings
+  (P3.1), services CRUD (P3.2), providers CRUD with the services each offers
+  (P3.3) and one paging convention for every list (P3.4), under my rules:
+  routers stay thin, every rule lives in one service module, services and
+  providers are deactivated and never deleted, money is an integer.
+- **Produced:** `GET`/`PATCH /settings`; five `/services` endpoints and seven
+  `/providers` endpoints; `app/core/pagination.py` (`limit`/`offset`, cap of 100,
+  a `paginate` helper that also counts the total) with a generic `Page[T]`
+  envelope; an `is_admin` / `IncludeInactive` pair in `app/api/deps.py` shared by
+  both routers; shared `admin` and `customer` test fixtures. 113 new tests
+  (200 at the end of P2, 332 now), plus API docs and edge-case rows 36–46.
+- **Verified:**
+  - Tests and lint after every task: `pytest` on the whole suite, `ruff check`,
+    `ruff format --check`, and the OpenAPI document building.
+  - **Mutation checks, run once at the end of the phase** (not after each task,
+    unlike P2): 19 deliberate breakages, each followed by the P3 tests, each
+    restored with `git checkout`. Every one was caught, including: timezone check
+    removed; inactive services ignored / not ignored by the granularity check;
+    the "granularity actually changed" guard removed; the settings `ON CONFLICT`
+    removed; `strict=True` dropped from price and duration; the non-admin
+    `include_inactive` refusal removed; inactive services or providers leaking
+    into public reads; the `UNKNOWN_SERVICE` check removed; the `PUT` delete
+    inverted; the page total counting the page instead of all matches; the
+    `limit` cap removed.
+  - **Not verified by a test:** the row locks (`FOR UPDATE` on the settings row
+    and on the provider row). They are what makes a concurrent granularity change
+    or a concurrent `PUT /providers/{id}/services` safe, but proving that needs
+    real threads and commits, and I did not write those tests (the headline
+    concurrency tests are P6.4 and P7.6). Reading the code is the only check so
+    far, and `docs/edge-cases.md` row 45 says so.
+- **Changed / rejected:** two departures, both in the `tasks.md` Deviations log.
+  The pagination helper was built in P3.2 rather than P3.4, because the services
+  list needed it. The service description limit stays at 1000 characters (the
+  column's size) instead of the 2000 in the criteria. Also decided without a log
+  entry, because the plan did not cover it: the first `GET /settings` on a
+  migrated but unseeded database creates the settings row with defaults, and
+  `include_inactive` from a non-admin is refused (401/403) rather than ignored.
+- **Bugs caught:**
+  - The first `SettingsUpdate` used `# type: ignore` on every field to give
+    non-optional types a `None` default. Replaced with `X | None` fields and one
+    validator that rejects explicit nulls.
+  - The plan said the description could be 2000 characters, but the column
+    (from P1) is `varchar(1000)`: it would have been a database error on 1001 to
+    2000. Found by reading the model before writing the schema.
+  - The migrations never insert the settings row (only the seed does), so a
+    freshly migrated database had no settings for `GET /settings` to return.
+    Found by reading the migration; fixed by creating the row on first read.
+  - A first edit to `app/core/timezones.py` used `python` where only `python3`
+    exists outside the virtualenv, so it did nothing while the next command in
+    the same script ran. Found from the error message, reapplied.
+  - Every new test file passed on its first run, which proves little; that is
+    why the mutation checks above were run.
+  - Recurring environment problem: the default Postgres port 5432 on this
+    machine belongs to a different database, so every test run needed
+    `DATABASE_URL` and `TEST_DATABASE_URL` pointed at 5433.
+
+---
+
 ## Summary (for the submission form)
 
 _Written in P11.5._
