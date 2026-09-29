@@ -11,6 +11,7 @@ Every model module must be imported here: Alembic and the test harness read
 
 from app.models.availability import AvailabilityException, AvailabilityRule
 from app.models.base import Base, TimestampMixin
+from app.models.booking import Booking, BookingEvent, BookingStatus
 from app.models.business_settings import BusinessSettings
 from app.models.provider import Provider, ProviderService
 from app.models.service import Service
@@ -20,6 +21,9 @@ __all__ = [
     "AvailabilityException",
     "AvailabilityRule",
     "Base",
+    "Booking",
+    "BookingEvent",
+    "BookingStatus",
     "BusinessSettings",
     "Provider",
     "ProviderService",

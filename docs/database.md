@@ -41,8 +41,8 @@ _Mermaid `erDiagram`._
 
 ## Tables
 
-_Catalog, settings and availability tables (P1.2). `bookings` and
-`booking_events` are added in P1.3._
+_Catalog, settings and availability tables (P1.2); bookings and their audit
+trail (P1.3)._
 
 Every table has `created_at` / `updated_at` (see Conventions). Constraint names
 below are the real ones; CHECKs and unique indexes are declared on the models in
@@ -94,6 +94,33 @@ day off; both set means custom hours replacing the weekly rules for that date.
 and `end_time <= start_time`. `uq_availability_exceptions_provider_date` allows
 one override per provider per date.
 
+### `bookings`
+One appointment. `customer_id`, `provider_id` and `service_id` are
+`ON DELETE RESTRICT` foreign keys, so nothing a booking refers to can be
+hard-deleted. `start_at` / `end_at` are `timestamptz` (UTC) forming the
+half-open range `[start_at, end_at)`; `ck_bookings_end_after_start` requires
+`end_at > start_at`. `status` is the native enum `booking_status` (`pending`,
+`confirmed`, `cancelled`, `completed`), defaulting to `pending`.
+`price_amount` and `duration_minutes` are snapshots (see Snapshot fields).
+`notes` is capped at 500 characters. `cancelled_by_id` and `cancel_reason` are
+filled only on cancellation, and `ck_bookings_cancellation_fields_only_when_cancelled`
+refuses them on any other status. The two exclusion constraints that prevent
+double booking are added in P1.4.
+
+Indexes: `ix_bookings_customer_start (customer_id, start_at)` serves "my
+bookings"; `ix_bookings_provider_start (provider_id, start_at)` serves a
+provider's day and the slot query; `ix_bookings_status` serves the admin filter.
+
+### `booking_events`
+The audit trail behind booking history: one row per status change, written in
+the same transaction as the change. `from_status` is NULL for the creation
+event; `actor_id` is NULL when the system acted (for example expiring a stale
+pending booking). Append-only by convention: nothing updates or deletes rows,
+so it has `created_at` but no `updated_at`. Events written in one transaction
+share `created_at` (`now()` is the transaction start), so ordering ties are
+broken by `id`. `ix_booking_events_booking_created (booking_id, created_at)`
+serves the history query. The three status columns share one Postgres enum type.
+
 ## Constraints and indexes
 _Every constraint and index, and **why** it exists._
 
@@ -102,4 +129,10 @@ _How `EXCLUDE USING gist (provider_id WITH =, tstzrange(start_at, end_at, '[)') 
 makes double booking impossible, and why only pending/confirmed bookings count._
 
 ## Snapshot fields
-_Why bookings copy price and duration at booking time._
+
+`bookings.price_amount` and `bookings.duration_minutes` are copied from the
+service when the booking is made. If the admin later raises a price or shortens
+a service, existing bookings keep the price and length the customer agreed to,
+and their `[start_at, end_at)` ranges stay valid for the overlap constraints.
+`service_id` says *what* was booked; the snapshot says *on what terms*. See
+[ADR 0007](decisions/0007-booking-snapshots.md).

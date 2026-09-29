@@ -11,6 +11,6 @@ Short records of the decisions that shape this project. Format for each:
 | 0004 | Server-rendered UI (Jinja2) with vanilla JS | planned (P8.1) |
 | 0005 | JWT in an HttpOnly cookie + Bearer, with CSRF double-submit | planned (P2.4) |
 | 0006 | Half-open ranges and UTC storage | planned (P1.4, P4.1) |
-| 0007 | Price and duration snapshots on bookings | planned (P1.3) |
+| [0007](0007-booking-snapshots.md) | Price and duration snapshots on bookings | accepted (P1.3) |
 | 0008 | Guarded (optimistic) status updates instead of row locks | planned (P7.2) |
 | 0009 | Transactional outbox for notifications | planned (P10.2) |
