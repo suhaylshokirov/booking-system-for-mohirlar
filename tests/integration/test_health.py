@@ -1,8 +1,4 @@
-"""GET /api/v1/health against a real PostgreSQL.
-
-These fixtures are deliberately minimal; P0.5 replaces them with the shared
-harness (migrated schema, per-test rollback).
-"""
+"""GET /api/v1/health against a real PostgreSQL (the shared `client` fixture)."""
 
 from collections.abc import Iterator
 
@@ -11,13 +7,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.core.db import get_db
 from app.main import create_app
 
 
-def _client_using(database_url: str) -> Iterator[TestClient]:
-    engine = create_engine(database_url)
+@pytest.fixture
+def client_with_dead_database() -> Iterator[TestClient]:
+    # Port 1 refuses connections immediately, standing in for a database that is down.
+    engine = create_engine(
+        "postgresql+psycopg://navbat:navbat@localhost:1/navbat?connect_timeout=2"
+    )
 
     def override_get_db() -> Iterator[Session]:
         with Session(engine) as db:
@@ -28,19 +27,6 @@ def _client_using(database_url: str) -> Iterator[TestClient]:
     with TestClient(app) as client:
         yield client
     engine.dispose()
-
-
-@pytest.fixture
-def client() -> Iterator[TestClient]:
-    yield from _client_using(get_settings().test_database_url)
-
-
-@pytest.fixture
-def client_with_dead_database() -> Iterator[TestClient]:
-    # Port 1 refuses connections immediately, standing in for a database that is down.
-    yield from _client_using(
-        "postgresql+psycopg://navbat:navbat@localhost:1/navbat?connect_timeout=2"
-    )
 
 
 def test_health_is_ok_when_database_answers(client):

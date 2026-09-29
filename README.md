@@ -84,8 +84,30 @@ ruff check . && ruff format --check .
 pytest
 ```
 
-_Running tests against Postgres and the environment variables table are added
-in P0.5._
+### Running tests
+
+Tests run against a real PostgreSQL, never SQLite. Start the database, then run
+pytest:
+
+```bash
+docker compose up -d db      # also creates the separate navbat_test database
+pytest                       # everything
+pytest tests/unit            # or one layer: unit · integration · concurrency
+```
+
+- The tests use `TEST_DATABASE_URL` (default `.../navbat_test`). At the start of
+  each run the harness **drops and recreates that database's schema** and
+  rebuilds it with the Alembic migrations, so the constraints under test are the
+  real ones.
+- pytest **refuses to start** if `TEST_DATABASE_URL` and `DATABASE_URL` name the
+  same database, so a mistake cannot wipe your development data.
+- Each test runs inside a transaction that is rolled back afterwards. Concurrency
+  tests use the `committing_db` fixture instead, which really commits and
+  truncates the tables when the test ends.
+- If Postgres is on another host port (see Quick start), export both
+  `DATABASE_URL` and `TEST_DATABASE_URL` with that port.
+
+_The environment variables table is added in P0.6._
 
 ## Architecture in brief
 

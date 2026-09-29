@@ -49,8 +49,25 @@ clients, CSRF double-submit for cookie requests, login rate limiting.
 _P8.1._
 
 ## Testing strategy
-_P0.5._ Unit (pure logic), integration (API + real Postgres), concurrency
-(threads + real commits).
+Three layers: unit (pure logic, no database), integration (API + real
+Postgres), concurrency (threads + real commits). PostgreSQL always, because
+the double-booking guarantee is a Postgres exclusion constraint that SQLite
+cannot express.
+
+The harness (`tests/conftest.py`, `tests/support.py`):
+
+- **Schema once per run.** The test database's schema is dropped and rebuilt by
+  running the Alembic migrations, so the tests exercise the real constraints.
+- **Rollback per test.** The `db` fixture wraps each test in an outer
+  transaction that is rolled back at the end; the session uses
+  `join_transaction_mode="create_savepoint"`, so code under test can `commit()`
+  and the data still disappears. The `client` fixture (API) shares that session.
+- **Real commits for races.** `committing_db` hands out a session factory whose
+  sessions commit for real, one connection per thread, and truncates all tables
+  afterwards.
+- **Frozen time.** `frozen_clock` overrides the injected clock (see Clock above).
+- **Safety guard.** pytest refuses to start when `TEST_DATABASE_URL` equals
+  `DATABASE_URL`, since the harness resets the test schema.
 
 ## Trade-offs accepted
 _Filled in as they are made._

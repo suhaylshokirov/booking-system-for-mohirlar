@@ -117,7 +117,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: app start before DB ready (healthcheck + depends_on condition).
 
 ### P0.5 — Test harness against real Postgres
-- [ ] Status
+- [x] Status
 - Goal: fast, isolated tests on the real engine.
 - Requirement(s) served: Bonus 1 (tests)
 - Acceptance criteria: `tests/conftest.py` — engine on `TEST_DATABASE_URL`, schema built once per session **by running Alembic migrations** (so the exclusion constraints under test are the real ones); per-test connection + outer transaction + `join_transaction_mode="create_savepoint"` rolled back after each test; `client` fixture (TestClient with DB and clock dependencies overridden); `frozen_clock` fixture; a separate `committing_db` fixture for concurrency tests that truncates tables afterwards. Refuse to run if `TEST_DATABASE_URL` equals `DATABASE_URL`.
@@ -142,7 +142,7 @@ checklist (P11.4) is verified against this table.
 - [ ] Status
 - Goal: one engine/session setup used by app, scripts, tests, and migrations.
 - Requirement(s) served: Backend API (foundation)
-- Acceptance criteria: `app/core/db.py` (engine from settings, `SessionLocal`, `get_db` dependency that commits/rolls back per request); `app/models/base.py` with a naming convention (so constraint names are predictable — the 23P01 mapping depends on them) and `created_at`/`updated_at` mixin (`timestamptz`, server defaults); `alembic.ini` + `migrations/env.py` reading `DATABASE_URL` from settings; `alembic upgrade head` on an empty DB works; the compose `app` command gets `alembic upgrade head &&` in front of uvicorn (P0.4 deviation).
+- Acceptance criteria: `app/core/db.py` (engine from settings, `SessionLocal`, `get_db` dependency that commits/rolls back per request); `app/models/base.py` with a naming convention (so constraint names are predictable — the 23P01 mapping depends on them) and `created_at`/`updated_at` mixin (`timestamptz`, server defaults); `alembic.ini` + `migrations/env.py` reading `DATABASE_URL` from settings; `alembic upgrade head` on an empty DB works; the compose `app` command gets `alembic upgrade head &&` in front of uvicorn (P0.4 deviation); `env.py` uses `config.attributes["connection"]` when given (the P0.5 test harness passes the test DB connection that way).
 - Tests: migration upgrade → downgrade → upgrade round-trip on the test DB.
 - Docs to update: `docs/database.md` conventions section; ADR 0003 (sync SQLAlchemy).
 - Edge cases covered: —
@@ -724,3 +724,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-09-29 | P0.1 | Repo root is `booking-system-for-mohirlar/` (not `navbat/`) | Folder and public GitHub remote already existed under this name; the product is still called Navbat |
 | 2026-09-29 | P0.3 | Minimal `app/core/db.py` (engine, `SessionLocal`, `get_db` without commit/rollback) pulled forward from P1.1 | The health endpoint needs a session for `SELECT 1`; P1.1 still owns the commit/rollback policy, naming convention and Alembic wiring |
 | 2026-09-29 | P0.4 | The `app` service runs only `uvicorn`, not `alembic upgrade head && uvicorn` | `alembic.ini` and `migrations/env.py` do not exist until P1.1. P1.1 must add the `alembic upgrade head &&` step to the compose `command` |
+| 2026-09-29 | P0.5 | `build_schema` migrates with Alembic only if `alembic.ini` exists; until P1.1 the test schema is empty | The migrations do not exist yet. Verified once with a throwaway migration. P1.1's `migrations/env.py` must use `config.attributes["connection"]` when present, so the harness migrates the test database and not `DATABASE_URL` |
