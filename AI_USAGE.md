@@ -114,6 +114,65 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P2 — Authentication
+
+- **Asked:** from the P2 tasks in `tasks.md` and my rules (JWT in an HttpOnly
+  cookie plus Bearer, CSRF double-submit, roles read from the database, no
+  endpoint that creates an admin), build the security helpers (P2.1), register,
+  login, logout and `me` (P2.2), the current-user and admin dependencies (P2.3),
+  CSRF protection (P2.4), login rate limiting (P2.5) and the create-admin script
+  (P2.6).
+- **Produced:** password verification and HS256 access tokens whose expiry is
+  checked against the injected clock; the four `/auth` endpoints; `get_current_user`,
+  `get_optional_user` and `require_admin`; an app-wide CSRF dependency, cookie
+  helpers and ADR 0005; an in-memory sliding-window login limiter behind a
+  three-method interface; an idempotent `python -m scripts.create_admin`. 130
+  new tests, 200 in the suite at the end of the phase (70 at the end of P1).
+- **Verified:**
+  - Tests and lint after every task: `pytest` on the whole suite,
+    `ruff check`, `ruff format --check`.
+  - **Mutation checks on every task.** Tests that pass on the first run prove
+    little, so after each task the AI broke the code on purpose and I looked for
+    the matching test to go red, then restored the file. Examples: `alg=none` and
+    `HS384` added to the JWT allow-list (two tests failed); the CSRF check made a
+    no-op (10 failed); "any Authorization header skips CSRF" (the `Basic`-header
+    test failed); the login limiter without its reset, without the IP in the key,
+    counting blocked attempts, counting deactivated accounts, or not normalising
+    the email (each caught by its own test); the admin script without promotion,
+    reactivation, or with an unconditional re-hash (each caught).
+  - The create-admin script run for real against the development database: it
+    created an admin, said "nothing changed" on a rerun (any email case), refused a
+    5-character password, and fell back to `ADMIN_EMAIL`/`ADMIN_PASSWORD`. The
+    test rows were deleted afterwards.
+  - The OpenAPI document builds after each task that adds endpoints.
+- **Changed / rejected:** three departures, all in the `tasks.md` Deviations log.
+  `get_current_user` was built in P2.2 instead of P2.3 because `GET /auth/me`
+  needs it. Email shape is checked with a regex instead of pydantic `EmailStr`,
+  because `EmailStr` needs the `email-validator` package and `CLAUDE.md` says to
+  ask me before adding a dependency (I have not been asked; the swap is small).
+  The pre-login CSRF cookie for the login and register forms is delivered as
+  tested building blocks, wired into the HTML forms in P8.2 when those exist.
+- **Bugs caught:**
+  - Two of the AI's first tests for P2.1 were wrong, not the code: one decoded a
+    token whose `iat` (1 Oct) is in the future relative to the real date (29 Sep),
+    the other put `datetime` objects into a JSON payload. Fixed in the tests.
+  - Adding CSRF broke two earlier tests in exactly the expected way: logout by
+    cookie now needs the token, and the "Secure cookie in production" test patched
+    a function that had moved. Both were updated, not the check loosened.
+  - A script that edited `app/main.py` ran before the virtualenv was active, so
+    the edit silently did nothing while the following commands succeeded. Found by
+    reading `git diff` before running the tests.
+  - Two mutation results were informative rather than good: switching PyJWT's own
+    expiry check on changed nothing, because our clock-based check already covers
+    it; and allowing empty CSRF tokens was caught by the unit test but not the
+    integration test, because an empty header is already treated as missing. Both
+    are defence in depth, not gaps, and are noted here so nobody "fixes" them.
+  - Recurring environment problem: the default Postgres port 5432 on this
+    machine belongs to a different database, so every test run needed
+    `DATABASE_URL` and `TEST_DATABASE_URL` pointed at 5433.
+
+---
+
 ## Summary (for the submission form)
 
 _Written in P11.5._
