@@ -236,7 +236,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: email case sensitivity; user enumeration.
 
 ### P2.3 — Current-user dependency and roles
-- [ ] Status
+- [x] Status
 - Goal: one way to know who is calling, from cookie or Bearer.
 - Requirement(s) served: Authentication
 - Acceptance criteria: `get_current_user` (Bearer header wins, else cookie; loads the user from DB each request so deactivation takes effect immediately → 401 `ACCOUNT_INACTIVE`), `get_optional_user`, `require_admin` (403 `FORBIDDEN`).

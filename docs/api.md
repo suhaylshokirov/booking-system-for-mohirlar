@@ -33,6 +33,21 @@ curl localhost:8000/api/v1/auth/me -H "Authorization: Bearer $TOKEN"
 In Swagger (`/docs`): call `POST /auth/login`, copy `access_token`, press
 **Authorize** and paste it.
 
+**Who may call what.** Every endpoint is one of three kinds, and the status
+codes are consistent:
+
+| Kind | Anonymous | Logged-in customer | Admin |
+|---|---|---|---|
+| Public | works | works | works |
+| Customer (needs an account) | `401 UNAUTHENTICATED` | works | works |
+| Admin | `401 UNAUTHENTICATED` | `403 FORBIDDEN` | works |
+
+An anonymous call to an admin endpoint is a 401 (log in), not a 403. A public
+endpoint that adapts to who is looking (for example, showing "your bookings")
+treats an expired or invalid session as anonymous instead of failing. Roles are
+read from the database on every request, so promoting, demoting or deactivating
+someone applies to their existing token immediately.
+
 | Endpoint | Success | Notes |
 |---|---|---|
 | `POST /auth/register` | 201 user | Email is trimmed and lower-cased; password 8–128 characters; full name 1–100. `409 EMAIL_TAKEN` if the email exists in any letter case. |
@@ -77,7 +92,7 @@ _One row per code, added by the task that introduces it._
 | `TOKEN_EXPIRED` | 401 | Token is past its expiry; log in again |
 | `ACCOUNT_INACTIVE` | 401 | The account was deactivated (at login only once the password was right; on any request with a token) |
 | `EMAIL_TAKEN` | 409 | Registration: that email already has an account |
-| `FORBIDDEN` | 403 | Generic framework 403 |
+| `FORBIDDEN` | 403 | Logged in, but the endpoint needs the admin role (or a generic framework 403) |
 | `NOT_FOUND` | 404 | No such route (or, for our own endpoints, no such resource) |
 | `METHOD_NOT_ALLOWED` | 405 | Route exists but not for this HTTP method; `Allow` header lists the valid ones |
 | `CONFLICT` | 409 | Generic framework 409 |
