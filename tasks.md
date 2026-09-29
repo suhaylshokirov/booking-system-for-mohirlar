@@ -303,7 +303,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: provider deactivated with future bookings.
 
 ### P3.4 — Pagination helper
-- [ ] Status (helper and its first use landed in P3.2; see the Deviations log — what remains is a dedicated test file, the docs check and the `AI_USAGE.md` P3 entry)
+- [x] Status
 - Goal: one paging convention for every list.
 - Requirement(s) served: Backend API
 - Acceptance criteria: `limit` (default 20, max 100) + `offset`; response `{items, total, limit, offset}`; out-of-range `limit` → 422. Used by services/providers now and bookings later.
