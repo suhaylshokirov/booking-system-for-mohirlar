@@ -60,6 +60,60 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P1 — Database
+
+- **Asked:** from the P1 tasks in `tasks.md` and my rules (the database is the
+  double-booking guarantee; PostgreSQL only; UTC; snapshots; soft-delete), build
+  the schema and prove it: the SQLAlchemy base and Alembic wiring (P1.1), catalog,
+  settings and availability models (P1.2), booking and event models (P1.3), the
+  exclusion-constraint migration (P1.4), constraint tests (P1.5), a seed script
+  (P1.6) and the database docs (P1.7).
+- **Produced:** seven tables plus `provider_services`, and three hand-edited
+  migrations (`0001` catalog and availability, `0002` bookings and events, `0003`
+  the exclusion constraints); 32 constraint tests that insert directly and assert
+  the SQLSTATE and constraint name; an idempotent barbershop seed wired into the
+  Docker entrypoint; `docs/database.md` with an ER diagram, a constraint table and
+  a plain-language explanation of exclusion constraints; ADRs 0001, 0003, 0006
+  and 0007.
+- **Verified:**
+  - Tests and lint after every task: `pytest` (30 tests after P1.3, 70 at the
+    end of P1), `ruff check`, `ruff format --check`.
+  - Migrations: upgrade, downgrade, upgrade again on a scratch database, and
+    `alembic check` reporting no difference between the models and the migrations.
+  - Constraints, by hand in `psql` before writing tests: each CHECK, the unique
+    index on `lower(email)`, the availability overlap (adjacent windows allowed),
+    and `RESTRICT` on deleting a referenced service.
+  - The tests can fail: I temporarily changed the constraint to a closed range
+    and removed the status filter, and four tests went red; I removed two seed
+    guards and the idempotency tests went red. Then restored both.
+  - Docker: a real `docker compose up --build` migrated, seeded and served, and a
+    restart left the row counts unchanged.
+- **Changed / rejected:** three departures, all in the `tasks.md` Deviations
+  log. Migrations `0001` and `0002` were written in P1.2 and P1.3 instead of one
+  migration in P1.4, because the P1.2 acceptance criteria already required an
+  exclusion constraint and the round-trip test fails for any model without a
+  migration. `hash_password` and `local_to_utc` were created in P1.6 instead of
+  P2.1 and P4.1, because the seed needs them and CLAUDE.md allows one home for
+  each. I kept `cancelled_by_id` as a foreign key name instead of the task's
+  `cancelled_by`, for consistency with the other keys.
+- **Bugs caught:**
+  - Autogenerate created the `booking_status` enum once per column, which would
+    have failed with "type already exists"; it also never dropped the `user_role`
+    type on downgrade, so a second upgrade would have failed. Both found by
+    reading the generated migration, fixed by hand.
+  - Autogenerate named the unique constraint on `(provider_id, date)` as
+    `uq_availability_exceptions_provider_id`, hiding half of what it covers.
+    Named explicitly.
+  - Tests passed on the first run, which I did not trust. The mutation check
+    above is why the suite now has proof that it can fail.
+  - A first draft of the seed converted time zones inline, which would have put
+    a second conversion site in the codebase. Moved into `app/core/timezones.py`.
+  - The default database port 5432 on this machine belongs to a different
+    Postgres, so test runs failed with a password error until pointed at 5433.
+  - I was told two or three tasks were left in P1; four were (P1.4 to P1.7).
+
+---
+
 ## Summary (for the submission form)
 
 _Written in P11.5._

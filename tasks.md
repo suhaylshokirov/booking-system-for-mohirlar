@@ -205,7 +205,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: re-running seed.
 
 ### P1.7 — Database documentation
-- [ ] Status
+- [x] Status
 - Goal: `docs/database.md` complete for P1.
 - Requirement(s) served: architecture explanation; database design (review focus)
 - Acceptance criteria: Mermaid ER diagram; every table's purpose; every constraint and index with **why**; exclusion constraints in plain language; snapshot rationale; ADR 0001 written (context · decision · alternatives: app-level lock, `SELECT … FOR UPDATE`, serializable isolation, stored slot rows · consequences).

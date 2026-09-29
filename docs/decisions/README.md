@@ -5,7 +5,7 @@ Short records of the decisions that shape this project. Format for each:
 
 | # | Decision | Status |
 |---|---|---|
-| [0001](0001-exclusion-constraints.md) | PostgreSQL exclusion constraints prevent double booking | draft (P1.4; final P1.7, race write-up P6.5) |
+| [0001](0001-exclusion-constraints.md) | PostgreSQL exclusion constraints prevent double booking | accepted (P1.7; race write-up P6.5) |
 | 0002 | Slots are computed on the fly, not stored | planned (P5.1) |
 | [0003](0003-sync-sqlalchemy.md) | Sync SQLAlchemy 2.0 instead of async | accepted (P1.1) |
 | 0004 | Server-rendered UI (Jinja2) with vanilla JS | planned (P8.1) |

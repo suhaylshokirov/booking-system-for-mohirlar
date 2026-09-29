@@ -1,9 +1,103 @@
 # Database
 
-_Skeleton — completed in P1.7 and kept current by every schema change._
+Complete for Phase 1 (P1.7); every later schema change updates it in the same
+commit. Migrations: `0001` catalog/settings/availability, `0002` bookings and
+events, `0003` the double-booking exclusion constraints.
 
 ## ER diagram
-_Mermaid `erDiagram`._
+
+```mermaid
+erDiagram
+    users ||--o{ bookings : "customer_id"
+    users |o--o{ bookings : "cancelled_by_id"
+    users |o--o{ booking_events : "actor_id"
+    providers ||--o{ bookings : "provider_id"
+    services ||--o{ bookings : "service_id"
+    bookings ||--|{ booking_events : "booking_id"
+    providers ||--o{ provider_services : "offers"
+    services ||--o{ provider_services : "offered by"
+    providers ||--o{ availability_rules : "works"
+    providers ||--o{ availability_exceptions : "overrides"
+
+    users {
+        int id PK
+        string email "unique on lower(email)"
+        string password_hash
+        string full_name
+        enum role "customer | admin"
+        bool is_active
+    }
+    business_settings {
+        int id PK "always 1"
+        string name
+        string timezone "IANA"
+        string currency "UZS"
+        int slot_granularity_minutes
+        int min_lead_time_minutes
+        int max_booking_horizon_days
+        int cancellation_cutoff_hours
+    }
+    services {
+        int id PK
+        string name
+        string description
+        int duration_minutes "> 0"
+        int price "UZS, >= 0"
+        bool is_active
+    }
+    providers {
+        int id PK
+        string name
+        string bio
+        bool is_active
+    }
+    provider_services {
+        int provider_id PK, FK
+        int service_id PK, FK
+    }
+    availability_rules {
+        int id PK
+        int provider_id FK
+        int weekday "0=Mon..6=Sun"
+        time start_time "local"
+        time end_time "local, > start"
+    }
+    availability_exceptions {
+        int id PK
+        int provider_id FK
+        date date "unique per provider"
+        time start_time "null = day off"
+        time end_time
+        string reason
+    }
+    bookings {
+        int id PK
+        int customer_id FK
+        int provider_id FK
+        int service_id FK
+        timestamptz start_at
+        timestamptz end_at "> start_at"
+        enum status "pending | confirmed | cancelled | completed"
+        int price_amount "snapshot"
+        int duration_minutes "snapshot"
+        string notes
+        int cancelled_by_id FK
+        string cancel_reason
+    }
+    booking_events {
+        int id PK
+        int booking_id FK
+        enum from_status "null on creation"
+        enum to_status
+        int actor_id FK "null = system"
+        string reason
+        timestamptz created_at
+    }
+```
+
+`business_settings` has no relationships: it is a single row of configuration.
+Every foreign key is `ON DELETE RESTRICT`. `bookings` carries the two exclusion
+constraints; `availability_rules` carries the third.
 
 ## Conventions
 
