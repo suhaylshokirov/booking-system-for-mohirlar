@@ -2,12 +2,13 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.api.cookies import clear_login_cookies, set_access_cookie, set_csrf_cookie
-from app.api.deps import CurrentUser
+from app.api.deps import CurrentUser, get_login_limiter
 from app.core.clock import Clock, get_clock
 from app.core.db import DbSession
+from app.core.rate_limit import LoginAttemptLimiter
 from app.core.security import create_access_token
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
 from app.schemas.errors import ErrorResponse
@@ -50,20 +51,37 @@ def register(body: RegisterRequest, db: DbSession) -> UserResponse:
                 "`INVALID_CREDENTIALS` (unknown email and wrong password look identical) "
                 "or `ACCOUNT_INACTIVE`."
             ),
-        }
+        },
+        429: {
+            "model": ErrorResponse,
+            "description": (
+                "`TOO_MANY_ATTEMPTS`: too many failed logins for this IP and email. "
+                "Wait `Retry-After` seconds."
+            ),
+        },
     },
 )
 def login(
     body: LoginRequest,
+    request: Request,
     response: Response,
     db: DbSession,
     clock: Annotated[Clock, Depends(get_clock)],
+    limiter: Annotated[LoginAttemptLimiter, Depends(get_login_limiter)],
 ) -> TokenResponse:
     """Sets an HttpOnly login cookie and a readable `csrf_token` cookie for
     browsers, and also returns the token for `Authorization: Bearer` use (curl,
     Swagger's Authorize button)."""
-    user = auth_service.authenticate(db, email=body.email, password=body.password)
-    token = create_access_token(user.id, clock.now())
+    now = clock.now()
+    user = auth_service.login(
+        db,
+        limiter,
+        email=body.email,
+        password=body.password,
+        client_ip=request.client.host if request.client else "unknown",
+        now=now,
+    )
+    token = create_access_token(user.id, now)
     set_access_cookie(response, token)
     # A new CSRF token per login, so one issued before login cannot outlive it.
     set_csrf_cookie(response)

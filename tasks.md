@@ -254,7 +254,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: CSRF.
 
 ### P2.5 — Login rate limiting
-- [ ] Status
+- [x] Status
 - Goal: slow down password guessing.
 - Requirement(s) served: Authentication (security)
 - Acceptance criteria: sliding window of **failed** attempts per (client IP, email), in-process store behind a small interface; over the limit → 429 `TOO_MANY_ATTEMPTS` with `Retry-After`; success clears the counter. Limitation (single process, resets on restart) documented.

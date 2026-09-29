@@ -175,3 +175,9 @@ See [`AI_USAGE.md`](AI_USAGE.md).
 ## Known limitations and next steps
 
 _Filled in as they are discovered._
+
+- **Login rate limiting is in-process.** Counters live in the app's memory: they
+  reset on restart and are not shared across several instances. A per-IP limit
+  is also bypassed by rotating addresses. Behind a reverse proxy, run uvicorn
+  with `--proxy-headers` so the limiter sees real client addresses. A shared
+  store (for example Redis) would drop in behind the same interface.

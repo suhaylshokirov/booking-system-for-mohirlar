@@ -71,6 +71,13 @@ every request app-wide: unsafe methods authenticated by the cookie, without a
 Bearer header, must echo the CSRF cookie in `X-CSRF-Token` or a form field, else
 403 `CSRF_FAILED`. Reasoning and trade-offs are in ADR 0005.
 
+**Login rate limiting (`app/core/rate_limit.py`, `services/auth.login`, P2.5).**
+A sliding window of failed attempts per (client IP, email), checked before the
+password is verified. The store is an in-process dictionary behind a
+three-method interface (`retry_after`, `record_failure`, `reset`), so a shared
+store could replace it; the trade-off is that it resets on restart and is not
+shared between instances. See `docs/api.md` for the exact behaviour.
+
 ## Why the web UI and the API share services
 _P8.1._
 

@@ -54,6 +54,25 @@ const csrf = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/)?.[1];
 fetch("/api/v1/auth/logout", { method: "POST", headers: { "X-CSRF-Token": csrf } });
 ```
 
+**Login rate limit.** Failed logins are counted per (client IP, email) in a
+sliding window: `LOGIN_RATE_LIMIT_ATTEMPTS` failures (default 5) within
+`LOGIN_RATE_LIMIT_WINDOW_SECONDS` (default 300). After that, further attempts,
+**even with the correct password**, get `429 TOO_MANY_ATTEMPTS` with a
+`Retry-After` header (and `details.retry_after_seconds`) until the oldest
+failure leaves the window. Details:
+
+- The counter is per pair, so someone failing against your email from another
+  address cannot lock you out.
+- Emails are compared normalised (case, padding), and unknown emails are
+  limited the same way as real ones, so the 429 does not reveal who has an account.
+- Only wrong credentials count. Blocked attempts do not extend the block.
+  Invalid request bodies (422) and deactivated accounts do not count.
+- A successful login clears the counter.
+- Limits: the counters live in one process's memory, so they reset when the app
+  restarts and are not shared between several instances. Rotating IP addresses
+  defeats a per-IP limit. Behind a reverse proxy the app must see the real
+  client address (uvicorn `--proxy-headers`), or all visitors share one IP.
+
 **Who may call what.** Every endpoint is one of three kinds, and the status
 codes are consistent:
 
@@ -72,7 +91,7 @@ someone applies to their existing token immediately.
 | Endpoint | Success | Notes |
 |---|---|---|
 | `POST /auth/register` | 201 user | Email is trimmed and lower-cased; password 8–128 characters; full name 1–100. `409 EMAIL_TAKEN` if the email exists in any letter case. |
-| `POST /auth/login` | 200 `{access_token, token_type}` + cookie | Unknown email and wrong password give the same `401 INVALID_CREDENTIALS`. |
+| `POST /auth/login` | 200 `{access_token, token_type}` + cookie | Unknown email and wrong password give the same `401 INVALID_CREDENTIALS`. Rate limited: see below. |
 | `POST /auth/logout` | 204 | Clears both cookies (needs the CSRF header if sent by cookie). Tokens are stateless, so a Bearer token you copied stays valid until it expires. |
 | `GET /auth/me` | 200 user | `401` without valid credentials. |
 
@@ -111,6 +130,7 @@ _One row per code, added by the task that introduces it._
 | `INVALID_CREDENTIALS` | 401 | Login: unknown email or wrong password (deliberately indistinguishable) |
 | `INVALID_TOKEN` | 401 | Token is malformed, tampered with, wrongly signed, or names a user that no longer exists |
 | `TOKEN_EXPIRED` | 401 | Token is past its expiry; log in again |
+| `TOO_MANY_ATTEMPTS` | 429 | Login: too many failed attempts for this IP and email; wait `Retry-After` seconds |
 | `CSRF_FAILED` | 403 | Cookie-authenticated unsafe request without a matching `X-CSRF-Token` header / `csrf_token` field (Bearer requests are exempt) |
 | `ACCOUNT_INACTIVE` | 401 | The account was deactivated (at login only once the password was right; on any request with a token) |
 | `EMAIL_TAKEN` | 409 | Registration: that email already has an account |

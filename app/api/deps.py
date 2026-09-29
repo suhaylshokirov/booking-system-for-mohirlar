@@ -11,6 +11,7 @@ Three levels, used as `CurrentUser`, `OptionalUser` and `AdminUser`:
 - `require_admin`: logged in *and* an admin, else 401 / 403.
 """
 
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -18,8 +19,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.cookies import ACCESS_COOKIE
 from app.core.clock import Clock, get_clock
+from app.core.config import get_settings
 from app.core.db import DbSession
 from app.core.errors import AppError
+from app.core.rate_limit import InMemoryLoginLimiter, LoginAttemptLimiter
 from app.core.security import decode_access_token
 from app.models.user import User, UserRole
 from app.services import auth as auth_service
@@ -83,6 +86,15 @@ def require_admin(user: Annotated[User, Depends(get_current_user)]) -> User:
     if user.role != UserRole.ADMIN:
         raise AppError("FORBIDDEN", "This action needs an administrator.", status_code=403)
     return user
+
+
+@lru_cache
+def get_login_limiter() -> LoginAttemptLimiter:
+    """The process-wide login limiter. Tests override this with a fresh one."""
+    settings = get_settings()
+    return InMemoryLoginLimiter(
+        settings.login_rate_limit_attempts, settings.login_rate_limit_window_seconds
+    )
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

@@ -9,10 +9,15 @@ Rules:
   (same error, and a password hash is computed either way), so the login
   endpoint cannot be used to find out who has an account.
 
+- Password guessing is rate limited per (client IP, email): after too many
+  failures in the window even the correct password is refused until it passes.
+
 Errors raised: `EMAIL_TAKEN` (409), `INVALID_CREDENTIALS` (401),
-`ACCOUNT_INACTIVE` (401), `INVALID_TOKEN` (401, user no longer exists).
+`ACCOUNT_INACTIVE` (401), `INVALID_TOKEN` (401, user no longer exists),
+`TOO_MANY_ATTEMPTS` (429).
 """
 
+from datetime import datetime
 from functools import cache
 
 from sqlalchemy import func, select
@@ -20,6 +25,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.rate_limit import LoginAttemptLimiter
 from app.core.security import hash_password, verify_password
 from app.models.user import User, UserRole
 
@@ -110,4 +116,45 @@ def get_active_user(db: Session, user_id: int) -> User:
         raise AppError("INVALID_TOKEN", "The token is invalid.", status_code=401)
     if not user.is_active:
         raise AppError("ACCOUNT_INACTIVE", "This account has been deactivated.", status_code=401)
+    return user
+
+
+def login(
+    db: Session,
+    limiter: LoginAttemptLimiter,
+    *,
+    email: str,
+    password: str,
+    client_ip: str,
+    now: datetime,
+) -> User:
+    """`authenticate` behind the login rate limit.
+
+    The limit is checked *first*, before any password is verified, so a blocked
+    client cannot learn whether a guess was right and the check stays cheap.
+    Only wrong credentials count as failures: a correct password on a
+    deactivated account is not a guess, and a blocked attempt is not recorded
+    (otherwise waiting would never end the block). Success clears the counter.
+
+    Raises:
+        AppError: 429 `TOO_MANY_ATTEMPTS` with a `Retry-After` header; plus
+            everything `authenticate` raises.
+    """
+    key = (client_ip, normalize_email(email))
+    wait = limiter.retry_after(key, now)
+    if wait is not None:
+        raise AppError(
+            "TOO_MANY_ATTEMPTS",
+            f"Too many failed login attempts. Try again in {wait} seconds.",
+            status_code=429,
+            details={"retry_after_seconds": wait},
+            headers={"Retry-After": str(wait)},
+        )
+    try:
+        user = authenticate(db, email=email, password=password)
+    except AppError as error:
+        if error.code == "INVALID_CREDENTIALS":
+            limiter.record_failure(key, now)
+        raise
+    limiter.reset(key)
     return user

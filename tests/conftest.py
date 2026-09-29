@@ -16,9 +16,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.api.deps import get_login_limiter
 from app.core.clock import FrozenClock, get_clock
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core.rate_limit import InMemoryLoginLimiter
 from app.main import create_app
 from tests.support import build_schema, ensure_test_database_is_separate, truncate_all_tables
 
@@ -83,5 +85,9 @@ def client(db: Session, frozen_clock: FrozenClock) -> Iterator[TestClient]:
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_clock] = lambda: frozen_clock
+    # A fresh limiter per test: the real one is process-wide, so failed logins
+    # in one test would otherwise count against the next.
+    limiter = InMemoryLoginLimiter(max_attempts=5, window_seconds=300)
+    app.dependency_overrides[get_login_limiter] = lambda: limiter
     with TestClient(app) as test_client:
         yield test_client
