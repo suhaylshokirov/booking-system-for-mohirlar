@@ -181,7 +181,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: double booking at the storage layer; back-to-back allowed by `[)`.
 
 ### P1.5 — Database constraint tests
-- [ ] Status
+- [x] Status
 - Goal: prove the database, on its own, refuses invalid data.
 - Requirement(s) served: No double booking; basic validation
 - Acceptance criteria / Tests (`tests/integration/test_db_constraints.py`, direct inserts bypassing services):
