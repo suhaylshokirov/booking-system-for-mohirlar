@@ -4,35 +4,10 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.clock import FrozenClock
-from app.core.security import create_access_token, hash_password
 from app.models.business_settings import BusinessSettings
 from app.models.service import Service
-from app.models.user import User, UserRole
 
 SETTINGS = "/api/v1/settings"
-
-
-def _login_as(client, db: Session, clock: FrozenClock, role: UserRole) -> dict[str, str]:
-    user = User(
-        email=f"{role.value}@example.com",
-        password_hash=hash_password("irrelevant"),
-        full_name="Test User",
-        role=role,
-    )
-    db.add(user)
-    db.flush()
-    return {"Authorization": f"Bearer {create_access_token(user.id, clock.now())}"}
-
-
-@pytest.fixture
-def admin(client, db, frozen_clock):
-    return _login_as(client, db, frozen_clock, UserRole.ADMIN)
-
-
-@pytest.fixture
-def customer(client, db, frozen_clock):
-    return _login_as(client, db, frozen_clock, UserRole.CUSTOMER)
 
 
 def _service(db: Session, duration: int, *, active: bool = True, name: str = "Haircut") -> Service:

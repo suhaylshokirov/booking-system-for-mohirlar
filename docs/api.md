@@ -124,6 +124,34 @@ curl -X PATCH localhost:8000/api/v1/settings -H "Authorization: Bearer $ADMIN_TO
   -H 'Content-Type: application/json' -d '{"max_booking_horizon_days": 30}'
 ```
 
+## Services
+What customers can book. Prices are whole UZS (integers; `10.5` and `"100"`
+are rejected), durations are whole minutes.
+
+| Endpoint | Who | Success | Notes |
+|---|---|---|---|
+| `GET /services` | public | 200 page | Active services, alphabetical. `include_inactive=true` is admin-only: anonymous gets `401`, a customer `403` (refused, not quietly ignored, so nobody mistakes a filtered list for a full one). |
+| `GET /services/{id}` | public | 200 service | An inactive service is `404` for everyone but admins. |
+| `POST /services` | admin | 201 service | See limits below. |
+| `PATCH /services/{id}` | admin | 200 service | Partial. `description: null` clears it; other fields cannot be null; an empty body is `422`. |
+| `POST /services/{id}/deactivate` | admin | 200 service | Hides it from customers. No hard delete exists. Repeating it is a no-op. |
+| `POST /services/{id}/activate` | admin | 200 service | `422 DURATION_NOT_ALIGNED` if the slot granularity changed while it was inactive and it no longer fits. |
+
+Limits: `name` 1–100 characters and `description` up to 1000, both trimmed (a blank
+description becomes `null`); `duration_minutes` 1–480 and a multiple of the
+business's `slot_granularity_minutes` (`422 DURATION_NOT_ALIGNED`, with both
+numbers in `details`); `price` 0 to 2,147,483,647 (0 is a free service).
+
+Editing or deactivating a service never changes existing bookings: each keeps
+the price and duration it was made with.
+
+```bash
+curl -X POST localhost:8000/api/v1/services -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "Haircut", "description": "Wash and cut.", "duration_minutes": 30, "price": 60000}'
+curl 'localhost:8000/api/v1/services?limit=10&offset=0'
+```
+
 ## Walkthrough: book an appointment with curl
 _Built up in P5.3, P6.3, P7.3; verified end to end in P10.4._
 
@@ -161,6 +189,7 @@ _One row per code, added by the task that introduces it._
 | `EMAIL_TAKEN` | 409 | Registration: that email already has an account |
 | `INVALID_TIMEZONE` | 422 | Settings: the timezone is not an IANA name such as `Asia/Tashkent` |
 | `GRANULARITY_CONFLICT` | 409 | Settings: an active service's duration is not a multiple of the new slot granularity; `details.services` lists them |
+| `DURATION_NOT_ALIGNED` | 422 | A service's duration is not a multiple of the slot granularity; `details` has both numbers |
 | `FORBIDDEN` | 403 | Logged in, but the endpoint needs the admin role (or a generic framework 403) |
 | `NOT_FOUND` | 404 | No such route (or, for our own endpoints, no such resource) |
 | `METHOD_NOT_ALLOWED` | 405 | Route exists but not for this HTTP method; `Allow` header lists the valid ones |
@@ -174,8 +203,11 @@ _One row per code, added by the task that introduces it._
 `SELECT 1`, and answers `503 DATABASE_UNAVAILABLE` if the database is down.
 
 ## Pagination
-_P3.4._ `limit` (default 20, max 100) and `offset`; responses are
-`{items, total, limit, offset}`.
+Every list takes `limit` (default 20, 1–100) and `offset` (default 0, ≥ 0), and
+returns `{"items": [...], "total": N, "limit": 20, "offset": 0}`. `total` counts
+all matching items, not just this page. An out-of-range `limit` or `offset` is
+`422 VALIDATION_ERROR`; an `offset` past the end is an empty `items` list.
+Lists are always sorted in a fixed order, so pages never overlap.
 
 ## Times and timezones
 _P4.1._ All datetimes are ISO 8601 with an offset; naive datetimes are

@@ -21,7 +21,9 @@ from app.core.clock import FrozenClock, get_clock
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.rate_limit import InMemoryLoginLimiter
+from app.core.security import create_access_token, hash_password
 from app.main import create_app
+from app.models.user import User, UserRole
 from tests.support import build_schema, ensure_test_database_is_separate, truncate_all_tables
 
 
@@ -91,3 +93,28 @@ def client(db: Session, frozen_clock: FrozenClock) -> Iterator[TestClient]:
     app.dependency_overrides[get_login_limiter] = lambda: limiter
     with TestClient(app) as test_client:
         yield test_client
+
+
+def _auth_headers(db: Session, clock: FrozenClock, role: UserRole) -> dict[str, str]:
+    """Bearer headers for a new user of `role` (Bearer needs no CSRF token)."""
+    user = User(
+        email=f"{role.value}@example.com",
+        password_hash=hash_password("irrelevant"),
+        full_name="Test User",
+        role=role,
+    )
+    db.add(user)
+    db.flush()
+    return {"Authorization": f"Bearer {create_access_token(user.id, clock.now())}"}
+
+
+@pytest.fixture
+def admin(db: Session, frozen_clock: FrozenClock) -> dict[str, str]:
+    """Request headers that authenticate as an administrator."""
+    return _auth_headers(db, frozen_clock, UserRole.ADMIN)
+
+
+@pytest.fixture
+def customer(db: Session, frozen_clock: FrozenClock) -> dict[str, str]:
+    """Request headers that authenticate as a customer."""
+    return _auth_headers(db, frozen_clock, UserRole.CUSTOMER)

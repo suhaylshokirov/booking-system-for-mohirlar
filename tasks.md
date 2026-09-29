@@ -285,7 +285,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: invalid timezone; granularity change vs existing durations.
 
 ### P3.2 — Services CRUD
-- [ ] Status
+- [x] Status
 - Goal: the admin manages what can be booked.
 - Requirement(s) served: **Create a service (name, description, duration, price)**; basic validation
 - Acceptance criteria: public `GET /services` (active only, paginated), `GET /services/{id}` (404 if inactive for non-admins); admin `POST`, `PATCH`, `POST /services/{id}/deactivate` and `/activate`; admin list can include inactive. Validation: name 1–100, description ≤ 2000, duration > 0, ≤ 480, multiple of granularity (`DURATION_NOT_ALIGNED`), price integer ≥ 0. No hard delete. Creating, editing the duration of, and *activating* a service read the settings row with `get_business_settings(db, for_update=True)` (see P3.1) so a concurrent granularity change cannot leave it misaligned.
@@ -303,7 +303,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: provider deactivated with future bookings.
 
 ### P3.4 — Pagination helper
-- [ ] Status
+- [ ] Status (helper and its first use landed in P3.2; see the Deviations log — what remains is a dedicated test file, the docs check and the `AI_USAGE.md` P3 entry)
 - Goal: one paging convention for every list.
 - Requirement(s) served: Backend API
 - Acceptance criteria: `limit` (default 20, max 100) + `offset`; response `{items, total, limit, offset}`; out-of-range `limit` → 422. Used by services/providers now and bookings later.
@@ -731,3 +731,5 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-09-29 | P2.2 | `get_current_user` (Bearer wins, else cookie, user reloaded, `ACCOUNT_INACTIVE`) is built in P2.2 in `app/api/deps.py`, not P2.3 | `GET /auth/me` and its "401 without auth" test need a real current-user dependency, and a throwaway version would be rewritten in P2.3. P2.3 still owns `get_optional_user`, `require_admin` and their tests |
 | 2026-09-29 | P2.2 | Email shape is checked with a regex, not pydantic `EmailStr` | `EmailStr` needs the `email-validator` package, and CLAUDE.md §7 requires the owner's approval for a dependency outside §3. Can be swapped in later without changing the API |
 | 2026-09-29 | P2.4 | The pre-session CSRF cookie for login/register forms is delivered as tested building blocks (`ensure_csrf_cookie`, always-on `require_csrf`), not wired into HTML forms | The forms do not exist until P8.2, which must call them (its tests already include "CSRF missing → 403"). Until then only the JSON API exists, where anonymous calls have no cookie to abuse |
+| 2026-09-29 | P3.2 | The pagination helper (`app/core/pagination.py`: `PageParams`, `PageParamsDep`, `paginate`; `app/schemas/pagination.py`: `Page[T]`) is built in P3.2, not P3.4. P3.4 keeps its own tests and docs pass | `GET /services` must be paginated (P3.2's criteria) and a throwaway version would be rewritten. `docs/api.md` Pagination is already written |
+| 2026-09-29 | P3.2 | Service `description` is limited to 1000 characters, not the 2000 in the criteria | The `services.description` column is `varchar(1000)` (P1.2). A longer text would be a database error, and a service blurb does not need more. Widening it would be a migration for no requirement |
