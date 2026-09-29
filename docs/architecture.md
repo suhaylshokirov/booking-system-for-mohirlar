@@ -3,10 +3,26 @@
 _Skeleton — each section is filled in by the task noted beside it._
 
 ## Layers and why
-_P0.3._ Routers (`app/api/v1`, `app/web`) → services (`app/services`) → models
+Routers (`app/api/v1`, `app/web`) → services (`app/services`) → models
 (`app/models`) → PostgreSQL. Routers are thin; all business rules live in
 services; the database enforces the invariants it can (see
 [`database.md`](database.md)).
+
+Cross-cutting pieces live in `app/core/`:
+
+- **`config.py`**: `Settings` (pydantic-settings) reads every variable in
+  `.env.example`; production refuses to start with the placeholder JWT secret.
+- **`clock.py`**: business code takes `now` from an injected `Clock` rather than
+  calling `datetime.now()`, so tests can freeze time at rule boundaries.
+- **`errors.py`**: services raise `AppError(code, message, status_code, details)`
+  and never build responses. Handlers turn that, validation errors, framework
+  `HTTPException`s and unhandled exceptions into the single
+  `{"error": {"code", "message", "details"}}` envelope.
+- **`db.py`**: the engine and a session per request (`get_db`).
+
+The health endpoint shows the pattern in miniature: the router
+(`api/v1/health.py`) only calls `services/health.check_database`, which runs
+`SELECT 1` and raises `AppError` on failure.
 
 ## Request lifecycle: create a booking
 _P6.5._ Mermaid sequence diagram, including the exclusion-constraint path

@@ -95,7 +95,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: —
 
 ### P0.3 — App factory, settings, clock, error envelope, health endpoint
-- [ ] Status
+- [x] Status
 - Goal: the minimal running app with the cross-cutting pieces every later task depends on.
 - Requirement(s) served: Backend API
 - Acceptance criteria:
@@ -722,3 +722,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | Date (UTC) | Task | Deviation | Reason |
 |---|---|---|---|
 | 2026-09-29 | P0.1 | Repo root is `booking-system-for-mohirlar/` (not `navbat/`) | Folder and public GitHub remote already existed under this name; the product is still called Navbat |
+| 2026-09-29 | P0.3 | Minimal `app/core/db.py` (engine, `SessionLocal`, `get_db` without commit/rollback) pulled forward from P1.1 | The health endpoint needs a session for `SELECT 1`; P1.1 still owns the commit/rollback policy, naming convention and Alembic wiring |
