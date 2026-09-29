@@ -47,6 +47,24 @@ _P7.1._ Mermaid state diagram and transition rules.
 _P2.1–P2.5._ JWT in an HttpOnly cookie for the browser, Bearer for API
 clients, CSRF double-submit for cookie requests, login rate limiting.
 
+**Primitives (`app/core/security.py`, P2.1).**
+
+- Passwords: Argon2id via pwdlib. `verify_password` returns `False` (never
+  raises) for a stored hash it does not recognise.
+- Tokens: HS256 JWT with `sub` (user id as a string), `iat`, `exp`; lifetime is
+  `JWT_EXPIRE_MINUTES`. The token holds no role or active flag: those are
+  reloaded from the database on every request (P2.3), so deactivating a user
+  or changing a role takes effect at once.
+- Decoding only accepts `HS256` (an explicit allow-list, which is what rejects
+  `alg=none` and algorithm switching) and requires all three claims.
+  Expired, tampered, foreign-secret, wrong-algorithm and malformed tokens all
+  raise `InvalidTokenError` (401): code `TOKEN_EXPIRED` for expiry,
+  `INVALID_TOKEN` for everything else.
+- The clock is injected: both token functions take `now`. Expiry is compared
+  against it by us rather than by PyJWT, which would use the real time. A token
+  is valid while `now < exp`. There is no leeway and no check that `iat` is not
+  in the future, since one process issues and verifies every token.
+
 ## Why the web UI and the API share services
 _P8.1._
 

@@ -35,7 +35,7 @@ the exclusion constraint closes it._
 | 17 | Completing before end time | Premature completion | State machine condition | Service | planned [P7.1] |
 | 18 | Cancelling after the cutoff | Last-minute no-shows | Cancellation policy | Service | planned [P7.4] |
 | 19 | Customer accessing another's booking (IDOR) | Data leak | 404, not 403 | Service, API | planned [P6.3] |
-| 20 | Expired or tampered JWT | Forged identity | Signature + expiry verified | Service | planned [P2.1] |
+| 20 | Expired or tampered JWT | Forged identity | Signature + expiry verified; only HS256 accepted, so `alg=none` and algorithm switching fail | Service | `tests/unit/test_security.py` (`test_token_is_valid_until_the_instant_it_expires`, `test_tampered_payload_is_rejected`, `test_alg_none_token_is_rejected`) |
 | 21 | Deactivated user with a valid token | Access after deactivation | User reloaded every request | Service | planned [P2.3] |
 | 22 | Email case sensitivity on registration | Duplicate accounts | Normalised + unique index on `lower(email)` | DB, Service | `tests/integration/test_db_constraints.py` (`test_duplicate_email_differing_only_in_case_is_rejected`); normalisation planned [P2.2] |
 | 23 | Login brute force | Password guessing | Rate limit → 429 | Service | planned [P2.5] |

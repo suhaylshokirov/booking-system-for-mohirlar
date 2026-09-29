@@ -218,7 +218,7 @@ checklist (P11.4) is verified against this table.
 ## P2 — Authentication
 
 ### P2.1 — Password hashing and JWT primitives
-- [ ] Status
+- [x] Status
 - Goal: small, fully tested security helpers.
 - Requirement(s) served: Authentication
 - Acceptance criteria: `app/core/security.py` — `hash_password`/`verify_password` (pwdlib Argon2), `create_access_token(user_id, now)` (HS256, `sub`, `iat`, `exp`), `decode_access_token` raising a domain error on expired/tampered/malformed tokens. Clock injected (no `now()` inside).
