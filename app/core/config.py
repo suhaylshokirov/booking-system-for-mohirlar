@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     admin_email: str = "admin@navbat.local"
     admin_password: str = "change-me-admin-password"
 
+    # Docker entrypoint: run `python -m scripts.seed` before starting the app.
+    seed_demo_data: bool = False
+
     @model_validator(mode="after")
     def _reject_placeholder_secret_in_production(self) -> "Settings":
         if self.app_env == "production" and self.jwt_secret == _PLACEHOLDER_JWT_SECRET:

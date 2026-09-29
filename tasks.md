@@ -196,7 +196,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: as listed.
 
 ### P1.6 — Seed script
-- [ ] Status
+- [x] Status
 - Goal: one command produces a believable demo business.
 - Requirement(s) served: working application; demo
 - Acceptance criteria: `python -m scripts.seed` is idempotent (safe to rerun); creates business settings (Asia/Tashkent, UZS, 15-min granularity), ~4 services, ~3 providers with differing service sets, weekly availability, one day-off exception, an admin (from env) and a demo customer, a few bookings in varied statuses with events. Runs in the Docker entrypoint when `SEED_DEMO_DATA=true`.
@@ -727,3 +727,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-09-29 | P0.5 | `build_schema` migrates with Alembic only if `alembic.ini` exists; until P1.1 the test schema is empty | The migrations do not exist yet. Verified once with a throwaway migration. P1.1's `migrations/env.py` must use `config.attributes["connection"]` when present, so the harness migrates the test database and not `DATABASE_URL` |
 | 2026-09-29 | P1.1 | Handlers take `db: DbSession` (an alias for `Depends(get_db, scope="function")`), not `Depends(get_db)` | The default scope runs the commit *after* the response is sent, so a failed commit would leave the client with a success response. Proven by `test_failed_commit_is_an_error_not_a_success_response`. Tests still override `get_db` |
 | 2026-09-29 | P1.2 | Migration `0001` (catalog, settings, availability tables, `btree_gist`, `no_availability_rule_overlap`) is written in P1.2, not P1.4. P1.3 adds migration `0002` (`bookings`, `booking_events`, `booking_status` enum, indexes) for the same reason, and P1.4 becomes migration `0003` with just the two booking exclusion constraints | P1.2's acceptance criteria require the availability exclusion constraint, which only a migration can create, and `test_real_migrations_upgrade_downgrade_upgrade` fails whenever a model has no migration, so the suite could not stay green otherwise |
+| 2026-09-29 | P1.6 | `app/core/security.py` (only `hash_password`) and `app/core/timezones.py` (only `local_to_utc`, `utc_to_local`) are created in P1.6 instead of P2.1 / P4.1; `SEED_DEMO_DATA` setting added | The seed must hash the admin and demo passwords and turn local booking times into UTC, and CLAUDE.md rules 1 and 4 keep each of those in exactly one module, so the seed cannot do it inline. P2.1 and P4.1 extend the same files (verification, JWT; windows, day bounds, DST policy) rather than replace them |

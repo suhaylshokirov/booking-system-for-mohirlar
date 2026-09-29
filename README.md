@@ -72,7 +72,25 @@ curl http://localhost:8000/api/v1/health     # {"status":"ok","database":"ok"}
 - Only the database is needed for local development:
   `docker compose up -d db`.
 - The `app` container runs `alembic upgrade head` before starting, so a fresh
-  database gets its schema automatically. Seed data arrives with P1.6.
+  database gets its schema automatically, and the demo data (see below) is seeded.
+
+### Demo data
+
+`python -m scripts.seed` fills the database with a demo barbershop: settings
+(Asia/Tashkent, UZS, 15-minute slots), four services, three barbers with
+different service sets and weekly hours (one has a day off next week), the
+admin, a demo customer and four bookings covering every status. Dates are
+relative to today. It is idempotent: run it as often as you like; it never
+duplicates rows and never overwrites what you changed in the admin UI. Docker
+Compose runs it on start while `SEED_DEMO_DATA=true`.
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `ADMIN_EMAIL` (`admin@navbat.local`) | `ADMIN_PASSWORD` |
+| Customer | `demo@navbat.local` | `demo-customer-password` |
+
+The demo customer's password is public on purpose and is not a secret. Log-in
+itself arrives with P2.
 
 ## Local development
 
@@ -136,6 +154,7 @@ which must be replaced in production.
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `300` | Length of that window. |
 | `ADMIN_EMAIL` | `admin@navbat.local` | Email of the first admin (`scripts/create_admin.py`, seed). |
 | `ADMIN_PASSWORD` | placeholder | **Secret.** Password of the first admin. |
+| `SEED_DEMO_DATA` | `false` (`true` in `docker-compose.yml`) | Run the seed script on container start. Safe to leave on; see below. |
 
 ## Architecture in brief
 
