@@ -71,7 +71,8 @@ curl http://localhost:8000/api/v1/health     # {"status":"ok","database":"ok"}
   `TEST_DATABASE_URL` at `localhost:5433`.
 - Only the database is needed for local development:
   `docker compose up -d db`.
-- Migrations and seed data (`docker compose exec app ...`) arrive with P1.
+- The `app` container runs `alembic upgrade head` before starting, so a fresh
+  database gets its schema automatically. Seed data arrives with P1.6.
 
 ## Local development
 
@@ -83,6 +84,17 @@ pip install -e ".[dev]"      # pinned runtime deps + pytest, httpx, ruff
 ruff check . && ruff format --check .
 pytest
 ```
+
+### Database migrations
+
+```bash
+alembic upgrade head                              # apply all migrations
+alembic downgrade -1                              # undo the latest one
+alembic revision --autogenerate -m "describe it"  # then READ and edit the file
+```
+
+Autogenerate cannot see the exclusion constraints, so every migration is
+reviewed by hand. Conventions: [`docs/database.md`](docs/database.md).
 
 ### Running tests
 

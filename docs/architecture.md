@@ -18,7 +18,9 @@ Cross-cutting pieces live in `app/core/`:
   and never build responses. Handlers turn that, validation errors, framework
   `HTTPException`s and unhandled exceptions into the single
   `{"error": {"code", "message", "details"}}` envelope.
-- **`db.py`**: the engine and a session per request (`get_db`).
+- **`db.py`**: the engine and a session per request. Handlers take a
+  `DbSession`; the request commits when the handler returns and rolls back if it
+  raises (see [`database.md`](database.md) conventions and ADR 0003).
 
 The health endpoint shows the pattern in miniature: the router
 (`api/v1/health.py`) only calls `services/health.check_database`, which runs

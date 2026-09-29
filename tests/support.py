@@ -8,7 +8,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Engine, text
+from sqlalchemy import Connection, Engine, text
 from sqlalchemy.engine import make_url
 
 from app.core.config import Settings
@@ -37,25 +37,30 @@ def ensure_test_database_is_separate(settings: Settings) -> None:
         )
 
 
+def alembic_config(connection: Connection | None = None) -> Config:
+    """Alembic config for the repo's migrations.
+
+    With a `connection`, `migrations/env.py` runs on it instead of opening one
+    from DATABASE_URL, so the migration lands in the test database and inside
+    whatever transaction the caller holds.
+    """
+    config = Config(str(ALEMBIC_INI))
+    if connection is not None:
+        config.attributes["connection"] = connection
+    return config
+
+
 def build_schema(engine: Engine) -> None:
     """Start the test database from an empty schema and migrate it to head.
 
     Uses the real Alembic migrations, not `create_all`, so the exclusion
     constraints the tests exercise are exactly the ones production gets.
-    Until P1.1 adds `alembic.ini` there is nothing to migrate and the schema
-    stays empty.
     """
     with engine.begin() as connection:
         connection.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
         connection.execute(text("CREATE SCHEMA public"))
-    if not ALEMBIC_INI.exists():
-        return
-    config = Config(str(ALEMBIC_INI))
     with engine.begin() as connection:
-        # migrations/env.py must use this connection when it is given, so the
-        # migration runs against the test database and not DATABASE_URL.
-        config.attributes["connection"] = connection
-        command.upgrade(config, "head")
+        command.upgrade(alembic_config(connection), "head")
 
 
 def truncate_all_tables(engine: Engine) -> None:

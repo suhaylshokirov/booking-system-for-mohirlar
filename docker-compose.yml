@@ -38,9 +38,9 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-admin-password}
     ports:
       - "8000:8000"
-    # P1.1 adds `alembic upgrade head &&` in front of uvicorn (see tasks.md,
-    # Deviations log); there is no migration setup to run yet.
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    # Migrate first, then serve: a fresh database gets its schema on `up`, and
+    # a failed migration stops the container instead of serving a broken schema.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 volumes:
   pgdata:

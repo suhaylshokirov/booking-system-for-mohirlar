@@ -18,6 +18,7 @@ RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml
 # Application code. It runs from /app directly instead of being pip-installed.
 COPY app ./app
 COPY scripts ./scripts
+COPY alembic.ini ./alembic.ini
 COPY migrations ./migrations
 
 # The app never needs root.

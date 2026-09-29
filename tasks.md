@@ -139,7 +139,7 @@ checklist (P11.4) is verified against this table.
 ## P1 — Database
 
 ### P1.1 — SQLAlchemy base, session and Alembic wiring
-- [ ] Status
+- [x] Status
 - Goal: one engine/session setup used by app, scripts, tests, and migrations.
 - Requirement(s) served: Backend API (foundation)
 - Acceptance criteria: `app/core/db.py` (engine from settings, `SessionLocal`, `get_db` dependency that commits/rolls back per request); `app/models/base.py` with a naming convention (so constraint names are predictable — the 23P01 mapping depends on them) and `created_at`/`updated_at` mixin (`timestamptz`, server defaults); `alembic.ini` + `migrations/env.py` reading `DATABASE_URL` from settings; `alembic upgrade head` on an empty DB works; the compose `app` command gets `alembic upgrade head &&` in front of uvicorn (P0.4 deviation); `env.py` uses `config.attributes["connection"]` when given (the P0.5 test harness passes the test DB connection that way).
@@ -725,3 +725,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-09-29 | P0.3 | Minimal `app/core/db.py` (engine, `SessionLocal`, `get_db` without commit/rollback) pulled forward from P1.1 | The health endpoint needs a session for `SELECT 1`; P1.1 still owns the commit/rollback policy, naming convention and Alembic wiring |
 | 2026-09-29 | P0.4 | The `app` service runs only `uvicorn`, not `alembic upgrade head && uvicorn` | `alembic.ini` and `migrations/env.py` do not exist until P1.1. P1.1 must add the `alembic upgrade head &&` step to the compose `command` |
 | 2026-09-29 | P0.5 | `build_schema` migrates with Alembic only if `alembic.ini` exists; until P1.1 the test schema is empty | The migrations do not exist yet. Verified once with a throwaway migration. P1.1's `migrations/env.py` must use `config.attributes["connection"]` when present, so the harness migrates the test database and not `DATABASE_URL` |
+| 2026-09-29 | P1.1 | Handlers take `db: DbSession` (an alias for `Depends(get_db, scope="function")`), not `Depends(get_db)` | The default scope runs the commit *after* the response is sent, so a failed commit would leave the client with a success response. Proven by `test_failed_commit_is_an_error_not_a_success_response`. Tests still override `get_db` |
