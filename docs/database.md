@@ -192,6 +192,15 @@ day off; both set means custom hours replacing the weekly rules for that date.
 and `end_time <= start_time`. `uq_availability_exceptions_provider_date` allows
 one override per provider per date.
 
+**Semantics.** For a date with an exception, the weekly rules are ignored
+entirely (never merged): a day-off row closes the provider, a custom-hours row is
+that date's only window. Exceptions live at most as far back as their date;
+"past" is judged against *today in the business timezone*, so the API refuses to
+create or edit a row once its local date has ended, but rows are kept for the
+admin's history until deleted. The API also pre-checks the unique constraint for a
+friendly `409` and maps the constraint's violation to the same error as the
+backstop. Existing bookings are never modified by an exception.
+
 ### `bookings`
 One appointment. `customer_id`, `provider_id` and `service_id` are
 `ON DELETE RESTRICT` foreign keys, so nothing a booking refers to can be

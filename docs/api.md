@@ -182,7 +182,7 @@ curl 'localhost:8000/api/v1/providers?service_id=1'
 ## Availability rules
 _P4.2._ The weekly hours each provider works, as **local wall-clock times in the
 business timezone** (`GET /settings`). `weekday` is 0 = Monday … 6 = Sunday.
-Exceptions (days off, custom hours) and conflict reporting arrive in P4.3–P4.4.
+Days off and custom hours are exceptions (below); conflict reporting arrives in P4.4.
 
 | Endpoint | Who | Success | Notes |
 |---|---|---|---|
@@ -203,6 +203,32 @@ curl -X POST localhost:8000/api/v1/providers/1/availability/rules \
   -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
   -d '{"weekday": 0, "start_time": "09:00", "end_time": "13:00"}'
 curl localhost:8000/api/v1/providers/1/availability/rules
+```
+
+### Exceptions: days off and custom hours
+_P4.3._ An exception for a date **replaces** that date's weekly rules
+completely: with no times the provider is closed, with both times they work
+only that window (the weekly rules for the date are ignored, not merged).
+
+| Endpoint | Who | Success | Notes |
+|---|---|---|---|
+| `GET /providers/{id}/availability/exceptions` | admin | 200 list | Earliest date first, past dates included. Admin-only: a `reason` such as "sick leave" is not for customers, who only see the resulting slots. |
+| `POST /providers/{id}/availability/exceptions` | admin | 201 exception | Day off: `{"date": "2026-10-12", "reason": "Public holiday"}`. Custom hours: add `start_time` and `end_time`. |
+| `PATCH /providers/{id}/availability/exceptions/{exception_id}` | admin | 200 exception | Partial, validated as a whole. Here `null` means something: `{"start_time": null, "end_time": null}` turns the date into a day off; `reason: null` clears it. `date` cannot be null. |
+| `DELETE /providers/{id}/availability/exceptions/{exception_id}` | admin | 204 | The weekly rules apply to that date again. Allowed for past dates too. |
+
+Rules: one exception per provider per date (`409 AVAILABILITY_EXCEPTION_EXISTS`);
+the date must be **today or later in the business timezone** (`422 DATE_IN_PAST`,
+with `details.today`), so an exception cannot be created or edited once its date
+has ended on the business's wall clock. Custom hours follow the same grid and
+range rules as weekly rules. `is_day_off` in the response is `true` when both
+times are `null`. An exception on a date that already has bookings is allowed and
+**never touches those bookings**; P4.4 lists the ones that no longer fit.
+
+```bash
+curl -X POST localhost:8000/api/v1/providers/1/availability/exceptions \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"date": "2026-10-13", "start_time": "12:00", "end_time": "16:00"}'
 ```
 
 ## Walkthrough: book an appointment with curl
@@ -245,7 +271,9 @@ _One row per code, added by the task that introduces it._
 | `DURATION_NOT_ALIGNED` | 422 | A service's duration is not a multiple of the slot granularity; `details` has both numbers |
 | `UNKNOWN_SERVICE` | 422 | Setting a provider's services: an id is not an existing, active service; `details.service_ids` lists them |
 | `MISALIGNED_TIME` | 422 | Availability: a start or end time is not a multiple of the slot granularity; `details` has `field` and `slot_granularity_minutes` |
-| `INVALID_TIME_RANGE` | 422 | Availability: an edit leaves `end_time` at or before `start_time` |
+| `INVALID_TIME_RANGE` | 422 | Availability: an edit leaves `end_time` at or before `start_time`, or an exception with only one of its two times |
+| `DATE_IN_PAST` | 422 | Availability exception: the date is before today in the business timezone; `details.today` |
+| `AVAILABILITY_EXCEPTION_EXISTS` | 409 | Availability exception: the provider already has one for that date; `details.exception_id` |
 | `AVAILABILITY_OVERLAP` | 409 | Availability: the window overlaps another rule of the provider on that weekday; `details.conflicting_rule` |
 | `FORBIDDEN` | 403 | Logged in, but the endpoint needs the admin role (or a generic framework 403) |
 | `NOT_FOUND` | 404 | No such route (or, for our own endpoints, no such resource) |

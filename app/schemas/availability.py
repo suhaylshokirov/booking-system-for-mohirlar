@@ -4,9 +4,10 @@ Whether a time fits the slot grid and whether a rule overlaps another are
 business rules and live in `services/availability.py`.
 """
 
+from datetime import date as Date
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.schemas.types import LocalTime
 
@@ -64,3 +65,87 @@ class RuleResponse(BaseModel):
         from_attributes=True,
         json_schema_extra={"examples": [{"id": 1, "provider_id": 1, **_EXAMPLE}]},
     )
+
+
+_EXCEPTION_DAY_OFF = {"date": "2026-10-12", "reason": "Public holiday"}
+_EXCEPTION_HOURS = {"date": "2026-10-13", "start_time": "12:00", "end_time": "16:00"}
+
+
+def _blank_to_none(value: str | None) -> str | None:
+    return value.strip() or None if value is not None else None
+
+
+class ExceptionCreate(BaseModel):
+    """One date that replaces the provider's weekly rules.
+
+    No times means a day off; both times mean "open only in this window".
+    """
+
+    date: Date = Field(description="Local date in the business timezone; today or later.")
+    start_time: LocalTime | None = Field(default=None, description="Omit both times for a day off.")
+    end_time: LocalTime | None = None
+    reason: str | None = Field(default=None, max_length=200)
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [_EXCEPTION_DAY_OFF, _EXCEPTION_HOURS]}
+    )
+
+    _blank_reason = field_validator("reason")(_blank_to_none)
+
+    @model_validator(mode="after")
+    def _day_off_or_a_window(self) -> "ExceptionCreate":
+        if (self.start_time is None) != (self.end_time is None):
+            raise ValueError("send both start_time and end_time, or neither for a day off")
+        if self.start_time is not None and self.end_time <= self.start_time:
+            raise ValueError("end_time must be later than start_time")
+        return self
+
+
+class ExceptionUpdate(BaseModel):
+    """A partial update: send only the fields to change.
+
+    Unlike everywhere else, `null` is meaningful here: `{"start_time": null,
+    "end_time": null}` turns the date into a day off, and `reason: null` clears
+    the reason. `date` cannot be null. The result is checked as a whole.
+    """
+
+    date: Date | None = None
+    start_time: LocalTime | None = None
+    end_time: LocalTime | None = None
+    reason: str | None = Field(default=None, max_length=200)
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"start_time": None, "end_time": None}]}
+    )
+
+    _blank_reason = field_validator("reason")(_blank_to_none)
+
+    @model_validator(mode="after")
+    def _only_real_values(self) -> "ExceptionUpdate":
+        if not self.model_fields_set:
+            raise ValueError("send at least one field to change")
+        if "date" in self.model_fields_set and self.date is None:
+            raise ValueError("date cannot be null; omit it to leave it unchanged")
+        return self
+
+    def changes(self) -> dict[str, Any]:
+        return self.model_dump(exclude_unset=True)
+
+
+class ExceptionResponse(BaseModel):
+    id: int
+    provider_id: int
+    date: Date
+    start_time: LocalTime | None
+    end_time: LocalTime | None
+    reason: str | None
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={"examples": [{"id": 1, "provider_id": 1, **_EXCEPTION_DAY_OFF}]},
+    )
+
+    @computed_field(description="True when the provider does not work at all that date.")
+    @property
+    def is_day_off(self) -> bool:
+        return self.start_time is None

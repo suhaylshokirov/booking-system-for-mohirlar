@@ -1,10 +1,20 @@
 """/providers/{id}/availability: the weekly hours each provider works."""
 
-from fastapi import APIRouter, Response, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Response, status
 
 from app.api.deps import AdminUser, OptionalUser, is_admin
+from app.core.clock import Clock, get_clock
 from app.core.db import DbSession
-from app.schemas.availability import RuleCreate, RuleResponse, RuleUpdate
+from app.schemas.availability import (
+    ExceptionCreate,
+    ExceptionResponse,
+    ExceptionUpdate,
+    RuleCreate,
+    RuleResponse,
+    RuleUpdate,
+)
 from app.schemas.errors import ErrorResponse
 from app.services import availability
 
@@ -81,4 +91,85 @@ def delete_rule(provider_id: int, rule_id: int, db: DbSession, admin: AdminUser)
     """Existing bookings are never removed; the admin sees which ones no longer fit
     once P4.4 lands."""
     availability.delete_rule(db, provider_id, rule_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+_EXCEPTION_ERRORS = {
+    409: {
+        "model": ErrorResponse,
+        "description": "`AVAILABILITY_EXCEPTION_EXISTS`: the provider already has an exception "
+        "for that date.",
+    },
+    422: {
+        "model": ErrorResponse,
+        "description": "`VALIDATION_ERROR`; `DATE_IN_PAST`: before today in the business "
+        "timezone; `INVALID_TIME_RANGE`; `MISALIGNED_TIME`.",
+    },
+}
+
+
+@router.get(
+    "/exceptions",
+    response_model=list[ExceptionResponse],
+    summary="A provider's days off and custom-hours dates (admin)",
+    responses={**_ADMIN_ERRORS, **_NOT_FOUND},
+)
+def list_exceptions(provider_id: int, db: DbSession, admin: AdminUser) -> list[ExceptionResponse]:
+    """Earliest date first, past dates included. Admin-only because a reason
+    ("sick leave") is not for customers; they only see the resulting slots."""
+    rows = availability.list_exceptions(db, provider_id)
+    return [ExceptionResponse.model_validate(row) for row in rows]
+
+
+@router.post(
+    "/exceptions",
+    response_model=ExceptionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Close a date or give it custom hours (admin)",
+    responses={**_ADMIN_ERRORS, **_NOT_FOUND, **_EXCEPTION_ERRORS},
+)
+def create_exception(
+    provider_id: int,
+    body: ExceptionCreate,
+    db: DbSession,
+    admin: AdminUser,
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> ExceptionResponse:
+    """The exception **replaces** the weekly rules for that date. Send no times for a
+    day off, or both times for one custom window. Bookings already made for the
+    date are not touched."""
+    row = availability.create_exception(db, provider_id, body.model_dump(), clock)
+    return ExceptionResponse.model_validate(row)
+
+
+@router.patch(
+    "/exceptions/{exception_id}",
+    response_model=ExceptionResponse,
+    summary="Change an exception (admin)",
+    responses={**_ADMIN_ERRORS, **_NOT_FOUND, **_EXCEPTION_ERRORS},
+)
+def update_exception(
+    provider_id: int,
+    exception_id: int,
+    body: ExceptionUpdate,
+    db: DbSession,
+    admin: AdminUser,
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> ExceptionResponse:
+    """`null` times make it a day off. An exception in the past cannot be edited."""
+    row = availability.update_exception(db, provider_id, exception_id, body.changes(), clock)
+    return ExceptionResponse.model_validate(row)
+
+
+@router.delete(
+    "/exceptions/{exception_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove an exception (admin)",
+    responses={**_ADMIN_ERRORS, **_NOT_FOUND},
+)
+def delete_exception(
+    provider_id: int, exception_id: int, db: DbSession, admin: AdminUser
+) -> Response:
+    """The weekly rules apply to that date again."""
+    availability.delete_exception(db, provider_id, exception_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

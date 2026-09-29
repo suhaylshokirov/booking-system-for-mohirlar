@@ -334,7 +334,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: overlapping rules; misaligned times.
 
 ### P4.3 — Availability exceptions (days off / custom hours)
-- [ ] Status
+- [x] Status
 - Goal: holidays and one-off schedule changes.
 - Requirement(s) served: **Set availability**
 - Acceptance criteria: admin CRUD under `/providers/{id}/availability/exceptions`; an exception for a date **replaces** that date's weekly rules — either closed (no times) or one custom window. One per (provider, date) → 409 on duplicate. Past dates rejected.
