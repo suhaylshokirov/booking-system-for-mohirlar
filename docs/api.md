@@ -179,6 +179,32 @@ curl -X PUT localhost:8000/api/v1/providers/1/services -H "Authorization: Bearer
 curl 'localhost:8000/api/v1/providers?service_id=1'
 ```
 
+## Availability rules
+_P4.2._ The weekly hours each provider works, as **local wall-clock times in the
+business timezone** (`GET /settings`). `weekday` is 0 = Monday … 6 = Sunday.
+Exceptions (days off, custom hours) and conflict reporting arrive in P4.3–P4.4.
+
+| Endpoint | Who | Success | Notes |
+|---|---|---|---|
+| `GET /providers/{id}/availability/rules` | public | 200 list | Monday first, earliest window first. An inactive provider is `404` for everyone but admins. |
+| `POST /providers/{id}/availability/rules` | admin | 201 rule | Body `{"weekday": 0, "start_time": "09:00", "end_time": "18:00"}`. |
+| `PATCH /providers/{id}/availability/rules/{rule_id}` | admin | 200 rule | Partial; the result is validated as a whole. A rule id that belongs to another provider is `404`. |
+| `DELETE /providers/{id}/availability/rules/{rule_id}` | admin | 204 | A hard delete (nothing references a rule). Bookings are never touched. |
+
+Rules: `start_time`/`end_time` are whole minutes with no offset, `end_time` is
+later than `start_time` (a window cannot cross midnight, and `24:00` does not
+exist, so the latest closing time on the grid is `23:45` at 15 minutes), and both
+are multiples of `slot_granularity_minutes` since midnight. Windows on the same
+weekday must not overlap; **touching windows are fine** (12:00 ends, 12:00
+starts), so a lunch break is two rules.
+
+```bash
+curl -X POST localhost:8000/api/v1/providers/1/availability/rules \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"weekday": 0, "start_time": "09:00", "end_time": "13:00"}'
+curl localhost:8000/api/v1/providers/1/availability/rules
+```
+
 ## Walkthrough: book an appointment with curl
 _Built up in P5.3, P6.3, P7.3; verified end to end in P10.4._
 
@@ -218,6 +244,9 @@ _One row per code, added by the task that introduces it._
 | `GRANULARITY_CONFLICT` | 409 | Settings: an active service's duration is not a multiple of the new slot granularity; `details.services` lists them |
 | `DURATION_NOT_ALIGNED` | 422 | A service's duration is not a multiple of the slot granularity; `details` has both numbers |
 | `UNKNOWN_SERVICE` | 422 | Setting a provider's services: an id is not an existing, active service; `details.service_ids` lists them |
+| `MISALIGNED_TIME` | 422 | Availability: a start or end time is not a multiple of the slot granularity; `details` has `field` and `slot_granularity_minutes` |
+| `INVALID_TIME_RANGE` | 422 | Availability: an edit leaves `end_time` at or before `start_time` |
+| `AVAILABILITY_OVERLAP` | 409 | Availability: the window overlaps another rule of the provider on that weekday; `details.conflicting_rule` |
 | `FORBIDDEN` | 403 | Logged in, but the endpoint needs the admin role (or a generic framework 403) |
 | `NOT_FOUND` | 404 | No such route (or, for our own endpoints, no such resource) |
 | `METHOD_NOT_ALLOWED` | 405 | Route exists but not for this HTTP method; `Allow` header lists the valid ones |

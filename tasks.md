@@ -325,7 +325,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: DST gap/overlap; date boundary; naive datetimes.
 
 ### P4.2 — Weekly availability rules
-- [ ] Status
+- [x] Status
 - Goal: the admin sets each provider's working hours.
 - Requirement(s) served: **Set availability**
 - Acceptance criteria: admin `GET/POST /providers/{id}/availability/rules`, `PATCH/DELETE /…/rules/{rule_id}`; also public `GET` of a provider's rules. Validation: weekday 0–6 (Mon=0), times aligned to granularity, `end > start`; overlap with an existing rule → 409 `AVAILABILITY_OVERLAP` (service pre-check + DB exclusion as backstop).

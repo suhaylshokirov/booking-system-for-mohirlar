@@ -179,7 +179,11 @@ and `ck_availability_rules_end_after_start` requires `end_time > start_time`, so
 a window cannot cross midnight. Overlapping windows for the same provider and
 weekday are rejected by the exclusion constraint `no_availability_rule_overlap`
 (migration `0001`, over a `tsrange` of the two times); adjacent windows
-(09:00–13:00 and 13:00–18:00) are allowed.
+(09:00–13:00 and 13:00–18:00) are allowed. The API (`services/availability.py`)
+checks overlap first for a friendly `409 AVAILABILITY_OVERLAP`, locks the
+provider row so concurrent writers queue, and maps a `23P01` from this
+constraint to the same error. Whole-minute times on the slot grid are enforced
+by the service, not the database, because the grid is a setting.
 
 ### `availability_exceptions`
 A one-off override for one `date`: both `start_time` and `end_time` NULL means a
