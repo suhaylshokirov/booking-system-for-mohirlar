@@ -45,7 +45,7 @@ _P7.1._ Mermaid state diagram and transition rules.
 
 ## Authentication
 _P2.1–P2.5._ JWT in an HttpOnly cookie for the browser, Bearer for API
-clients, CSRF double-submit for cookie requests, login rate limiting.
+clients, CSRF double-submit for cookie requests (ADR 0005), login rate limiting.
 
 **Primitives (`app/core/security.py`, P2.1).**
 
@@ -64,6 +64,12 @@ clients, CSRF double-submit for cookie requests, login rate limiting.
   against it by us rather than by PyJWT, which would use the real time. A token
   is valid while `now < exp`. There is no leeway and no check that `iat` is not
   in the future, since one process issues and verifies every token.
+
+**Cookies and CSRF (`app/api/cookies.py`, `app/api/csrf.py`, P2.4).** Login sets
+`access_token` (HttpOnly) and `csrf_token` (readable). `csrf_protect` runs on
+every request app-wide: unsafe methods authenticated by the cookie, without a
+Bearer header, must echo the CSRF cookie in `X-CSRF-Token` or a form field, else
+403 `CSRF_FAILED`. Reasoning and trade-offs are in ADR 0005.
 
 ## Why the web UI and the API share services
 _P8.1._

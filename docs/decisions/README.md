@@ -9,7 +9,7 @@ Short records of the decisions that shape this project. Format for each:
 | 0002 | Slots are computed on the fly, not stored | planned (P5.1) |
 | [0003](0003-sync-sqlalchemy.md) | Sync SQLAlchemy 2.0 instead of async | accepted (P1.1) |
 | 0004 | Server-rendered UI (Jinja2) with vanilla JS | planned (P8.1) |
-| 0005 | JWT in an HttpOnly cookie + Bearer, with CSRF double-submit | planned (P2.4) |
+| [0005](0005-jwt-cookie-bearer-csrf.md) | JWT in an HttpOnly cookie + Bearer, with CSRF double-submit | accepted (P2.4) |
 | [0006](0006-half-open-ranges-and-utc.md) | Half-open ranges and UTC storage | accepted (P1.4) |
 | [0007](0007-booking-snapshots.md) | Price and duration snapshots on bookings | accepted (P1.3) |
 | 0008 | Guarded (optimistic) status updates instead of row locks | planned (P7.2) |

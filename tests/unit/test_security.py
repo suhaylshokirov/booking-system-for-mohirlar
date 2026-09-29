@@ -1,4 +1,4 @@
-"""Password verification and JWT access tokens (P2.1)."""
+"""Password verification, JWT access tokens (P2.1) and CSRF tokens (P2.4)."""
 
 import base64
 import json
@@ -11,7 +11,9 @@ from app.core.config import get_settings
 from app.core.security import (
     InvalidTokenError,
     create_access_token,
+    csrf_tokens_match,
     decode_access_token,
+    generate_csrf_token,
     hash_password,
     verify_password,
 )
@@ -129,3 +131,32 @@ def test_signed_token_with_a_non_numeric_subject_is_rejected():
 def test_malformed_token_is_rejected(garbage):
     with pytest.raises(InvalidTokenError):
         decode_access_token(garbage, NOW)
+
+
+# --- CSRF tokens -----------------------------------------------------------
+
+
+def test_csrf_tokens_are_random_and_long_enough():
+    first, second = generate_csrf_token(), generate_csrf_token()
+    assert first != second
+    assert len(first) >= 32
+
+
+def test_matching_csrf_tokens_match():
+    token = generate_csrf_token()
+    assert csrf_tokens_match(token, token) is True
+
+
+def test_different_csrf_tokens_do_not_match():
+    assert csrf_tokens_match("abc", "abd") is False
+    assert csrf_tokens_match("abc", "abcd") is False
+
+
+@pytest.mark.parametrize("cookie,submitted", [(None, None), ("", ""), (None, ""), ("abc", None)])
+def test_missing_or_empty_csrf_tokens_never_match(cookie, submitted):
+    """Two empty values are equal, but 'no cookie and no header' must not pass."""
+    assert csrf_tokens_match(cookie, submitted) is False
+
+
+def test_non_ascii_csrf_token_is_a_mismatch_not_a_crash():
+    assert csrf_tokens_match("abc", "abç") is False

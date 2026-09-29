@@ -9,8 +9,8 @@ Two ways to prove who you are; both carry the same signed token.
 
 - **Bearer** (curl, scripts, Swagger): send `Authorization: Bearer <token>`.
 - **Cookie** (the browser): login also sets an HttpOnly, `SameSite=Lax`
-  `access_token` cookie (`Secure` in production). _Cookie requests will need a
-  CSRF token on unsafe methods: added in P2.4._
+  `access_token` cookie (`Secure` in production), plus a readable `csrf_token`
+  cookie. See CSRF below.
 
 If both are sent the Bearer header wins, and a bad Bearer token is an error, it
 is not quietly replaced by the cookie. Tokens last `JWT_EXPIRE_MINUTES`
@@ -33,6 +33,27 @@ curl localhost:8000/api/v1/auth/me -H "Authorization: Bearer $TOKEN"
 In Swagger (`/docs`): call `POST /auth/login`, copy `access_token`, press
 **Authorize** and paste it.
 
+**CSRF (cookie requests only).** A browser attaches cookies to requests that
+other websites trigger, so any `POST`, `PUT`, `PATCH` or `DELETE` that is
+authenticated **by the cookie** must also send the value of the `csrf_token`
+cookie back, in an `X-CSRF-Token` header (or a `csrf_token` form field for plain
+HTML forms). Otherwise: `403 CSRF_FAILED`.
+
+- `GET`/`HEAD`/`OPTIONS` never need it.
+- **Bearer requests never need it** (curl, scripts, Swagger's Authorize).
+- Anonymous requests (registering or logging in with curl, no cookies) never
+  need it.
+- Login issues a new `csrf_token`; logout clears both cookies.
+- Swagger gotcha: after logging in *inside* Swagger the browser holds the
+  cookies, so POSTs from the page fail with `CSRF_FAILED` unless you press
+  **Authorize** and paste the token, which makes them Bearer requests.
+
+```js
+// browser JavaScript
+const csrf = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/)?.[1];
+fetch("/api/v1/auth/logout", { method: "POST", headers: { "X-CSRF-Token": csrf } });
+```
+
 **Who may call what.** Every endpoint is one of three kinds, and the status
 codes are consistent:
 
@@ -52,7 +73,7 @@ someone applies to their existing token immediately.
 |---|---|---|
 | `POST /auth/register` | 201 user | Email is trimmed and lower-cased; password 8–128 characters; full name 1–100. `409 EMAIL_TAKEN` if the email exists in any letter case. |
 | `POST /auth/login` | 200 `{access_token, token_type}` + cookie | Unknown email and wrong password give the same `401 INVALID_CREDENTIALS`. |
-| `POST /auth/logout` | 204 | Clears the cookie. Tokens are stateless, so a Bearer token you copied stays valid until it expires. |
+| `POST /auth/logout` | 204 | Clears both cookies (needs the CSRF header if sent by cookie). Tokens are stateless, so a Bearer token you copied stays valid until it expires. |
 | `GET /auth/me` | 200 user | `401` without valid credentials. |
 
 Email addresses are checked with a simple `name@domain.tld` pattern, not a full
@@ -90,6 +111,7 @@ _One row per code, added by the task that introduces it._
 | `INVALID_CREDENTIALS` | 401 | Login: unknown email or wrong password (deliberately indistinguishable) |
 | `INVALID_TOKEN` | 401 | Token is malformed, tampered with, wrongly signed, or names a user that no longer exists |
 | `TOKEN_EXPIRED` | 401 | Token is past its expiry; log in again |
+| `CSRF_FAILED` | 403 | Cookie-authenticated unsafe request without a matching `X-CSRF-Token` header / `csrf_token` field (Bearer requests are exempt) |
 | `ACCOUNT_INACTIVE` | 401 | The account was deactivated (at login only once the password was right; on any request with a token) |
 | `EMAIL_TAKEN` | 409 | Registration: that email already has an account |
 | `FORBIDDEN` | 403 | Logged in, but the endpoint needs the admin role (or a generic framework 403) |

@@ -1,7 +1,8 @@
 """App factory: builds the FastAPI app, registers routers and error handlers."""
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
+from app.api.csrf import csrf_protect
 from app.api.v1 import auth, health
 from app.core.errors import register_error_handlers
 
@@ -23,7 +24,14 @@ TAGS = [
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Navbat", description=DESCRIPTION, version="0.1.0", openapi_tags=TAGS)
+    # csrf_protect is app-wide so that no endpoint can forget it (see app/api/csrf.py).
+    app = FastAPI(
+        title="Navbat",
+        description=DESCRIPTION,
+        version="0.1.0",
+        openapi_tags=TAGS,
+        dependencies=[Depends(csrf_protect)],
+    )
     register_error_handlers(app)
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(health.router, prefix=API_PREFIX)

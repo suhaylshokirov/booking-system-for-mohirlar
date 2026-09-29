@@ -245,7 +245,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: deactivated user with a valid token.
 
 ### P2.4 — CSRF protection for cookie-authenticated requests
-- [ ] Status
+- [x] Status
 - Goal: cookie auth can't be abused cross-site.
 - Requirement(s) served: Authentication (security)
 - Acceptance criteria: double-submit cookie — login sets a non-HttpOnly `csrf_token` cookie; unsafe methods (POST/PUT/PATCH/DELETE) **authenticated by cookie** must send a matching `X-CSRF-Token` header or `csrf_token` form field (constant-time compare) else 403 `CSRF_FAILED`; Bearer-authenticated requests are exempt (not sent automatically by browsers). Login/register forms get a pre-session CSRF cookie too.
@@ -730,3 +730,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-09-29 | P1.6 | `app/core/security.py` (only `hash_password`) and `app/core/timezones.py` (only `local_to_utc`, `utc_to_local`) are created in P1.6 instead of P2.1 / P4.1; `SEED_DEMO_DATA` setting added | The seed must hash the admin and demo passwords and turn local booking times into UTC, and CLAUDE.md rules 1 and 4 keep each of those in exactly one module, so the seed cannot do it inline. P2.1 and P4.1 extend the same files (verification, JWT; windows, day bounds, DST policy) rather than replace them |
 | 2026-09-29 | P2.2 | `get_current_user` (Bearer wins, else cookie, user reloaded, `ACCOUNT_INACTIVE`) is built in P2.2 in `app/api/deps.py`, not P2.3 | `GET /auth/me` and its "401 without auth" test need a real current-user dependency, and a throwaway version would be rewritten in P2.3. P2.3 still owns `get_optional_user`, `require_admin` and their tests |
 | 2026-09-29 | P2.2 | Email shape is checked with a regex, not pydantic `EmailStr` | `EmailStr` needs the `email-validator` package, and CLAUDE.md §7 requires the owner's approval for a dependency outside §3. Can be swapped in later without changing the API |
+| 2026-09-29 | P2.4 | The pre-session CSRF cookie for login/register forms is delivered as tested building blocks (`ensure_csrf_cookie`, always-on `require_csrf`), not wired into HTML forms | The forms do not exist until P8.2, which must call them (its tests already include "CSRF missing → 403"). Until then only the JSON API exists, where anonymous calls have no cookie to abuse |

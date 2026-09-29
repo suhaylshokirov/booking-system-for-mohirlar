@@ -4,9 +4,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 
-from app.api.deps import ACCESS_COOKIE, CurrentUser
+from app.api.cookies import clear_login_cookies, set_access_cookie, set_csrf_cookie
+from app.api.deps import CurrentUser
 from app.core.clock import Clock, get_clock
-from app.core.config import get_settings
 from app.core.db import DbSession
 from app.core.security import create_access_token
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
@@ -14,16 +14,6 @@ from app.schemas.errors import ErrorResponse
 from app.services import auth as auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _cookie_settings() -> dict:
-    """Attributes for the login cookie. Logout must repeat them to clear it."""
-    return {
-        "httponly": True,  # page scripts cannot read the token
-        "samesite": "lax",  # not sent on cross-site POSTs
-        "secure": get_settings().app_env == "production",  # https only in production
-        "path": "/",
-    }
 
 
 @router.post(
@@ -69,16 +59,14 @@ def login(
     db: DbSession,
     clock: Annotated[Clock, Depends(get_clock)],
 ) -> TokenResponse:
-    """Sets an HttpOnly cookie for browsers and also returns the token for
-    `Authorization: Bearer` use (curl, Swagger's Authorize button)."""
+    """Sets an HttpOnly login cookie and a readable `csrf_token` cookie for
+    browsers, and also returns the token for `Authorization: Bearer` use (curl,
+    Swagger's Authorize button)."""
     user = auth_service.authenticate(db, email=body.email, password=body.password)
     token = create_access_token(user.id, clock.now())
-    response.set_cookie(
-        ACCESS_COOKIE,
-        token,
-        max_age=get_settings().jwt_expire_minutes * 60,
-        **_cookie_settings(),
-    )
+    set_access_cookie(response, token)
+    # A new CSRF token per login, so one issued before login cannot outlive it.
+    set_csrf_cookie(response)
     return TokenResponse(access_token=token)
 
 
@@ -86,11 +74,20 @@ def login(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Log out",
+    responses={
+        403: {
+            "model": ErrorResponse,
+            "description": "`CSRF_FAILED`, cookie request without the token.",
+        }
+    },
 )
 def logout(response: Response) -> None:
-    """Clears the login cookie. Tokens are stateless, so a copied Bearer token
-    stays valid until it expires; logging out ends the browser session."""
-    response.delete_cookie(ACCESS_COOKIE, **_cookie_settings())
+    """Clears the login and CSRF cookies. Tokens are stateless, so a copied Bearer
+    token stays valid until it expires; logging out ends the browser session.
+
+    When called with the cookie, it needs the CSRF header like any other POST.
+    """
+    clear_login_cookies(response)
 
 
 @router.get(

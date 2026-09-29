@@ -136,9 +136,11 @@ def test_login_sets_an_httponly_lax_cookie_that_opens_me(client):
 def test_login_cookie_is_secure_in_production(client, monkeypatch):
     _register(client)
     production = Settings(app_env="production", jwt_secret="x" * 40)
-    monkeypatch.setattr("app.api.v1.auth.get_settings", lambda: production)
+    monkeypatch.setattr("app.api.cookies.get_settings", lambda: production)
 
-    assert "secure" in _login(client).headers["set-cookie"].lower()
+    set_cookies = _login(client).headers.get_list("set-cookie")
+    assert len(set_cookies) == 2  # the login cookie and the CSRF cookie
+    assert all("secure" in cookie.lower() for cookie in set_cookies)
 
 
 def test_login_ignores_email_case_and_padding(client):
@@ -192,13 +194,14 @@ def test_logout_clears_the_cookie(client):
     _login(client)
     assert client.get(ME).status_code == 200
 
-    response = client.post(LOGOUT)
+    response = client.post(LOGOUT, headers={"X-CSRF-Token": client.cookies["csrf_token"]})
 
     assert response.status_code == 204
-    assert 'access_token=""' in response.headers["set-cookie"] or (
-        "access_token=;" in response.headers["set-cookie"]
-    )
+    cleared = " ".join(response.headers.get_list("set-cookie"))
+    assert "access_token=" in cleared and "csrf_token=" in cleared
+    assert "Max-Age=0" in cleared
     assert client.get(ME).status_code == 401
+    assert "csrf_token" not in client.cookies
 
 
 def test_logout_works_when_not_logged_in(client):

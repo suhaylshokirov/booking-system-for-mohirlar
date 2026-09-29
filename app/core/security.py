@@ -1,4 +1,4 @@
-"""Password hashing and access tokens.
+"""Password hashing, access tokens and CSRF tokens.
 
 Passwords are hashed with Argon2 through pwdlib; the plain password is never
 stored or logged.
@@ -18,6 +18,8 @@ is expired, has a bad signature, uses another algorithm (including `alg=none`),
 is missing a required claim, or is not a JWT at all.
 """
 
+import hmac
+import secrets
 from datetime import datetime, timedelta
 
 import jwt
@@ -96,3 +98,21 @@ def decode_access_token(token: str, now: datetime) -> int:
     if expires_at <= now:
         raise InvalidTokenError("TOKEN_EXPIRED", "The token has expired. Please log in again.")
     return user_id
+
+
+def generate_csrf_token() -> str:
+    """A fresh unguessable value for the double-submit CSRF cookie."""
+    return secrets.token_urlsafe(32)
+
+
+def csrf_tokens_match(cookie_token: str | None, submitted_token: str | None) -> bool:
+    """True if both tokens exist, are non-empty, and are equal.
+
+    Compared in constant time, so response timing cannot be used to guess the
+    token one character at a time. An empty or missing value never matches,
+    otherwise "no cookie" and "no header" would count as equal.
+    """
+    if not cookie_token or not submitted_token:
+        return False
+    # Bytes, because compare_digest raises on a str containing non-ASCII.
+    return hmac.compare_digest(cookie_token.encode(), submitted_token.encode())
