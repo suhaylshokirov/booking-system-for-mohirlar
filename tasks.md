@@ -86,7 +86,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: —
 
 ### P0.2 — Python project and tooling
-- [ ] Status
+- [x] Status
 - Goal: an installable project with pinned dependencies and one lint/format config.
 - Requirement(s) served: Backend API (foundation)
 - Acceptance criteria: `pyproject.toml` with pinned runtime deps (fastapi, uvicorn[standard], pydantic, pydantic-settings, sqlalchemy, psycopg[binary], alembic, jinja2, python-multipart, pwdlib[argon2], pyjwt) and a `dev` extra (pytest, httpx, ruff); ruff config (line length, rule set incl. `I`, `B`, `UP`); `pip install -e ".[dev]"` works on Python 3.12; `ruff check .` passes.

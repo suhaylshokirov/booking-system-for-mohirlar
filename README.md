@@ -55,8 +55,17 @@ _Completed in P0.4._
 
 ## Local development
 
-_Completed in P0.2 / P0.5: virtualenv setup, running tests, environment
-variables table._
+Requires Python 3.12.
+
+```bash
+python3.12 -m venv .venv && . .venv/bin/activate
+pip install -e ".[dev]"      # pinned runtime deps + pytest, httpx, ruff
+ruff check . && ruff format --check .
+pytest
+```
+
+_Running tests against Postgres and the environment variables table are added
+in P0.5._
 
 ## Architecture in brief
 

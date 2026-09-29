@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "navbat"
+version = "0.1.0"
+description = "Navbat: appointment booking system for a small service business (barbershop demo)."
+readme = "README.md"
+requires-python = ">=3.12"
+# Runtime dependencies are pinned exactly so every machine, CI run and Docker
+# build resolves the same versions. Adding one needs a reason in the commit body.
+dependencies = [
+    "fastapi==0.141.1",
+    "uvicorn[standard]==0.54.0",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.15.0",
+    # Kept on the 2.0 series: the typed Mapped[] style this project is written in.
+    "sqlalchemy==2.0.54",
+    "psycopg[binary]==3.3.6",
+    "alembic==1.20.0",
+    "jinja2==3.1.6",
+    # Needed by FastAPI to parse HTML form posts (the no-JavaScript UI).
+    "python-multipart==0.0.32",
+    "pwdlib[argon2]==0.3.1",
+    "pyjwt==2.15.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    # Required by FastAPI's TestClient.
+    "httpx==0.28.1",
+    "ruff==0.16.9",
+]
+
+[tool.setuptools.packages.find]
+# The repo root also holds migrations/, tests/ and docs/; only these two are
+# importable code.
+include = ["app*", "scripts*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F: pycodestyle + pyflakes basics · I: import order · B: likely bugs · UP: modern syntax
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "scripts", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
