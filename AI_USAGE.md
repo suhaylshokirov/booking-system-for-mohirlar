@@ -1,7 +1,7 @@
 # How AI was used
 
-This project was built with an AI coding agent (Claude Code, model Claude Opus
-5.5) as a pair programmer. This file is a running log, one entry per phase,
+This project was built with an AI coding agent (Claude Code, using the models
+Claude Opus 5.5 and Claude Sonnet 5.5) as a pair programmer. This file is a running log, one entry per phase,
 written as the work happened. Each entry records:
 
 - **Asked** — what I asked the AI to do
