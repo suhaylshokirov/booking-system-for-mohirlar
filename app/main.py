@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from app.api.v1 import health
+from app.api.v1 import auth, health
 from app.core.errors import register_error_handlers
 
 API_PREFIX = "/api/v1"
@@ -16,12 +16,16 @@ Every error, without exception, has the shape
 `{"error": {"code", "message", "details"}}`.
 """
 
-TAGS = [{"name": "health", "description": "Liveness and database connectivity."}]
+TAGS = [
+    {"name": "auth", "description": "Register, log in and out, and who am I."},
+    {"name": "health", "description": "Liveness and database connectivity."},
+]
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Navbat", description=DESCRIPTION, version="0.1.0", openapi_tags=TAGS)
     register_error_handlers(app)
+    app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(health.router, prefix=API_PREFIX)
     return app
 
