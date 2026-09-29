@@ -99,6 +99,31 @@ Email addresses are checked with a simple `name@domain.tld` pattern, not a full
 RFC validator (that would need an extra dependency); an address that passes but
 does not exist is caught the only way it can be: it never receives mail.
 
+## Business settings
+The business's timezone, currency and booking rules live in one row.
+
+| Endpoint | Who | Success | Notes |
+|---|---|---|---|
+| `GET /settings` | public | 200 settings | `name`, `timezone`, `currency`, `slot_granularity_minutes`, `min_lead_time_minutes`, `max_booking_horizon_days`, `cancellation_cutoff_hours`, `updated_at`. Clients need these to show dates and slots, and none is secret. A database that was migrated but never seeded gets the default row on first read. |
+| `PATCH /settings` | admin | 200 settings | Partial: send only the fields to change; an empty body or a `null` is `422 VALIDATION_ERROR`. |
+
+Limits on `PATCH`: `timezone` must be an IANA name (`422 INVALID_TIMEZONE`);
+`slot_granularity_minutes` one of 5, 10, 15, 20, 30, 60; `min_lead_time_minutes`
+0–10080; `max_booking_horizon_days` 1–365; `cancellation_cutoff_hours` 0–720;
+`currency` three capital letters; `name` 1–100 characters after trimming.
+
+Changing the granularity is refused with `409 GRANULARITY_CONFLICT` while any
+**active** service has a duration that is not a multiple of the new value
+(`details.services` lists them), so no service is left unbookable. Nothing is
+half-applied: a refused request changes none of its fields. Existing bookings
+are never touched by a settings change.
+
+```bash
+curl localhost:8000/api/v1/settings
+curl -X PATCH localhost:8000/api/v1/settings -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"max_booking_horizon_days": 30}'
+```
+
 ## Walkthrough: book an appointment with curl
 _Built up in P5.3, P6.3, P7.3; verified end to end in P10.4._
 
@@ -134,6 +159,8 @@ _One row per code, added by the task that introduces it._
 | `CSRF_FAILED` | 403 | Cookie-authenticated unsafe request without a matching `X-CSRF-Token` header / `csrf_token` field (Bearer requests are exempt) |
 | `ACCOUNT_INACTIVE` | 401 | The account was deactivated (at login only once the password was right; on any request with a token) |
 | `EMAIL_TAKEN` | 409 | Registration: that email already has an account |
+| `INVALID_TIMEZONE` | 422 | Settings: the timezone is not an IANA name such as `Asia/Tashkent` |
+| `GRANULARITY_CONFLICT` | 409 | Settings: an active service's duration is not a multiple of the new slot granularity; `details.services` lists them |
 | `FORBIDDEN` | 403 | Logged in, but the endpoint needs the admin role (or a generic framework 403) |
 | `NOT_FOUND` | 404 | No such route (or, for our own endpoints, no such resource) |
 | `METHOD_NOT_ALLOWED` | 405 | Route exists but not for this HTTP method; `Allow` header lists the valid ones |

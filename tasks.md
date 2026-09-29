@@ -276,7 +276,7 @@ checklist (P11.4) is verified against this table.
 ## P3 — Catalog
 
 ### P3.1 — Business settings
-- [ ] Status
+- [x] Status
 - Goal: the single source for timezone, currency and booking policy numbers.
 - Requirement(s) served: Set availability (timezone); bonus 5, 6 (foundation)
 - Acceptance criteria: `GET /settings` (public subset), `PATCH /settings` (admin). Validation: timezone is a valid IANA name (`zoneinfo`), granularity in {5, 10, 15, 20, 30, 60}, lead time ≥ 0, horizon 1–365 days, cutoff ≥ 0. Changing granularity is rejected if an active service's duration isn't a multiple of it (`GRANULARITY_CONFLICT`).
@@ -288,7 +288,7 @@ checklist (P11.4) is verified against this table.
 - [ ] Status
 - Goal: the admin manages what can be booked.
 - Requirement(s) served: **Create a service (name, description, duration, price)**; basic validation
-- Acceptance criteria: public `GET /services` (active only, paginated), `GET /services/{id}` (404 if inactive for non-admins); admin `POST`, `PATCH`, `POST /services/{id}/deactivate` and `/activate`; admin list can include inactive. Validation: name 1–100, description ≤ 2000, duration > 0, ≤ 480, multiple of granularity (`DURATION_NOT_ALIGNED`), price integer ≥ 0. No hard delete.
+- Acceptance criteria: public `GET /services` (active only, paginated), `GET /services/{id}` (404 if inactive for non-admins); admin `POST`, `PATCH`, `POST /services/{id}/deactivate` and `/activate`; admin list can include inactive. Validation: name 1–100, description ≤ 2000, duration > 0, ≤ 480, multiple of granularity (`DURATION_NOT_ALIGNED`), price integer ≥ 0. No hard delete. Creating, editing the duration of, and *activating* a service read the settings row with `get_business_settings(db, for_update=True)` (see P3.1) so a concurrent granularity change cannot leave it misaligned.
 - Tests: integration — each endpoint; validation failures; deactivated service hidden publicly; authz matrix.
 - Docs to update: `docs/api.md`; pagination conventions; edge-case rows.
 - Edge cases covered: negative price; zero duration; oversized input; deactivating a service with future bookings (bookings kept).
