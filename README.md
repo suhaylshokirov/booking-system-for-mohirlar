@@ -11,7 +11,7 @@ application code.
 
 - **Live demo:** _TBD (P11)_
 - **Demo credentials:** _TBD (P11)_ — admin and customer
-- **CI:** _badge added in P0.6_
+- **CI:** [![CI](https://github.com/suhaylshokirov/booking-system-for-mohirlar/actions/workflows/ci.yml/badge.svg)](https://github.com/suhaylshokirov/booking-system-for-mohirlar/actions/workflows/ci.yml)
 
 > Status: in development. Progress is tracked task by task in [`tasks.md`](tasks.md).
 
@@ -107,7 +107,23 @@ pytest tests/unit            # or one layer: unit · integration · concurrency
 - If Postgres is on another host port (see Quick start), export both
   `DATABASE_URL` and `TEST_DATABASE_URL` with that port.
 
-_The environment variables table is added in P0.6._
+### Environment variables
+
+Copy `.env.example` to `.env` to change any of them. Every variable has a
+default that works on a fresh checkout, except the two secrets marked below,
+which must be replaced in production.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `APP_ENV` | `development` | `development`, `test` or `production`. Production turns on Secure cookies and refuses to start with the placeholder `JWT_SECRET`. |
+| `DATABASE_URL` | `postgresql+psycopg://navbat:navbat@localhost:5432/navbat` | The app's database (psycopg 3 driver). Inside Docker Compose the host is `db`. |
+| `TEST_DATABASE_URL` | `postgresql+psycopg://navbat:navbat@localhost:5432/navbat_test` | The database pytest resets and uses. Must differ from `DATABASE_URL`. |
+| `JWT_SECRET` | placeholder | **Secret.** Signs login tokens. Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"`. |
+| `JWT_EXPIRE_MINUTES` | `720` | Lifetime of a login token. |
+| `LOGIN_RATE_LIMIT_ATTEMPTS` | `5` | Failed logins allowed per (IP, email) per window. |
+| `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `300` | Length of that window. |
+| `ADMIN_EMAIL` | `admin@navbat.local` | Email of the first admin (`scripts/create_admin.py`, seed). |
+| `ADMIN_PASSWORD` | placeholder | **Secret.** Password of the first admin. |
 
 ## Architecture in brief
 

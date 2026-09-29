@@ -126,7 +126,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: tests accidentally wiping the dev database (guard).
 
 ### P0.6 — CI and README bootstrap
-- [ ] Status
+- [x] Status
 - Goal: every push is linted and tested; the reviewer sees a green badge.
 - Requirement(s) served: Bonus 1, git history quality
 - Acceptance criteria: `.github/workflows/ci.yml` — Python 3.12, `postgres:16` service, `pip install -e ".[dev]"`, `ruff check`, `ruff format --check`, `pytest`; badge in README; push P0 and confirm the run is green.
