@@ -4,17 +4,21 @@
 {% block title %}Create an account · Navbat{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="/static/css/auth.css">{% endblock %}
 
-{% block content %}
-<section class="auth">
-    <header class="sheet-head">
+{% block masthead %}
+<header class="masthead masthead--compact">
+    <div class="container">
         <h1 class="sheet-title">Create an account</h1>
         <p class="sheet-sub">
             Your bookings, their status and their history live in your account.
             Already have one?
             <a href="/login{% if next != '/' %}?next={{ next|urlencode }}{% endif %}">Sign in</a>.
         </p>
-    </header>
+    </div>
+</header>
+{% endblock %}
 
+{% block content %}
+<section class="auth">
     {# The cursor starts in the first field that needs fixing. #}
     {% set focus = "full_name" if errors.full_name or not errors else ("email" if errors.email else "password") %}
     <form class="form auth-form" method="post" action="/register" novalidate data-submit-once>

@@ -19,9 +19,9 @@ application code.
 
 _Captured in P11.3._ Planned shots, in the order a customer meets them:
 
-1. The services price board (`/`)
+1. The home page: the shop on its glazed band, the house-rules ticket and the services (`/`)
 2. A service's page with its staff (`/services/{id}`)
-3. The slot picker with a time chosen: lime tile, sticky Continue bar (`/book/{id}`)
+3. The slot picker with a time chosen: saffron tile, sticky Continue bar (`/book/{id}`)
 4. "That time was just taken — pick another" after losing a race
 5. The confirm ticket with the cancellation policy (`/book/{id}/confirm`)
 6. The admin dashboard

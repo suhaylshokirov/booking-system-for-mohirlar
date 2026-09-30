@@ -92,7 +92,7 @@ def test_static_files_are_served(client):
 
     assert css.status_code == 200
     assert css.headers["content-type"].startswith("text/css")
-    assert "--lime" in css.text
+    assert "--saffron" in css.text
     assert js.status_code == 200
     assert "javascript" in js.headers["content-type"]
     assert "initConfirmDialog" in js.text

@@ -5,50 +5,54 @@
 {% block description %}{{ service.description or service.name }}{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="/static/css/catalog.css">{% endblock %}
 
-{% block content %}
-<a class="back-link" href="/">All services</a>
-
-<header class="sheet-head">
-    <h1 class="sheet-title">{{ service.name }}</h1>
-    {% if service.description %}<p class="sheet-sub">{{ service.description }}</p>{% endif %}
+{% block masthead %}
+<header class="masthead">
+    <div class="container">
+        <a class="back-link" href="/">All services</a>
+        <h1 class="sheet-title">{{ service.name }}</h1>
+        {% if service.description %}<p class="sheet-sub">{{ service.description }}</p>{% endif %}
+        <div class="masthead-facts">
+            <div class="masthead-fact">
+                <span class="label">Takes</span>
+                <span class="masthead-fact__value mono">{{ service.duration_minutes|duration }}</span>
+            </div>
+            <div class="masthead-fact">
+                <span class="label">Costs</span>
+                <span class="masthead-fact__value mono">{{ service.price|money(business.currency) }}</span>
+            </div>
+            {% if staff %}
+            <div class="masthead-cta">
+                <a class="btn btn--light" href="/book/{{ service.id }}">Book a time</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
 </header>
+{% endblock %}
 
-<div class="stats">
-    <div class="stat">
-        <span class="stat-value">{{ service.duration_minutes|duration }}</span>
-        <span class="stat-label">Duration</span>
-    </div>
-    <div class="stat">
-        <span class="stat-value">{{ service.price|money(business.currency) }}</span>
-        <span class="stat-label">Price</span>
-    </div>
-</div>
-
-{% if staff %}
-<div class="service-cta">
-    <a class="btn" href="/book/{{ service.id }}">Book a time</a>
-    <p class="faint">You'll see the free times next. Nothing is booked until you confirm.</p>
-</div>
-{% endif %}
-
-<section class="sheet-section" aria-labelledby="staff-title">
+{% block content %}
+<section class="section" aria-labelledby="staff-title">
     <div class="section-head">
         <h2 id="staff-title">Who does it</h2>
-        {% if staff|length > 1 %}<span class="section-note">pick one, or let us choose</span>{% endif %}
+        {% if staff|length > 1 %}<span class="section-note">Pick one, or book with anyone who's free</span>{% endif %}
     </div>
 
     {% if staff %}
     <ul class="staff-list">
         {% for person in staff %}
-        <li class="staff-row">
-            <div>
-                <p class="staff-row__name">{{ person.name }}</p>
-                {% if person.bio %}<p class="staff-row__bio">{{ person.bio }}</p>{% endif %}
+        <li class="staff-card">
+            {# The barber's initial on a glazed tile: no photos to upload
+               (out of scope), and a letter still tells people apart. #}
+            <span class="staff-card__tile" aria-hidden="true">{{ person.name[:1]|upper }}</span>
+            <div class="staff-card__text">
+                <p class="staff-card__name">{{ person.name }}</p>
+                {% if person.bio %}<p class="staff-card__bio">{{ person.bio }}</p>{% endif %}
             </div>
-            <a class="chip" href="/book/{{ service.id }}?provider={{ person.id }}">Book with {{ person.name }}</a>
+            <a class="btn btn--quiet btn--small staff-card__cta" href="/book/{{ service.id }}?provider={{ person.id }}">Book with {{ person.name }}</a>
         </li>
         {% endfor %}
     </ul>
+    <p class="staff-note faint">You'll see the free times next. Nothing is booked until you confirm.</p>
     {% else %}
     <p class="empty">
         Nobody offers this service right now, so it can't be booked.

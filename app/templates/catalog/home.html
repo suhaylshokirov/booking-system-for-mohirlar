@@ -5,33 +5,78 @@
 {% block title %}{{ business.name }} · Navbat{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="/static/css/catalog.css">{% endblock %}
 
-{% block content %}
-<header class="sheet-head">
-    <h1 class="sheet-title">{{ business.name }}</h1>
-    <p class="sheet-sub">
-        Choose a service, pick a free time, and it's booked.
-        Times are shown in <span class="mono">{{ business.timezone }}</span>.
-    </p>
-</header>
+{% block masthead %}
+{% set city = business.timezone.split("/")[-1].replace("_", " ") %}
+<header class="masthead masthead--hero">
+    <div class="container hero">
+        <div class="hero__copy">
+            <h1 class="sheet-title hero__title">{{ business.name }}</h1>
+            <p class="sheet-sub hero__lead">
+                Choose a service, take a free time, and skip the queue.
+                Your turn is held for you.
+            </p>
+            <div class="actions hero__actions">
+                <a class="btn btn--light" href="#services">Choose a service</a>
+                {% if current_user %}<a href="/me/bookings">See my bookings</a>{% endif %}
+            </div>
+        </div>
 
-<section class="sheet-section" aria-labelledby="services-title">
+        {# The shop's house rules, printed as a navbat ticket. Every line is a
+           real business setting, so it changes when the owner changes one.
+           The clock is filled in by app.js (initShopClock); without JS it
+           stays hidden and the rules still name the timezone. #}
+        <aside class="ticket ticket--print hero__ticket" aria-labelledby="house-rules">
+            <div class="ticket__head">
+                <span class="ticket__brand">House rules</span>
+                <span class="ticket__no" id="house-rules">{{ business.name }}</span>
+            </div>
+            <div class="ticket__main" data-shop-clock-wrap hidden>
+                <p class="label">Now in {{ city }}</p>
+                <p class="ticket__time" data-shop-clock data-timezone="{{ business.timezone }}">--:--</p>
+            </div>
+            <div class="ticket__perf" aria-hidden="true"></div>
+            <dl class="ticket__facts house-rules">
+                <div class="ticket__wide">
+                    <dt class="label">Clock</dt>
+                    <dd>Every time is <span class="mono">{{ business.timezone }}</span></dd>
+                </div>
+                <div>
+                    <dt class="label">Book</dt>
+                    <dd>From <span class="mono">{{ business.min_lead_time_minutes|duration }}</span> to <span class="mono">{{ business.max_booking_horizon_days }}</span> days ahead</dd>
+                </div>
+                <div>
+                    <dt class="label">Cancel</dt>
+                    <dd>Online, up to <span class="mono">{{ business.cancellation_cutoff_hours }}&nbsp;h</span> before</dd>
+                </div>
+            </dl>
+        </aside>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="section" id="services" aria-labelledby="services-title">
     <div class="section-head">
         <h2 id="services-title">Services</h2>
         {% if pager.total %}<span class="section-note">{{ pager.total }} to choose from</span>{% endif %}
     </div>
 
     {% if services %}
-    {# The price board: what the shop does, how long it takes, what it
-       costs, read left to right the way it hangs on the wall. #}
+    {# The price board: what the shop does, what it costs and how long it
+       takes. Each card opens the service, where you pick who and when. #}
     <ul class="price-board">
         {% for service in services %}
         <li>
             <a class="price-row" href="/services/{{ service.id }}">
-                <span class="price-row__name">{{ service.name }}</span>
-                <span class="price-row__leader" aria-hidden="true"></span>
-                <span class="price-row__duration mono">{{ service.duration_minutes|duration }}</span>
-                <span class="price-row__price mono">{{ service.price|money(business.currency) }}</span>
+                <span class="price-row__top">
+                    <span class="price-row__name">{{ service.name }}</span>
+                    <span class="price-row__price mono">{{ service.price|money(business.currency) }}</span>
+                </span>
                 {% if service.description %}<span class="price-row__desc">{{ service.description }}</span>{% endif %}
+                <span class="price-row__foot">
+                    <span class="price-row__duration mono">{{ service.duration_minutes|duration }}</span>
+                    <span class="price-row__go" aria-hidden="true">Choose <span class="price-row__arrow">→</span></span>
+                </span>
             </a>
         </li>
         {% endfor %}

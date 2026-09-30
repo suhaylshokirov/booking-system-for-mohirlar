@@ -1,254 +1,611 @@
-/* Booking: the slot picker and the confirm step.
-   Adds components only; app.css owns every token and the .slot tile itself.
+/* ===========================================================================
+   Booking pages: the slot picker, the confirm step, my bookings and a
+   booking's own page. Adds components only; tokens and shared pieces (the
+   ticket, status chips, steps) live in app.css.
+   =========================================================================== */
 
-   Two places spend lime here, both meaning something: the tile you chose
-   (app.css .slot) and the one button that books (.btn--commit). The rest is
-   ink on paper, so the eye goes from "your time" to "confirm" and nowhere
-   else. */
+/* --- Picker layout ------------------------------------------------------------
+   Who and which day on the left, that day's free times on the right. On a
+   phone the filters come first, then the times. */
 
-.booking-filters {
-  margin-top: var(--space-7);
-}
-
-.booking-filters input[type="date"] {
-  min-width: 11rem;
-  font-family: var(--font-mono);
-}
-
-/* --- The day ------------------------------------------------------------------- */
-
-.slot-form {
-  margin-top: var(--space-2);
-}
-
-/* Yesterday · TODAY · tomorrow: the day you're looking at in the middle, in
-   display type; the neighbours are quiet links you can step to. */
-.day-head {
+.picker {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: baseline;
-  gap: var(--space-4);
-  padding-block: var(--space-4);
-  margin-bottom: var(--space-5);
-  border-top: 1px solid var(--rule-strong);
-  border-bottom: var(--hairline);
+  grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-6);
 }
 
-.day-title {
-  grid-column: 2;
+.picker__filters {
+  position: sticky;
+  top: calc(var(--header-h) + var(--space-4));
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 52rem) {
+  .picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .picker__filters {
+    position: static;
+  }
+
+  /* On a phone the people sit side by side, so the times start sooner. */
+  .who {
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  }
+
+  .who__note {
+    display: none;
+  }
+}
+
+/* --- Who: a list of people to choose from ------------------------------------
+   Radios drawn as rows with the person's initial on a glazed tile. The
+   chosen row is saffron (a selection). */
+
+.who {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.who input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.who label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 1.5px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+
+.who label:hover {
+  border-color: var(--rule-strong);
+  background: var(--tile);
+}
+
+.who input:checked + label {
+  border-color: var(--saffron);
+  background: var(--saffron);
+  color: var(--ink-on-saffron);
+}
+
+.who input:focus-visible + label {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.who__name {
+  display: grid;
+  line-height: 1.25;
+}
+
+.who__note {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.who__tile {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--cobalt);
+  color: var(--on-cobalt);
   font-family: var(--font-display);
   font-weight: 700;
   font-stretch: 118%;
-  font-size: var(--text-lg);
-  text-transform: uppercase;
-  letter-spacing: -0.01em;
+  font-size: var(--text-md);
+  line-height: 1;
+}
+
+.who__tile--any {
+  background: var(--tile);
+  color: var(--cobalt);
+  font-family: var(--font-body);
+  font-weight: 800;
+}
+
+.who input:checked + label .who__tile {
+  background: var(--ink-on-saffron);
+  color: var(--saffron);
+}
+
+/* --- The day ---------------------------------------------------------------------- */
+
+.day-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.day-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: var(--text-xl);
   text-align: center;
-  white-space: nowrap;
 }
 
 .day-step {
-  grid-column: 1;
   justify-self: start;
-  font-size: var(--text-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--pill);
+  background: var(--paper);
   color: var(--ink-muted);
-}
-
-.day-step--next {
-  grid-column: 3;
-  justify-self: end;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 .day-step:hover {
-  color: var(--ink);
+  border-color: var(--cobalt);
+  color: var(--cobalt);
 }
 
-/* --- One person's free times ----------------------------------------------------- */
+.day-step--next {
+  justify-self: end;
+}
+
+.day-step--none {
+  border: 0;
+  background: none;
+}
+
+@media (max-width: 40rem) {
+  .day-head {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .day-title {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+}
+
+/* --- Free times, per person ---------------------------------------------------------- */
 
 .slot-person {
-  margin: 0 0 var(--space-7);
-  padding: 0;
-  border: none;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
   min-width: 0;
 }
 
 .slot-person__name {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-3);
-  padding: 0;
+  float: left; /* keeps the legend inside the card's padding, not on its border */
+  width: 100%;
   margin-bottom: var(--space-4);
-  font-weight: 600;
+  padding: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: var(--text-lg);
+}
+
+.slot-person__name + * {
+  clear: both;
 }
 
 .slot-person__count {
-  font-size: var(--text-2xs);
-  font-weight: 400;
-  color: var(--ink-faint);
+  margin-left: auto;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--pill);
+  background: var(--tile);
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 700;
 }
 
 .slot-person__none {
-  font-size: var(--text-sm);
   color: var(--ink-faint);
 }
 
 .slot-part + .slot-part {
-  margin-top: var(--space-5);
+  margin-top: var(--space-4);
 }
 
 .slot-part__label {
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
-/* Continue sticks to the bottom of the screen while the grid scrolls, so a
-   long day never hides the way forward. With JS it also repeats the chosen
-   time, so the choice is visible without scrolling back up. */
+/* --- Slot tiles ------------------------------------------------------------------------
+   Each free time is a glazed tile. Free = paper, hover = cobalt edge, the
+   one you picked = saffron (rule 12) with a tick. */
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+  gap: var(--space-2);
+}
+
+.slot {
+  position: relative;
+  display: block;
+  cursor: pointer;
+}
+
+.slot input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.slot > span {
+  display: grid;
+  place-items: center;
+  min-height: 46px;
+  border: 1.5px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--porcelain);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition:
+    border-color 0.12s,
+    background-color 0.12s,
+    transform 0.12s var(--ease);
+}
+
+.slot:hover > span {
+  border-color: var(--cobalt);
+  color: var(--cobalt);
+  transform: translateY(-1px);
+}
+
+.slot input:checked + span {
+  border-color: var(--ink-on-saffron);
+  background: var(--saffron);
+  color: var(--ink-on-saffron);
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.12);
+  transform: none;
+}
+
+.slot input:checked + span::after {
+  content: "✓";
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ink-on-saffron);
+  color: var(--saffron);
+  font-size: 11px;
+}
+
+.slot input:focus-visible + span {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+/* --- Continue bar -------------------------------------------------------------------------
+   Sticks to the bottom of the screen while you scroll the times, and echoes
+   the time you picked (initSlotSummary). */
+
 .slot-bar {
   position: sticky;
-  bottom: 0;
-  z-index: 10;
+  bottom: var(--space-4);
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-5);
-  padding: var(--space-4) 0;
-  background: var(--paper);
-  border-top: 1px solid var(--rule-strong);
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  border-radius: var(--pill);
+  background: var(--band-deep);
+  color: var(--band-muted);
+  box-shadow: var(--shadow-lift);
 }
 
 .slot-bar__summary {
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
+  font-weight: 600;
+  min-width: 0;
 }
 
 .slot-bar__summary.is-chosen {
-  color: var(--ink);
-  font-weight: 600;
+  color: var(--band-ink);
 }
 
-/* Without JS the summary can't follow the choice, so it isn't shown. */
-html:not(.has-js) .slot-bar__summary {
-  visibility: hidden;
+.slot-bar__summary.is-chosen::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--saffron);
 }
 
-/* Waiting for the next day's grid: dim, don't blank, so the page doesn't jump. */
-[data-slot-results][aria-busy="true"] {
-  opacity: 0.5;
-  transition: opacity var(--dur) var(--ease);
+/* --- Ticket pages ----------------------------------------------------------------------------
+   The confirm step and a booking's page: the ticket, and beside it the form
+   or the history. */
+
+.booking-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 27rem) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-7);
 }
 
-/* --- The confirm step: a ticket ------------------------------------------------------ */
-
-.ticket {
-  max-width: 34rem;
-  margin-top: var(--space-7);
-  padding: var(--space-7);
-  background: var(--sheet);
-  border: var(--hairline);
-  border-radius: var(--radius);
+.booking-layout__main {
+  display: grid;
+  gap: var(--space-7);
 }
 
-.ticket__time {
-  font-size: var(--text-2xl);
-  line-height: 1;
-  letter-spacing: -0.02em;
+@media (max-width: 52rem) {
+  .booking-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-7);
+  }
 }
 
-.ticket__to {
+.booking-confirm {
+  padding: var(--space-5);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+
+/* A plain box of content next to a ticket. */
+.panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+
+.panel__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: var(--text-lg);
+}
+
+.booking-cancel .actions {
+  margin-top: var(--space-2);
+}
+
+/* --- History ------------------------------------------------------------------------------------
+   What happened to the booking, oldest first, on a thread of dots. */
+
+.timeline {
+  position: relative;
+  display: grid;
+  gap: var(--space-5);
+  margin: var(--space-2) 0 0;
+  padding: 0 0 0 var(--space-6);
+  list-style: none;
+}
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 7px;
+  width: 2px;
+  background: var(--rule);
+}
+
+.timeline li {
+  position: relative;
+  display: grid;
+  gap: 2px;
+}
+
+.timeline li::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: calc(-1 * var(--space-6) + 1px);
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--paper);
+  border-radius: 50%;
+  background: var(--cobalt);
+  box-shadow: 0 0 0 1.5px var(--cobalt);
+}
+
+.timeline li:last-child::before {
+  background: var(--saffron);
+  box-shadow: 0 0 0 1.5px var(--ink-on-saffron);
+}
+
+.timeline__what {
+  font-weight: 700;
+}
+
+.timeline__when {
+  font-size: var(--text-sm);
   color: var(--ink-faint);
 }
 
-.ticket__day {
-  margin-top: var(--space-3);
-  font-weight: 600;
-}
-
-.ticket__facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-5);
-  margin: var(--space-6) 0 0;
-  padding-top: var(--space-6);
-  /* The tear line of a ticket stub: the when above, the what below. */
-  border-top: 2px dashed var(--rule-strong);
-}
-
-.ticket__facts dd {
-  margin: var(--space-1) 0 0;
-}
-
-.ticket__policy {
-  margin-top: var(--space-6);
+.timeline__reason {
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
 
-.booking-confirm {
-  margin-top: var(--space-7);
-  max-width: 34rem;
-}
+/* --- My bookings: ticket stubs -----------------------------------------------------------------
+   Each booking as the stub of its ticket: the day on a glazed tear-off
+   block, what and who in the middle, price and status on the right. */
 
-.ticket__wide {
-  grid-column: 1 / -1;
-}
-
-/* --- My bookings ------------------------------------------------------------------- */
-
-.row-time {
-  display: block;
-  margin-top: var(--space-1);
-  font-weight: 400;
-  color: var(--ink-muted);
-}
-
-.booking-cancel p {
-  max-width: 34rem;
-  margin-bottom: var(--space-5);
-}
-
-/* What happened to the booking, oldest first. A plain list: the words carry it. */
-.timeline {
-  list-style: none;
+.stubs {
+  display: grid;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
-  max-width: 34rem;
+  list-style: none;
 }
 
-.timeline li {
+.stub {
+  position: relative;
   display: grid;
-  gap: var(--space-1);
-  padding: var(--space-4) 0;
-  border-bottom: var(--hairline);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-5) var(--space-3) var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform 0.2s var(--ease),
+    box-shadow 0.2s var(--ease),
+    border-color 0.2s;
 }
 
-.timeline__what { font-weight: 600; }
-.timeline__when { font-size: var(--text-sm); color: var(--ink-muted); }
-.timeline__reason { font-size: var(--text-sm); color: var(--ink-muted); }
+.stub:hover {
+  border-color: var(--rule-strong);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
 
-@media (max-width: 560px) {
-  .day-head {
-    grid-template-columns: 1fr 1fr;
-    grid-template-areas:
-      "title title"
-      "prev  next";
+.stub__date {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  width: 4.75rem;
+  min-height: 5rem;
+  padding-block: var(--space-2);
+  border-radius: var(--radius);
+  background: var(--band);
+  color: var(--band-ink);
+  line-height: 1;
+}
+
+.stub__dow,
+.stub__mon {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--band-muted);
+}
+
+.stub__day {
+  margin-block: 4px 2px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: 1.75rem;
+}
+
+.stub__service {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: var(--text-lg);
+  line-height: 1.15;
+}
+
+.stub__meta {
+  margin-top: var(--space-1);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.stub__link {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* The whole stub is the link to the booking. */
+.stub__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+}
+
+.stub__link:focus-visible {
+  outline: none;
+}
+
+.stub__link:focus-visible::after {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.stub__side {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-2);
+}
+
+.stub__price {
+  font-weight: 800;
+}
+
+.stub--cancelled .stub__date {
+  background: var(--tile);
+  color: var(--ink-faint);
+}
+
+.stub--cancelled .stub__dow,
+.stub--cancelled .stub__mon {
+  color: var(--ink-faint);
+}
+
+.stub--cancelled .stub__service {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+@media (max-width: 40rem) {
+  .stub {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-3) var(--space-4);
+    padding-right: var(--space-4);
   }
 
-  .day-title {
-    grid-area: title;
-  }
-
-  .day-step {
-    grid-area: prev;
-  }
-
-  .day-step--next {
-    grid-area: next;
-  }
-
-  .ticket {
-    padding: var(--space-6) var(--space-5);
-  }
-
-  .ticket__time {
-    font-size: var(--text-xl);
+  .stub__side {
+    grid-column: 2;
+    justify-items: start;
+    grid-auto-flow: column;
+    align-items: center;
   }
 }

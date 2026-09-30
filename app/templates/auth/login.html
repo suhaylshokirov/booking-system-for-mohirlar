@@ -4,16 +4,20 @@
 {% block title %}Sign in · Navbat{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="/static/css/auth.css">{% endblock %}
 
-{% block content %}
-<section class="auth">
-    <header class="sheet-head">
+{% block masthead %}
+<header class="masthead masthead--compact">
+    <div class="container">
         <h1 class="sheet-title">Sign in</h1>
         <p class="sheet-sub">
             New here?
             <a href="/register{% if next != '/' %}?next={{ next|urlencode }}{% endif %}">Create an account</a>.
         </p>
-    </header>
+    </div>
+</header>
+{% endblock %}
 
+{% block content %}
+<section class="auth">
     {# novalidate: the server's messages are the ones people see, so the
        browser's own bubbles don't compete with them. app.js still checks the
        email shape on blur. #}

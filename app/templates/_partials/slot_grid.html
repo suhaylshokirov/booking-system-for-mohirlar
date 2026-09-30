@@ -8,12 +8,16 @@
     <a class="day-step" rel="prev" href="/book/{{ service.id }}?provider={{ provider_filter }}&amp;date={{ prev_day.isoformat() }}">
         <span aria-hidden="true">←</span> {{ prev_day|day_label }}
     </a>
+    {% else %}
+    <span class="day-step day-step--none" aria-hidden="true"></span>
     {% endif %}
     <h2 class="day-title">{{ day|day_label }}</h2>
     {% if next_day %}
     <a class="day-step day-step--next" rel="next" href="/book/{{ service.id }}?provider={{ provider_filter }}&amp;date={{ next_day.isoformat() }}">
         {{ next_day|day_label }} <span aria-hidden="true">→</span>
     </a>
+    {% else %}
+    <span class="day-step day-step--none" aria-hidden="true"></span>
     {% endif %}
 </div>
 
@@ -31,6 +35,7 @@
 {% for group in groups %}
 <fieldset class="slot-person">
     <legend class="slot-person__name">
+        <span class="who__tile" aria-hidden="true">{{ group.provider.name[:1]|upper }}</span>
         {{ group.provider.name }}
         <span class="slot-person__count mono">{{ group.count }} free</span>
     </legend>
@@ -55,7 +60,7 @@
 
 <div class="slot-bar">
     <p class="slot-bar__summary" data-slot-summary>Pick a time above.</p>
-    <button type="submit" class="btn">Continue</button>
+    <button type="submit" class="btn btn--light">Continue</button>
 </div>
 {% elif not problem %}
 <p class="empty">

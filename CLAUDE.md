@@ -33,9 +33,10 @@ When anything conflicts, the higher item wins:
    for polish.
 2. **Architecture decisions** — this file, `docs/architecture.md`, and the ADRs
    in `docs/decisions/`.
-3. **UI inspiration from Theoria** (the owner's previous project, at
-   `../theoria`). Nice to have. Drop anything from it that costs time without
-   serving a requirement.
+3. **The UI design system** in `app/static/css/app.css` ("tile and ticket":
+   cobalt glaze, saffron for committed, the booking as a queue ticket). It
+   replaced the Theoria-inspired look on 2026-09-30. Nice to have. Drop
+   anything that costs time without serving a requirement.
 
 ## 3. Stack and commands
 
@@ -117,9 +118,11 @@ check `tasks.md`.
     bookings reference. Bookings snapshot price and duration.
 11. **One error envelope:** `{"error": {"code", "message", "details"}}`. A
     customer asking for someone else's booking gets **404**, not 403.
-12. **UI lime semantics.** Lime means *committed or selected* — the chosen
-    slot, a Confirmed status, the current step, the active nav item. Never
-    decoration. Status chips always spell the status out in text.
+12. **UI saffron semantics.** Saffron (`--saffron`) means *committed or
+    selected* — the chosen slot, a Confirmed status, the current step, the
+    active nav item, the one button that books. Never decoration. Status chips
+    always spell the status out in text. (Was lime until the 2026-09-30
+    redesign; the rule is unchanged, only the colour.)
 13. **Progressive enhancement.** Every form works without JavaScript.
 14. **`../theoria` is read-only reference.** Never edit, move or commit
     anything there, and never reference it by path from this repo's code or

@@ -24,9 +24,15 @@
 
   // The <meta name="theme-color"> tags follow the OS scheme; once the reader
   // overrides it, both are rewritten with the page colour, read from the
-  // --paper token so app.css stays the one place a colour is defined.
+  // --paper token so app.css stays the one place a colour is defined. The
+  // token is a light-dark() pair, which only resolves when used as a real
+  // colour, so it is read back through a throwaway element.
   function syncThemeColor() {
-    var paper = getComputedStyle(document.documentElement).getPropertyValue("--paper").trim();
+    var probe = document.createElement("span");
+    probe.style.color = "var(--paper)";
+    document.body.appendChild(probe);
+    var paper = getComputedStyle(probe).color;
+    probe.remove();
     if (!paper) return;
     document.querySelectorAll('meta[name="theme-color"]').forEach(function (tag) {
       tag.setAttribute("content", paper);
@@ -374,6 +380,39 @@
     });
   }
 
+  /* --- Shop clock -----------------------------------------------------------------
+     The home page's ticket shows the time it is now at the shop
+     ([data-shop-clock data-timezone="Asia/Tashkent"]), so someone booking from
+     another timezone sees which clock the free times follow. Formatting only:
+     the browser's Intl does the conversion, and nothing is decided from it.
+     The server can't render it (the page would show a stale time), so it
+     stays hidden until the first tick; an unknown timezone keeps it hidden. */
+
+  function initShopClock() {
+    var clock = document.querySelector("[data-shop-clock]");
+    if (!clock || !window.Intl) return;
+    var wrap = clock.closest("[data-shop-clock-wrap]") || clock;
+    var format;
+    try {
+      format = new Intl.DateTimeFormat("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+        timeZone: clock.getAttribute("data-timezone"),
+      });
+    } catch (e) {
+      return;
+    }
+
+    function tick() {
+      clock.textContent = format.format(new Date());
+    }
+
+    tick();
+    wrap.hidden = false;
+    setInterval(tick, 15000);
+  }
+
   function init() {
     initThemeToggle();
     initNavToggle();
@@ -383,6 +422,7 @@
     initMenus();
     initLiveFilter();
     initSlotSummary();
+    initShopClock();
   }
 
   if (document.readyState === "loading") {

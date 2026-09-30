@@ -2,11 +2,17 @@
 
 {% block title %}{{ title }} · Navbat{% endblock %}
 
-{% block content %}
-<section class="error-page">
-    <p class="error-code"><span class="mono">{{ status_code }}</span></p>
-    <h1 class="display error-title">{{ title }}</h1>
-    <p class="error-lead">{{ lead }}</p>
-    <a class="btn" href="/">See the services</a>
-</section>
+{% block masthead %}
+{# The status code printed large in saffron, like a ticket number the
+   machine got wrong. #}
+<header class="masthead">
+    <div class="container error-page">
+        <p class="error-code">{{ status_code }}</p>
+        <h1 class="sheet-title error-title">{{ title }}</h1>
+        <p class="error-lead">{{ lead }}</p>
+        <div class="error-actions">
+            <a class="btn btn--light" href="/">See the services</a>
+        </div>
+    </div>
+</header>
 {% endblock %}

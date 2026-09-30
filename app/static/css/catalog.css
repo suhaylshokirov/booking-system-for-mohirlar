@@ -1,145 +1,289 @@
-/* The services list and a service's page.
-   Adds components only; app.css owns every token and shared control.
+/* ===========================================================================
+   Catalog pages: the home page's hero and price board, a service's staff.
+   Adds components only; tokens and shared pieces live in app.css.
+   =========================================================================== */
 
-   The list is a price board, the thing that hangs on a barbershop wall:
-   the name in the expanded display face, a dotted leader carrying the eye
-   across to how long it takes and what it costs, both in mono so minutes
-   and prices line up down the board. Ink only: nothing here is selected or
-   committed yet, so nothing here is lime. */
+/* --- Hero -------------------------------------------------------------------
+   The shop's name on the glazed band, with its house rules printed as a
+   ticket beside it. */
+
+.masthead--hero {
+  padding-block: var(--space-7) var(--space-8);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-7);
+}
+
+.hero__title {
+  font-size: var(--text-3xl);
+  max-width: 12ch;
+}
+
+.hero__lead {
+  margin-top: var(--space-4);
+  font-size: var(--text-lg);
+  line-height: 1.45;
+  max-width: 34ch;
+}
+
+.hero__actions {
+  margin-top: var(--space-6);
+}
+
+.hero__actions a:not(.btn) {
+  font-weight: 600;
+}
+
+.hero__ticket {
+  --notch: 13px;
+  max-width: 26rem;
+  justify-self: end;
+  width: 100%;
+  rotate: 1.5deg;
+  animation-delay: 0.15s;
+}
+
+/* The notches are holes in the paper, so they show the band behind it. */
+.hero__ticket .ticket__perf::before,
+.hero__ticket .ticket__perf::after {
+  background: var(--band);
+}
+
+.house-rules dd {
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.house-rules dd .mono {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+@media (max-width: 52rem) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+  }
+
+  .hero__ticket {
+    justify-self: start;
+    rotate: none;
+  }
+}
+
+/* --- Price board -------------------------------------------------------------
+   One card per service. Name in the display face, price opposite, the
+   duration at the foot next to the way in. */
 
 .price-board {
-  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  gap: var(--space-4);
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--rule-strong);
+  list-style: none;
+}
+
+.price-board > li {
+  display: flex;
 }
 
 .price-row {
-  display: grid;
-  grid-template-columns: auto minmax(var(--space-6), 1fr) auto auto;
-  grid-template-areas:
-    "name leader duration price"
-    "desc desc   desc     desc";
-  align-items: baseline;
-  column-gap: var(--space-4);
-  row-gap: var(--space-2);
-  padding: var(--space-5) var(--space-4);
-  border-bottom: var(--hairline);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-5);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
   color: var(--ink);
-  transition: background var(--dur-fast) var(--ease);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition:
+    transform 0.2s var(--ease),
+    box-shadow 0.2s var(--ease),
+    border-color 0.2s;
+}
+
+/* A strip of glaze slides in along the top on hover. */
+.price-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: var(--band);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s var(--ease);
 }
 
 .price-row:hover {
-  background: var(--sheet);
-  text-decoration: none;
+  color: var(--ink);
+  border-color: var(--rule-strong);
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-3px);
+}
+
+.price-row:hover::before {
+  transform: scaleX(1);
+}
+
+.price-row__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
 }
 
 .price-row__name {
-  grid-area: name;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: var(--text-xl);
+  line-height: 1.05;
+}
+
+.price-row__price {
+  flex: none;
+  font-weight: 800;
+  font-size: var(--text-md);
+  color: var(--cobalt);
+}
+
+.price-row__desc {
+  color: var(--ink-muted);
+  max-width: 40ch;
+}
+
+.price-row__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: 1px dashed var(--rule-strong);
+}
+
+.price-row__duration {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+/* A clock face drawn in CSS: a ring with two hands. */
+.price-row__duration::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background:
+    linear-gradient(currentColor, currentColor) 50% 1px / 2px 5px no-repeat,
+    linear-gradient(currentColor, currentColor) 5px 50% / 4px 2px no-repeat;
+}
+
+.price-row__go {
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--cobalt);
+}
+
+.price-row__arrow {
+  display: inline-block;
+  transition: transform 0.2s var(--ease);
+}
+
+.price-row:hover .price-row__arrow {
+  transform: translateX(4px);
+}
+
+/* --- Service page -------------------------------------------------------------- */
+
+.masthead-cta {
+  display: flex;
+  align-items: center;
+  margin-left: var(--space-2);
+}
+
+.staff-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.staff-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-sm);
+}
+
+.staff-card__tile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius);
+  background: var(--cobalt);
+  color: var(--on-cobalt);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: 1.75rem;
+}
+
+.staff-card__tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--girih);
+  background-size: 32px 32px;
+  opacity: 0.2;
+}
+
+.staff-card__name {
   font-family: var(--font-display);
   font-weight: 700;
   font-stretch: 118%;
   font-size: var(--text-lg);
   line-height: 1.1;
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
 }
 
-.price-row:hover .price-row__name {
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-}
-
-/* The leader sits on the baseline (a dotted bottom border, lifted to meet
-   the text rather than hang below it). */
-.price-row__leader {
-  grid-area: leader;
-  align-self: end;
-  margin-bottom: 0.4em;
-  border-bottom: 2px dotted var(--rule-strong);
-}
-
-.price-row__duration {
-  grid-area: duration;
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-  white-space: nowrap;
-}
-
-.price-row__price {
-  grid-area: price;
-  font-size: var(--text-md);
-  white-space: nowrap;
-}
-
-.price-row__desc {
-  grid-area: desc;
-  max-width: 62ch;
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-}
-
-/* A phone has no room for a leader and two figures beside a long name:
-   the price stays on the name's line, the duration drops under it. */
-@media (max-width: 560px) {
-  .price-row {
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      "name     price"
-      "duration duration"
-      "desc     desc";
-    padding-inline: var(--space-2);
-  }
-
-  .price-row__leader {
-    display: none;
-  }
-
-  .price-row__name {
-    font-size: var(--text-md);
-  }
-}
-
-/* --- A service's page ------------------------------------------------------- */
-
-.service-cta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-4) var(--space-5);
-  margin-top: var(--space-7);
-  font-size: var(--text-sm);
-}
-
-/* Same rhythm app.css gives a section after the stats row. */
-.service-cta + .sheet-section {
-  margin-top: var(--space-9);
-}
-
-.staff-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.staff-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-5);
-  padding: var(--space-4) 0;
-  border-bottom: var(--hairline);
-}
-
-.staff-row__name {
-  font-weight: 600;
-}
-
-.staff-row__bio {
+.staff-card__bio {
   margin-top: var(--space-1);
-  max-width: 62ch;
-  font-size: var(--text-sm);
   color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.staff-card__cta {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.staff-note {
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
 }

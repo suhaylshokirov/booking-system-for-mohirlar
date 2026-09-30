@@ -1,31 +1,43 @@
 /* Sign in and create an account.
    Adds components only; app.css owns every token and shared control.
 
-   One narrow column: the page's job is to get someone through two or three
+   One narrow card: the page's job is to get someone through two or three
    fields and back to what they were doing, so there is nothing beside the
-   form to look at. The column keeps the site's own skeleton (sheet head,
-   then content), which is what makes these read as pages of Navbat rather
-   than a separate login screen. */
+   form to look at. The card hangs from the glazed band, so these still read
+   as pages of Navbat rather than a separate login screen. */
+
+.masthead--compact {
+  padding-bottom: calc(var(--space-8) + var(--space-5));
+}
+
+.masthead--compact .container {
+  max-width: calc(30rem + 2 * var(--gutter));
+}
 
 .auth {
-  max-width: 26rem;
-  margin: var(--space-6) auto 0;
+  position: relative;
+  z-index: 1;
+  max-width: 30rem;
+  margin: calc(-1 * var(--space-8) - var(--space-6)) auto 0;
 }
 
 .auth-form {
-  margin-top: var(--space-7);
-  max-width: none;
+  padding: var(--space-6);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-lift);
 }
 
 .auth-form .btn--block {
-  margin-top: var(--space-3);
-  min-height: 2.875rem;
+  margin-top: var(--space-2);
+  min-height: 3rem;
 }
 
 /* A follow-up line under a field ("Is it yours? Sign in instead"). Pulled
    up to sit with the field it belongs to rather than float between two. */
 .auth-alt {
-  margin-top: calc(-1 * var(--space-4));
+  margin-top: calc(-1 * var(--space-3));
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }

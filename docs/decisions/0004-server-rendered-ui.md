@@ -51,6 +51,10 @@ code).
 - Some interactions are full page loads. Where that hurts (the slot picker),
   JS fetches a server-rendered fragment instead of rebuilding HTML in the
   browser, so the template is still the only renderer.
-- The design system is ported from the owner's earlier project (Theoria) by
-  copying, never by reference (rule 14), with lime re-pointed to mean
-  "committed or selected" (rule 12).
+- The design system was first ported from the owner's earlier project
+  (Theoria) by copying, never by reference (rule 14). On 2026-09-30 it was
+  replaced by Navbat's own "tile and ticket" system (see
+  `docs/architecture.md`, Visual language); the "one colour means committed or
+  selected" rule (rule 12) carried over, with saffron in place of lime. The
+  redesign touched only templates, CSS and one formatting-only JS function,
+  which is the point of this decision: no route or service changed.
