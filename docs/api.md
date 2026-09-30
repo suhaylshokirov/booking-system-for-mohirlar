@@ -328,6 +328,13 @@ _One row per code, added by the task that introduces it._
 | `INVALID_TIME_RANGE` | 422 | Availability: an edit leaves `end_time` at or before `start_time`, or an exception with only one of its two times |
 | `DATE_OUT_OF_RANGE` | 422 | Slots: the date is before today or beyond the booking horizon (business timezone); `details.earliest`, `details.latest` |
 | `PROVIDER_DOES_NOT_OFFER_SERVICE` | 422 | Slots: the chosen provider does not perform that service; `details` has both ids |
+| `SERVICE_INACTIVE` | 422 | Booking: the service is deactivated |
+| `PROVIDER_INACTIVE` | 422 | Booking: the provider is deactivated |
+| `START_IN_PAST` | 422 | Booking: the start is before now |
+| `INSIDE_LEAD_TIME` | 422 | Booking: the start is sooner than the minimum lead time; `details.earliest` |
+| `BEYOND_HORIZON` | 422 | Booking: the start is at or past the booking horizon; `details.before` |
+| `OUTSIDE_AVAILABILITY` | 422 | Booking: the provider is not working for the whole service at that time (weekly rules and exceptions applied) |
+| `NOT_ALIGNED` | 422 | Booking: the start is not on the slot grid measured from the window start |
 | `DATE_IN_PAST` | 422 | Availability exception: the date is before today in the business timezone; `details.today` |
 | `AVAILABILITY_EXCEPTION_EXISTS` | 409 | Availability exception: the provider already has one for that date; `details.exception_id` |
 | `AVAILABILITY_OVERLAP` | 409 | Availability: the window overlaps another rule of the provider on that weekday; `details.conflicting_rule` |

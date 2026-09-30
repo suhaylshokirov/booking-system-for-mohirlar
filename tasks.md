@@ -387,7 +387,7 @@ checklist (P11.4) is verified against this table.
 ## P6 — Booking creation
 
 ### P6.1 — Booking validation rules
-- [ ] Status
+- [x] Status
 - Goal: every reason a requested slot is invalid, with its own error code, in one module.
 - Requirement(s) served: **User can book**; basic validation
 - Acceptance criteria: `services/booking_rules.py` (pure, reused by `slots.py` so the grid and the validator can't disagree): `START_IN_PAST`, `INSIDE_LEAD_TIME`, `BEYOND_HORIZON`, `NOT_ALIGNED`, `SERVICE_INACTIVE`, `PROVIDER_INACTIVE`, `PROVIDER_DOES_NOT_OFFER_SERVICE`, `OUTSIDE_AVAILABILITY` (incl. exceptions).

@@ -33,6 +33,7 @@ from app.models.availability import AvailabilityException, AvailabilityRule
 from app.models.booking import Booking, BookingStatus
 from app.models.provider import Provider, ProviderService
 from app.models.service import Service
+from app.services.booking_rules import horizon_end
 from app.services.business_settings import get_business_settings
 from app.services.slots import build_windows_for_date, compute_slots
 
@@ -110,7 +111,7 @@ def get_slots(
             timedelta(minutes=settings.slot_granularity_minutes),
             now,
             timedelta(minutes=settings.min_lead_time_minutes),
-            now + timedelta(days=settings.max_booking_horizon_days),
+            horizon_end(now, settings.max_booking_horizon_days),
         )
         grouped.append(ProviderSlots(provider, starts))
     return SlotsResult(service, day, tz, grouped)

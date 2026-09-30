@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 
 from app.core.timezones import local_window_to_utc
+from app.services.booking_rules import earliest_start, grid_start_fits
 
 
 def build_windows_for_date(
@@ -64,14 +65,15 @@ def compute_slots(
 
     All datetimes must be timezone-aware. Never raises for empty input.
     """
-    earliest = now + lead_time
+    earliest = earliest_start(now, lead_time)
     busy = list(busy_utc)
     starts: set[datetime] = set()
     for window_start, window_end in windows_utc:
         start = window_start
         while start + duration <= window_end:
             end = start + duration
-            if earliest <= start < horizon_end and not _overlaps_any(start, end, busy):
+            fits = grid_start_fits(start, (window_start, window_end), duration, granularity)
+            if fits and earliest <= start < horizon_end and not _overlaps_any(start, end, busy):
                 starts.add(start)
             start += granularity
     return sorted(starts)
