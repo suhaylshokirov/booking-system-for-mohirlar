@@ -1,0 +1,144 @@
+"""Every allowed and forbidden (from, to, role) combination, and the time boundaries."""
+
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from itertools import product
+
+import pytest
+
+from app.core.errors import AppError
+from app.models.booking import BookingStatus as S
+from app.models.user import UserRole
+from app.services.booking_state import (
+    ALLOWED,
+    CancellationCutoffPassed,
+    ReasonRequired,
+    TooEarlyToComplete,
+    check_transition,
+)
+
+START = datetime(2026, 10, 6, 10, 0, tzinfo=UTC)
+END = START + timedelta(minutes=30)
+BEFORE = START - timedelta(days=1)  # well before start and before the cutoff
+CUTOFF = START - timedelta(hours=2)
+
+
+@dataclass
+class Booking:
+    status: S
+    customer_id: int = 1
+    start_at: datetime = START
+    end_at: datetime = END
+
+
+@dataclass
+class Actor:
+    id: int
+    role: UserRole
+
+
+@dataclass
+class Settings:
+    cancellation_cutoff_hours: int = 2
+
+
+OWNER = Actor(1, UserRole.CUSTOMER)
+STRANGER = Actor(2, UserRole.CUSTOMER)
+ADMIN = Actor(99, UserRole.ADMIN)
+
+
+def check(frm, to, actor, now=BEFORE, reason="because"):
+    return check_transition(Booking(frm), to, actor, now, Settings(), reason)
+
+
+def error_code(*args, **kwargs) -> str:
+    with pytest.raises(AppError) as exc:
+        check(*args, **kwargs)
+    return exc.value.code
+
+
+@pytest.mark.parametrize(
+    ("frm", "to", "actor"),
+    [
+        (S.PENDING, S.CONFIRMED, ADMIN),
+        (S.PENDING, S.CANCELLED, OWNER),
+        (S.PENDING, S.CANCELLED, ADMIN),
+        (S.CONFIRMED, S.CANCELLED, OWNER),
+        (S.CONFIRMED, S.CANCELLED, ADMIN),
+    ],
+)
+def test_allowed_transitions(frm, to, actor):
+    check(frm, to, actor)
+
+
+def test_admin_completes_a_confirmed_booking_after_it_ends():
+    check(S.CONFIRMED, S.COMPLETED, ADMIN, now=END)
+
+
+@pytest.mark.parametrize(
+    ("frm", "to"), [p for p in product(S, S) if p not in ALLOWED], ids=lambda s: s.value
+)
+@pytest.mark.parametrize("actor", [OWNER, ADMIN], ids=["owner", "admin"])
+def test_every_pair_not_in_the_table_is_invalid(frm, to, actor):
+    assert error_code(frm, to, actor, now=END) == "INVALID_TRANSITION"
+
+
+@pytest.mark.parametrize("frm", [S.CANCELLED, S.COMPLETED])
+def test_terminal_statuses_go_nowhere(frm):
+    for to in S:
+        assert error_code(frm, to, ADMIN, now=END) == "INVALID_TRANSITION"
+
+
+@pytest.mark.parametrize(("frm", "to"), [(a, b) for a, b in ALLOWED if b != S.CANCELLED], ids=str)
+@pytest.mark.parametrize("actor", [OWNER, STRANGER], ids=["owner", "stranger"])
+def test_customers_cannot_confirm_or_complete(frm, to, actor):
+    assert error_code(frm, to, actor, now=END) == "INVALID_TRANSITION"
+
+
+@pytest.mark.parametrize("frm", [S.PENDING, S.CONFIRMED])
+def test_a_customer_cannot_cancel_someone_elses_booking(frm):
+    assert error_code(frm, S.CANCELLED, STRANGER) == "INVALID_TRANSITION"
+
+
+def test_confirm_needs_a_future_start():
+    check(S.PENDING, S.CONFIRMED, ADMIN, now=START - timedelta(seconds=1))
+    assert error_code(S.PENDING, S.CONFIRMED, ADMIN, now=START) == "INVALID_TRANSITION"
+
+
+def test_customer_cancels_confirmed_exactly_at_the_cutoff():
+    check(S.CONFIRMED, S.CANCELLED, OWNER, now=CUTOFF)
+
+
+def test_customer_cannot_cancel_confirmed_after_the_cutoff():
+    with pytest.raises(CancellationCutoffPassed) as exc:
+        check(S.CONFIRMED, S.CANCELLED, OWNER, now=CUTOFF + timedelta(seconds=1))
+    assert exc.value.status_code == 409
+    assert exc.value.details == {"cutoff_at": CUTOFF.isoformat()}
+
+
+def test_customer_cancels_pending_until_it_starts():
+    check(S.PENDING, S.CANCELLED, OWNER, now=START - timedelta(seconds=1))
+    assert error_code(S.PENDING, S.CANCELLED, OWNER, now=START) == "CANCELLATION_CUTOFF_PASSED"
+
+
+def test_admin_is_exempt_from_the_cutoff_but_needs_a_reason():
+    late = CUTOFF + timedelta(minutes=30)
+    check(S.CONFIRMED, S.CANCELLED, ADMIN, now=late)
+    for reason in (None, "", "   "):
+        with pytest.raises(ReasonRequired) as exc:
+            check(S.CONFIRMED, S.CANCELLED, ADMIN, now=late, reason=reason)
+        assert exc.value.status_code == 422
+
+
+def test_admin_cancelling_pending_needs_no_reason_even_after_start():
+    check(S.PENDING, S.CANCELLED, ADMIN, now=END, reason=None)
+
+
+def test_admin_cannot_cancel_a_confirmed_booking_that_has_started():
+    assert error_code(S.CONFIRMED, S.CANCELLED, ADMIN, now=START) == "INVALID_TRANSITION"
+
+
+def test_cannot_complete_before_end_at():
+    with pytest.raises(TooEarlyToComplete) as exc:
+        check(S.CONFIRMED, S.COMPLETED, ADMIN, now=END - timedelta(seconds=1))
+    assert exc.value.details == {"end_at": END.isoformat()}

@@ -113,7 +113,32 @@ constraint decides who gets it (ADR 0001). P5.2 loads the inputs; P6.1 reuses
 the same rules to validate a requested start, so grid and validator agree.
 
 ## Booking lifecycle (state machine)
-_P7.1._ Mermaid state diagram and transition rules.
+_P7.1._ `app/services/booking_state.py` is the only place that says which
+status changes are legal. `check_transition` is pure (no DB, no clock); P7.2
+applies an allowed change with a guarded UPDATE and writes the history event.
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending: customer books
+    pending --> confirmed: admin, before start
+    pending --> cancelled: customer before start / admin any time
+    confirmed --> cancelled: customer until start - cutoff / admin before start + reason
+    confirmed --> completed: admin, after end_at
+    cancelled --> [*]
+    completed --> [*]
+```
+
+| From | To | Who | Condition | Error otherwise |
+|---|---|---|---|---|
+| pending | confirmed | admin | `now < start_at` | `INVALID_TRANSITION` |
+| pending | cancelled | own customer | `now < start_at` | `CANCELLATION_CUTOFF_PASSED` |
+| pending | cancelled | admin | none (clears expired pendings, P7.7) | |
+| confirmed | cancelled | own customer | `now <= start_at - cutoff` | `CANCELLATION_CUTOFF_PASSED` |
+| confirmed | cancelled | admin | `now < start_at`, non-blank reason | `INVALID_TRANSITION` / `REASON_REQUIRED` |
+| confirmed | completed | admin | `now >= end_at` | `TOO_EARLY_TO_COMPLETE` |
+
+Every other (from, to) pair, and any role not listed, is `INVALID_TRANSITION`
+(409). The cutoff comes from `business_settings.cancellation_cutoff_hours`.
 
 ## Authentication
 _P2.1–P2.5._ JWT in an HttpOnly cookie for the browser, Bearer for API

@@ -438,7 +438,7 @@ checklist (P11.4) is verified against this table.
 ## P7 — Lifecycle and history
 
 ### P7.1 — State machine (pure)
-- [ ] Status
+- [x] Status
 - Goal: the only definition of legal status transitions.
 - Requirement(s) served: **Booking statuses**
 - Acceptance criteria: `services/booking_state.py` — a transition table encoding: pending→confirmed (admin, start in future); pending→cancelled (own customer before start, or admin); confirmed→cancelled (own customer before `start − cutoff`; admin before start, reason required); confirmed→completed (admin, after `end_at`); cancelled/completed terminal. `check_transition(booking, to, actor, now, settings)` raises `InvalidTransition` / `CancellationCutoffPassed` / `ReasonRequired` / `TooEarlyToComplete`.
