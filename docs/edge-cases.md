@@ -27,8 +27,9 @@ Proof, with real commits, separate sessions and a `threading.Barrier`
 (`tests/concurrency/test_booking_races.py`): ten customers on one slot give
 exactly one `201` and nine `409 SLOT_TAKEN`, one row in the database. A second
 test holds every thread between the pre-check and the insert, so all ten
-*certainly* pass the pre-check, and the constraint still stops nine. P6.5
-adds the design reasoning (ADR 0001).
+*certainly* pass the pre-check, and the constraint still stops nine. The design
+reasoning and the alternatives we rejected are in
+[ADR 0001](decisions/0001-exclusion-constraints.md).
 
 ## Table
 

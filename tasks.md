@@ -425,7 +425,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: simultaneous booking; double submit; same customer overlap.
 
 ### P6.5 — ADR 0001 and race-condition write-up
-- [ ] Status
+- [x] Status
 - Goal: the reviewer understands *why* check-then-insert is broken and the constraint isn't.
 - Requirement(s) served: architecture explanation; edge cases explanation
 - Acceptance criteria: ADR 0001 final; `docs/edge-cases.md` race section with a two-transaction timeline; `docs/architecture.md` "create booking" Mermaid sequence diagram including the 23P01 → 409 path.

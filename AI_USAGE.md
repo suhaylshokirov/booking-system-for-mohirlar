@@ -324,6 +324,55 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P6 — Booking creation
+
+- **Asked:** the booking validation rules, the `create_booking` service, the
+  customer booking endpoints, concurrency tests for the race, and the final
+  ADR 0001 write-up.
+- **Produced:** `app/services/booking_rules.py` (pure; eight 422 codes),
+  `app/services/booking.py` (`create_booking`, `list_my_bookings`,
+  `get_booking`), `app/api/v1/bookings.py`, `app/schemas/booking.py`;
+  `tests/unit/test_booking_rules.py`, `tests/integration/test_create_booking.py`,
+  `tests/integration/test_bookings_api.py`, `tests/concurrency/test_booking_races.py`;
+  the create-booking sequence diagram, the race timeline in
+  `docs/edge-cases.md`, and ADR 0001 finalised.
+- **Verified how:**
+  - Read the check order in `validate_booking_start` against the P6.1 list, and
+    made `slots.compute_slots` call the same helpers (`earliest_start`,
+    `grid_start_fits`, `horizon_end`) so the grid and the validator cannot disagree.
+  - The race path is tested without the pre-check
+    (`test_database_constraint_maps_to_409_when_the_precheck_is_skipped`) and
+    with real threads: ten customers on one slot give one 201, nine 409, one
+    row; a second test holds every thread between the pre-check and the insert
+    so all ten pass the pre-check by construction. Ran the concurrency file
+    three times in a row to check it is not flaky.
+  - Ran the whole suite (527 tests), ruff check and ruff format.
+- **Not verified:** I did not run the mutation check that drops both exclusion
+  constraints to confirm the concurrency tests then fail (the command was
+  blocked by the permission system and I did not retry it). The tests are
+  designed so that only the constraint can produce nine 409s, but that has
+  not been demonstrated.
+- **Changed / rejected:** `GET /bookings` lists only the caller's own bookings,
+  admins included; the admin view is P7.3. The response has ids and snapshots
+  but no service or provider names; they are added when the UI needs them.
+  No Deviations-log entry was needed.
+- **Bugs caught:**
+  - The forced-interleaving concurrency tests first hung on a barrier timeout.
+    Cause: `get_business_settings` inserts the settings row with
+    `ON CONFLICT DO NOTHING`, and a second transaction's insert waits for the
+    first to commit, so a thread holding a barrier deadlocked its neighbours.
+    Fixed by committing the settings row in the test fixture; not a
+    production bug (only the very first request on an empty database is affected).
+  - A test that advanced the frozen clock five days failed because the 12-hour
+    test token had expired; the test now mints a new token after advancing.
+  - A double submit breaks both constraints at once, so the loser's code
+    (`SLOT_TAKEN` or `CUSTOMER_OVERLAP`) is not deterministic; the test accepts
+    either and ADR 0001 says so.
+  - Integration tests errored again because the database container was
+    stopped and port 5432 is held by another Postgres; used `DB_HOST_PORT=5433`.
+
+---
+
 ## Summary (for the submission form)
 
 _Written in P11.5._
