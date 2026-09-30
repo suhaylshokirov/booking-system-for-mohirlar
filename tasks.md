@@ -405,7 +405,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: price/duration changed after booking.
 
 ### P6.3 — Booking endpoints (customer)
-- [ ] Status
+- [x] Status
 - Goal: book and see your own bookings over the API.
 - Requirement(s) served: User can book; booking history; backend API
 - Acceptance criteria: `POST /bookings` → 201; `GET /bookings?scope=upcoming|past&status=` (own, paginated); `GET /bookings/{id}` — another customer's booking → **404** `BOOKING_NOT_FOUND`. Admin sees any booking.

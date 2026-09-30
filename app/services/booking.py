@@ -12,6 +12,7 @@ SQLSTATE 23P01 and we map the constraint name to the same 409 the pre-check
 would have given (ADR 0001).
 """
 
+import enum
 from datetime import datetime, timedelta
 
 from psycopg import errors as pg_errors
@@ -20,12 +21,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
+from app.core.pagination import PageParams, paginate
 from app.core.timezones import utc_to_local
 from app.models.availability import AvailabilityException, AvailabilityRule
 from app.models.booking import Booking, BookingEvent, BookingStatus
 from app.models.provider import Provider, ProviderService
 from app.models.service import Service
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.services.booking_rules import validate_booking_start
 from app.services.business_settings import get_business_settings
 from app.services.slots import build_windows_for_date
@@ -167,3 +169,46 @@ def _map_overlap_error(exc: IntegrityError) -> Exception:
         if make_error is not None:
             return make_error()
     return exc
+
+
+class Scope(enum.StrEnum):
+    UPCOMING = "upcoming"
+    PAST = "past"
+
+
+def list_my_bookings(
+    db: Session,
+    user: User,
+    params: PageParams,
+    now: datetime,
+    scope: Scope | None = None,
+    status: BookingStatus | None = None,
+) -> tuple[list[Booking], int]:
+    """One page of the user's own bookings, and the total.
+
+    `upcoming` means not yet over (`end_at > now`, so one in progress still
+    counts), soonest first; `past` is the rest, most recent first. Without a
+    scope, everything, newest start first. Ties break by id so pages are stable.
+    """
+    query = select(Booking).where(Booking.customer_id == user.id)
+    if status is not None:
+        query = query.where(Booking.status == status)
+    if scope is Scope.UPCOMING:
+        query = query.where(Booking.end_at > now).order_by(Booking.start_at, Booking.id)
+    elif scope is Scope.PAST:
+        query = query.where(Booking.end_at <= now).order_by(Booking.start_at.desc(), Booking.id)
+    else:
+        query = query.order_by(Booking.start_at.desc(), Booking.id)
+    return paginate(db, query, params)
+
+
+def get_booking(db: Session, user: User, booking_id: int) -> Booking:
+    """A booking the user may see: their own, or any for an admin.
+
+    Raises: 404 `BOOKING_NOT_FOUND`, the same for "does not exist" and "belongs
+    to someone else", so ids cannot be probed (404, not 403).
+    """
+    booking = db.get(Booking, booking_id)
+    if booking is None or (user.role != UserRole.ADMIN and booking.customer_id != user.id):
+        raise AppError("BOOKING_NOT_FOUND", "Booking not found.", status_code=404)
+    return booking

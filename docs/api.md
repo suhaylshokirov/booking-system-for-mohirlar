@@ -286,7 +286,39 @@ curl 'localhost:8000/api/v1/slots?service_id=1&date=2026-10-05&provider_id=1'
   otherwise `422 DATE_OUT_OF_RANGE` with `details.earliest` / `details.latest`.
 - A provider with nothing free is still listed, with `"slots": []`.
 - The list is advisory. Someone else may book a slot before you do; the
-  booking call then answers `409 SLOT_TAKEN` (P6).
+  booking call then answers `409 SLOT_TAKEN`.
+
+**Step: book it** (login required; Bearer or cookie). Send one of the
+`start_at` values from the slots step. It must carry an offset (`Z` or
+`+05:00`); a time without one is `422 VALIDATION_ERROR`.
+
+```bash
+curl -X POST localhost:8000/api/v1/bookings \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"service_id": 1, "provider_id": 1, "start_at": "2026-10-05T04:00:00Z", "notes": "Short back and sides"}'
+```
+
+```json
+{
+  "id": 7, "customer_id": 3, "provider_id": 1, "service_id": 1,
+  "start_at": "2026-10-05T04:00:00Z", "end_at": "2026-10-05T04:30:00Z",
+  "status": "pending", "price_amount": 60000, "duration_minutes": 30,
+  "notes": "Short back and sides", "cancel_reason": null,
+  "created_at": "2026-10-01T07:00:00Z"
+}
+```
+
+- `201` creates a `pending` booking. Price and duration are copied from the
+  service now, so a later edit to the service does not change this booking.
+- `409 SLOT_TAKEN`: the provider is busy then. `409 CUSTOMER_OVERLAP`: you
+  already have a booking at that time, with anyone. Back-to-back is fine.
+- The booking rules answer `422` with their own code (see the error table).
+
+`GET /bookings?scope=upcoming|past&status=pending&limit=20&offset=0` lists
+your own bookings (paginated). `upcoming` means not over yet, soonest first;
+`past` is latest first. `GET /bookings/{id}` reads one; someone else's booking
+is `404 BOOKING_NOT_FOUND`, exactly like one that does not exist. Admins can
+read any booking by id.
 
 ## Error envelope
 Every error has the same shape, whether we raised it, request validation
@@ -335,6 +367,9 @@ _One row per code, added by the task that introduces it._
 | `BEYOND_HORIZON` | 422 | Booking: the start is at or past the booking horizon; `details.before` |
 | `OUTSIDE_AVAILABILITY` | 422 | Booking: the provider is not working for the whole service at that time (weekly rules and exceptions applied) |
 | `NOT_ALIGNED` | 422 | Booking: the start is not on the slot grid measured from the window start |
+| `BOOKING_NOT_FOUND` | 404 | No such booking, or it belongs to someone else (admins see any) |
+| `SLOT_TAKEN` | 409 | Booking: the provider already has a pending or confirmed booking overlapping that time |
+| `CUSTOMER_OVERLAP` | 409 | Booking: you already have a pending or confirmed booking overlapping that time |
 | `DATE_IN_PAST` | 422 | Availability exception: the date is before today in the business timezone; `details.today` |
 | `AVAILABILITY_EXCEPTION_EXISTS` | 409 | Availability exception: the provider already has one for that date; `details.exception_id` |
 | `AVAILABILITY_OVERLAP` | 409 | Availability: the window overlaps another rule of the provider on that weekday; `details.conflicting_rule` |
