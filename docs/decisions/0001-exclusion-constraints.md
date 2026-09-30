@@ -107,6 +107,12 @@ violated constraint *name* to `409 SLOT_TAKEN` or `409 CUSTOMER_OVERLAP`.
 
 ## Known limits
 
+- Two overlapping inserts can wait on each other's constraint check (one
+  customer booking two providers at once, say). Postgres breaks that with a
+  deadlock error (SQLSTATE `40P01`) on one of them. The service maps it to 409
+  `SLOT_TAKEN`, like any lost race. Found in P7.6 when
+  `test_same_customer_two_providers_overlapping_one_rejected` failed about one
+  run in five with a 500.
 - A request that loses a race can wait for the winner's transaction to
   finish before it is rejected. Transactions here are short (a few statements),
   so the wait is brief.

@@ -169,3 +169,25 @@ def test_database_constraint_maps_to_409_when_the_precheck_is_skipped(
     assert exc.value.code == "CUSTOMER_OVERLAP"
     # The session is still usable after both rejected inserts.
     assert db.scalar(select(Booking.id).limit(1)) is not None
+
+
+def test_a_deadlock_between_overlapping_inserts_is_409_not_500(
+    db, ali, service, provider, monkeypatch
+):
+    from psycopg import errors as pg_errors
+    from sqlalchemy.exc import OperationalError
+
+    real_flush = db.flush
+
+    def flush_that_deadlocks_on_the_booking_insert(*args, **kwargs):
+        if any(isinstance(obj, Booking) for obj in db.new):
+            raise OperationalError("INSERT ...", {}, pg_errors.DeadlockDetected())
+        return real_flush(*args, **kwargs)
+
+    monkeypatch.setattr(db, "flush", flush_that_deadlocks_on_the_booking_insert)
+
+    with pytest.raises(AppError) as exc:
+        book(db, ali, service, provider, TEN)
+
+    assert exc.value.status_code == 409
+    assert exc.value.code == "SLOT_TAKEN"

@@ -20,7 +20,7 @@ from datetime import date, datetime, timedelta
 
 from psycopg import errors as pg_errors
 from sqlalchemy import select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
@@ -128,7 +128,7 @@ def create_booking(
                 )
             )
             db.flush()
-    except IntegrityError as exc:
+    except (IntegrityError, DBAPIError) as exc:
         raise _map_overlap_error(exc) from exc
     return booking
 
@@ -165,13 +165,22 @@ def _precheck_overlap(
             raise error()
 
 
-def _map_overlap_error(exc: IntegrityError) -> Exception:
-    """Turn an exclusion violation into its 409; anything else is a real bug, re-raise it."""
+def _map_overlap_error(exc: DBAPIError) -> Exception:
+    """Turn a lost race into its 409; anything else is a real bug, re-raise it.
+
+    Two cases: an exclusion violation names the constraint that fired. A
+    deadlock (SQLSTATE 40P01) happens when two overlapping inserts each wait on
+    the other's constraint check, for example one customer booking two
+    providers at once; Postgres aborts one of them. Both mean "someone else got
+    that time", so the loser gets `SLOT_TAKEN` instead of a 500.
+    """
     orig = exc.orig
     if isinstance(orig, pg_errors.ExclusionViolation):
         make_error = _OVERLAP_ERRORS.get(orig.diag.constraint_name or "")
         if make_error is not None:
             return make_error()
+    if isinstance(orig, pg_errors.DeadlockDetected):
+        return slot_taken()
     return exc
 
 
