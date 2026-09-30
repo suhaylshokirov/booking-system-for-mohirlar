@@ -10,13 +10,16 @@ The truth is the two Postgres exclusion constraints (`no_provider_overlap`,
 `no_customer_overlap`); when the second insert loses the race, Postgres raises
 SQLSTATE 23P01 and we map the constraint name to the same 409 the pre-check
 would have given (ADR 0001).
+
+`transition` changes a booking's status with a guarded UPDATE, so two
+concurrent changes cannot both succeed (ADR 0008).
 """
 
 import enum
 from datetime import datetime, timedelta
 
 from psycopg import errors as pg_errors
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -29,6 +32,7 @@ from app.models.provider import Provider, ProviderService
 from app.models.service import Service
 from app.models.user import User, UserRole
 from app.services.booking_rules import validate_booking_start
+from app.services.booking_state import check_transition
 from app.services.business_settings import get_business_settings
 from app.services.slots import build_windows_for_date
 
@@ -211,4 +215,60 @@ def get_booking(db: Session, user: User, booking_id: int) -> Booking:
     booking = db.get(Booking, booking_id)
     if booking is None or (user.role != UserRole.ADMIN and booking.customer_id != user.id):
         raise AppError("BOOKING_NOT_FOUND", "Booking not found.", status_code=404)
+    return booking
+
+
+def transition(
+    db: Session,
+    actor: User,
+    booking_id: int,
+    to: BookingStatus,
+    now: datetime,
+    reason: str | None = None,
+) -> Booking:
+    """Move a booking to `to` and record the change; return it (flushed, not committed).
+
+    Order matters: find the booking as `actor` (someone else's is a 404), ask
+    the state machine if the change is legal, then apply it with
+    `UPDATE ... WHERE id = :id AND status = :expected`. If another request
+    changed the status after we read it, no row matches and we stop before
+    writing an event, so the history never shows a change that did not happen.
+    The status update and its `booking_events` row share the caller's
+    transaction (ADR 0008).
+
+    Raises: 404 `BOOKING_NOT_FOUND`; the `booking_state` errors (409
+    `INVALID_TRANSITION`, `CANCELLATION_CUTOFF_PASSED`, `TOO_EARLY_TO_COMPLETE`,
+    422 `REASON_REQUIRED`); 409 `BOOKING_STATE_CHANGED` when we lost a race.
+    """
+    booking = get_booking(db, actor, booking_id)
+    check_transition(booking, to, actor, now, get_business_settings(db), reason)
+
+    expected = booking.status
+    values: dict = {"status": to}
+    if to == BookingStatus.CANCELLED:
+        values |= {"cancelled_by_id": actor.id, "cancel_reason": reason}
+    result = db.execute(
+        update(Booking)
+        .where(Booking.id == booking.id, Booking.status == expected)
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount == 0:
+        raise AppError(
+            "BOOKING_STATE_CHANGED",
+            "This booking was just changed by someone else. Reload and try again.",
+            status_code=409,
+        )
+    db.add(
+        BookingEvent(
+            booking_id=booking.id,
+            from_status=expected,
+            to_status=to,
+            actor_id=actor.id,
+            reason=reason,
+        )
+    )
+    db.flush()
+    # The UPDATE bypassed the ORM object; reload it so callers see the new state.
+    db.refresh(booking)
     return booking

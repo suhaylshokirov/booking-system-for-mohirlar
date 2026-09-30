@@ -12,5 +12,5 @@ Short records of the decisions that shape this project. Format for each:
 | [0005](0005-jwt-cookie-bearer-csrf.md) | JWT in an HttpOnly cookie + Bearer, with CSRF double-submit | accepted (P2.4) |
 | [0006](0006-half-open-ranges-and-utc.md) | Half-open ranges and UTC storage | accepted (P1.4; DST policy P4.1) |
 | [0007](0007-booking-snapshots.md) | Price and duration snapshots on bookings | accepted (P1.3) |
-| 0008 | Guarded (optimistic) status updates instead of row locks | planned (P7.2) |
+| [0008](0008-guarded-status-updates.md) | Guarded (optimistic) status updates instead of row locks | accepted (P7.2; proven in P7.6) |
 | 0009 | Transactional outbox for notifications | planned (P10.2) |

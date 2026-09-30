@@ -140,6 +140,15 @@ stateDiagram-v2
 Every other (from, to) pair, and any role not listed, is `INVALID_TRANSITION`
 (409). The cutoff comes from `business_settings.cancellation_cutoff_hours`.
 
+**Applying a transition (`booking.transition`, P7.2).** Load the booking as the
+actor (404 if not theirs), `check_transition`, then
+`UPDATE bookings SET status = :to WHERE id = :id AND status = :expected`.
+Zero rows updated means someone else changed it first: 409
+`BOOKING_STATE_CHANGED`, and no event is written. Otherwise a `booking_events`
+row (`from_status`, `to_status`, actor, reason) is inserted in the same
+transaction, and a cancel also stores `cancelled_by_id` and `cancel_reason`.
+See ADR 0008.
+
 ## Authentication
 _P2.1–P2.5._ JWT in an HttpOnly cookie for the browser, Bearer for API
 clients, CSRF double-submit for cookie requests (ADR 0005), login rate limiting.

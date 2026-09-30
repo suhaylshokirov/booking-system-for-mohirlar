@@ -447,7 +447,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: invalid transitions; completing before end; cancelling after cutoff.
 
 ### P7.2 — Guarded transitions with events
-- [ ] Status
+- [x] Status
 - Goal: concurrent transitions can't both succeed; every change is recorded.
 - Requirement(s) served: statuses; **booking history**
 - Acceptance criteria: `services/booking.transition(...)` — check rules, then `UPDATE bookings SET status=:to … WHERE id=:id AND status=:expected`; rowcount 0 → 409 `BOOKING_STATE_CHANGED`; insert `booking_events` in the same transaction.
