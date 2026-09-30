@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "admin" %}
+
+{% block title %}Admin · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+
+{% block masthead %}
+<header class="masthead">
+    <div class="container">
+        <h1 class="sheet-title">Today at {{ business.name }}</h1>
+        <p class="sheet-sub">Times are shown in <span class="mono">{{ business.timezone }}</span>.</p>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+{% set tz = business.timezone %}
+{% if problem %}
+<div class="notice-list"><p class="notice notice--error" role="alert">{{ problem }}</p></div>
+{% endif %}
+
+{{ ui.admin_nav("today") }}
+
+<div class="stats">
+    <p class="stat"><span class="stat-value mono">{{ dashboard.today_count }}</span><span class="stat-label">Bookings today</span></p>
+    <p class="stat"><span class="stat-value mono">{{ dashboard.pending_count }}</span><span class="stat-label">Waiting to be confirmed</span></p>
+    <p class="stat">
+        <span class="stat-value mono">{% if dashboard.utilization_percent is none %}–{% else %}{{ dashboard.utilization_percent }}%{% endif %}</span>
+        <span class="stat-label">This week booked
+            {%- if dashboard.available_minutes %} ({{ dashboard.booked_minutes }} of {{ dashboard.available_minutes }} min){% endif %}</span>
+    </p>
+</div>
+
+<section class="section" aria-labelledby="pending-title">
+    <div class="section-head"><h2 id="pending-title">Waiting to be confirmed</h2></div>
+    {% if dashboard.pending %}
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>When</th><th>Booking</th><th>Customer</th><th>Actions</th></tr></thead>
+            <tbody>
+            {% for row in dashboard.pending %}
+            {% set booking = row.line.booking %}
+            <tr>
+                <td>
+                    {{ booking.start_at|local_date(tz) }}<br>
+                    <span class="mono">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span>
+                    {% if row.is_stale %}<br><span class="stale">Expired: never confirmed</span>{% endif %}
+                </td>
+                <td>{{ row.line.service_name }} with {{ row.line.provider_name }}<br>
+                    <span class="mono faint">{{ booking.price_amount|money(business.currency) }}</span></td>
+                <td>{{ row.customer_name }}<br><span class="faint">{{ row.customer_email }}</span></td>
+                <td>
+                    <div class="row-actions">
+                        {% if not row.is_stale %}
+                        <form method="post" action="/admin/bookings/{{ booking.id }}/confirm" data-submit-once>
+                            {{ ui.csrf_field(csrf_token) }}
+                            <button type="submit" class="btn btn--commit btn--small" data-busy-label="Confirming…">Confirm</button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="/admin/bookings/{{ booking.id }}/cancel" data-submit-once
+                              data-confirm="Cancel this booking?"
+                              data-confirm-body="{{ row.customer_name }}, {{ booking.start_at|local_date(tz) }} at {{ booking.start_at|local_time(tz) }}. The customer sees it as cancelled."
+                              data-confirm-yes="Yes, cancel it" data-confirm-no="No, keep it">
+                            {{ ui.csrf_field(csrf_token) }}
+                            <label class="visually-hidden" for="reason-{{ booking.id }}">Reason for cancelling</label>
+                            <input id="reason-{{ booking.id }}" name="reason" maxlength="500" placeholder="Reason (optional)">
+                            <button type="submit" class="btn btn--danger btn--small" data-busy-label="Cancelling…">Cancel</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty">Nothing is waiting. New bookings appear here until you confirm them.</p>
+    {% endif %}
+</section>
+{% endblock %}

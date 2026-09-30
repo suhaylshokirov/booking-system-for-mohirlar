@@ -21,3 +21,9 @@ def field_errors(error: ValidationError, messages: dict[str, str]) -> dict[str, 
         message = messages.get(f"{field}.{problem['type']}") or messages.get(field)
         errors.setdefault(field, message or problem["msg"])
     return errors
+
+
+def whole_number(text: str) -> int | str:
+    """`"45"` -> 45; anything else is passed on as text so the schema rejects it."""
+    text = text.strip()
+    return int(text) if text.isdecimal() and len(text) < 12 else text

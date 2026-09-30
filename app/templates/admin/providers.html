@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "admin" %}
+
+{% block title %}Providers · Admin · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+
+{% block masthead %}
+<header class="masthead">
+    <div class="container">
+        <a class="back-link" href="/admin">Admin</a>
+        <h1 class="sheet-title">Providers</h1>
+        <p class="sheet-sub">The staff customers book with. A deactivated provider can't be booked; their past bookings stay.</p>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+{{ ui.admin_nav("providers") }}
+<section class="section" aria-labelledby="providers-title">
+    <div class="section-head">
+        <h2 id="providers-title">All providers</h2>
+        <a class="btn btn--small" href="/admin/providers/new">Add a provider</a>
+    </div>
+    {% if providers %}
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Provider</th><th>Offers</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+            {% for view in providers %}
+            {% set provider = view.provider %}
+            <tr>
+                <td>{{ provider.name }}{% if provider.bio %}<br><span class="faint">{{ provider.bio }}</span>{% endif %}</td>
+                <td>{% if view.services %}{{ view.services|map(attribute="name")|join(", ") }}{% else %}<span class="faint">Nothing yet</span>{% endif %}</td>
+                <td>{{ "Active" if provider.is_active else "Inactive" }}</td>
+                <td>
+                    <div class="row-actions">
+                        <a class="btn btn--quiet btn--small" href="/admin/providers/{{ provider.id }}/edit">Edit</a>
+                        <a class="btn btn--quiet btn--small" href="/admin/providers/{{ provider.id }}/availability">Hours</a>
+                        {% if provider.is_active %}
+                        <form method="post" action="/admin/providers/{{ provider.id }}/deactivate" data-submit-once
+                              data-confirm="Deactivate {{ provider.name }}?"
+                              data-confirm-body="Customers can no longer book them. Existing bookings are kept."
+                              data-confirm-yes="Yes, deactivate" data-confirm-no="No, keep them">
+                            {{ ui.csrf_field(csrf_token) }}
+                            <button type="submit" class="btn btn--danger btn--small">Deactivate</button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="/admin/providers/{{ provider.id }}/activate" data-submit-once>
+                            {{ ui.csrf_field(csrf_token) }}
+                            <button type="submit" class="btn btn--small">Activate</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty">No providers yet. <a href="/admin/providers/new">Add the first one</a>.</p>
+    {% endif %}
+</section>
+{% endblock %}

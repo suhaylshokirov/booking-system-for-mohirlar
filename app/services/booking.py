@@ -224,8 +224,12 @@ def list_all_bookings(
     customer_id: int | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    customer_email: str | None = None,
 ) -> tuple[list[Booking], int]:
     """One page of every booking (the caller has checked the user is an admin), and the total.
+
+    `customer_email` matches part of the customer's email, ignoring case
+    (`%` and `_` in it are ordinary characters, not wildcards).
 
     `date_from` / `date_to` are calendar days on the business's clock, both
     inclusive: a booking matches if it *starts* on one of those local days. They
@@ -240,6 +244,10 @@ def list_all_bookings(
         query = query.where(Booking.provider_id == provider_id)
     if customer_id is not None:
         query = query.where(Booking.customer_id == customer_id)
+    if customer_email:
+        query = query.join(User, User.id == Booking.customer_id).where(
+            User.email.icontains(customer_email, autoescape=True)
+        )
     if date_from is not None or date_to is not None:
         timezone = get_business_settings(db).timezone
         if date_from is not None:
@@ -393,3 +401,9 @@ def describe_bookings(db: Session, bookings: list[Booking]) -> list[BookingLine]
         BookingLine(booking, services[booking.service_id], providers[booking.provider_id])
         for booking in bookings
     ]
+
+
+def customers_of(db: Session, bookings: list[Booking]) -> dict[int, User]:
+    """The customers of `bookings` by id, in one query (for admin lists)."""
+    ids = {booking.customer_id for booking in bookings}
+    return {user.id: user for user in db.scalars(select(User).where(User.id.in_(ids)))}

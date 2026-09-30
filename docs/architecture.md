@@ -264,10 +264,37 @@ history row as the API; a 409 re-renders the booking with the reason.
 **CSRF.** HTML forms are covered by the same app-wide `csrf_protect`
 dependency as the API; forms carry the token in a `csrf_token` hidden field.
 
-**Visual language.** Lime means *committed or selected*: the chosen slot, a
-Confirmed status, the page you're on, the button that books. Everything else
-is ink on paper. Status chips always spell the status and add a shape (ring,
-dot, dash), so colour is never the only signal.
+**Visual language ("tile and ticket").** Page titles sit on a band of cobalt
+glaze with a faint girih lattice, after Tashkent's tilework; content sits on
+porcelain white. A booking is drawn as a *navbat* ticket (the queue number you
+take and wait to hear called): paper, a perforation, a torn edge and the time
+printed large, on the confirm step and the booking's page. Saffron
+means *committed or selected*: the chosen slot, a Confirmed status, the step
+and page you're on, the button that books; red is only for cancelling and
+errors; a barber-pole stripe only means "loading". Status chips always spell
+the status and add a shape (dashed ring, tick, dot, strike), so colour is
+never the only signal. Type is the owner's from Theoria: Archivo expanded
+for titles and condensed for labels, Instrument Sans for reading, Spline Sans
+Mono for times and prices. Every colour token is written once as
+`light-dark(light, dark)` in `app.css`; the theme toggle only sets
+`color-scheme`.
+
+## Admin dashboard numbers
+
+`services/dashboard.py` computes what `/admin` shows, on the business's local
+calendar (Monday to Sunday weeks):
+
+- **Bookings today**: bookings starting today that are not cancelled.
+- **Waiting to be confirmed**: every pending booking. One whose start has passed
+  is flagged expired (`is_stale_pending`); it can only be cleared.
+- **Utilization** = booked minutes ÷ available minutes for this week. Available =
+  the working windows of every active provider (weekly rules, with exceptions and
+  days off replacing them, via `slots.build_windows_for_date`). Booked = the
+  duration snapshots of non-cancelled bookings starting this week. No availability
+  shows a dash; the figure is capped at 100%.
+
+The admin pages answer a customer with the 404 page, not a 403, so the area does
+not advertise itself (`web/deps.require_admin_page`).
 
 ## Testing strategy
 Three layers: unit (pure logic, no database), integration (API + real

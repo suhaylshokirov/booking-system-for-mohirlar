@@ -5,7 +5,7 @@
 <div class="field{% if error %} field--invalid{% endif %}">
     <label class="field__label" for="field-{{ name }}">{{ label }}</label>
     <input id="field-{{ name }}" name="{{ name }}" type="{{ type }}"
-           {%- if value %} value="{{ value }}"{% endif %}
+           {%- if value is not none and value != "" %} value="{{ value }}"{% endif %}
            {%- if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}
            {%- if required %} required{% endif %}
            {%- if autofocus %} autofocus{% endif %}
@@ -29,11 +29,12 @@
 {% endif %}
 {% endmacro %}
 
-{# A booking's status, always spelled out in words (rule 12). #}
-{% macro status_chip(status) %}<span class="status-chip status-chip--{{ status.value }}">{{ status.value|capitalize }}</span>{% endmacro %}
+{# A booking's status, always spelled out in words (rule 12). `stamp` draws
+   it as the rubber stamp on a ticket. #}
+{% macro status_chip(status, stamp=false) %}<span class="status-chip status-chip--{{ status.value }}{% if stamp %} status-chip--stamp{% endif %}">{{ status.value|capitalize }}</span>{% endmacro %}
 
 {# Where you are in booking. Numbered because it is a real sequence; the
-   current step is the lime one (rule 12), steps behind you are ink. #}
+   current step is the saffron one (rule 12), steps behind you are ticked. #}
 {% macro steps(current) %}
 <ol class="steps" aria-label="Booking steps">
     {% for label in ["Choose a time", "Confirm"] %}
@@ -46,3 +47,62 @@
 
 {# The hidden field every POST form carries (see app/api/csrf.py). #}
 {% macro csrf_field(token) %}<input type="hidden" name="csrf_token" value="{{ token }}">{% endmacro %}
+
+{# Like `field`, for longer text. #}
+{% macro textarea(name, label, value="", error=none, hint=none, required=false) %}
+<div class="field{% if error %} field--invalid{% endif %}">
+    <label class="field__label" for="field-{{ name }}">{{ label }}</label>
+    <textarea id="field-{{ name }}" name="{{ name }}" rows="3"
+              {%- if required %} required{% endif %}
+              {%- if error %} aria-invalid="true"{% endif %}
+              {%- if hint or error %} aria-describedby="{% if hint %}field-{{ name }}-hint{% endif %}{% if hint and error %} {% endif %}{% if error %}field-{{ name }}-error{% endif %}"{% endif %}>{{ value }}</textarea>
+    {% if hint %}<p class="field__hint" id="field-{{ name }}-hint">{{ hint }}</p>{% endif %}
+    {% if error %}<p class="field__error" id="field-{{ name }}-error">{{ error }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{# The admin area's sections; each admin page passes its own key. #}
+{% macro admin_nav(current) %}
+<nav class="segmented admin-nav" aria-label="Admin sections">
+    <a href="/admin"{% if current == "today" %} aria-current="page"{% endif %}>Today</a>
+    <a href="/admin/bookings"{% if current == "bookings" %} aria-current="page"{% endif %}>Bookings</a>
+    <a href="/admin/services"{% if current == "services" %} aria-current="page"{% endif %}>Services</a>
+    <a href="/admin/providers"{% if current == "providers" %} aria-current="page"{% endif %}>Providers</a>
+    <a href="/admin/settings"{% if current == "settings" %} aria-current="page"{% endif %}>Settings</a>
+</nav>
+{% endmacro %}
+
+{# The buttons an admin may press on a booking, by status. They mirror
+   `booking_state` but the server still decides. `next` is the page to come
+   back to. A confirmed booking needs a reason to cancel (the field is
+   required); a pending one takes an optional reason. #}
+{% macro booking_actions(booking, can_complete, is_stale, csrf_token, next, tz) %}
+{% set live = booking.status.value in ("pending", "confirmed") %}
+<div class="row-actions">
+    {% if booking.status.value == "pending" and not is_stale %}
+    <form method="post" action="/admin/bookings/{{ booking.id }}/confirm" data-submit-once>
+        {{ csrf_field(csrf_token) }}<input type="hidden" name="next" value="{{ next }}">
+        <button type="submit" class="btn btn--commit btn--small" data-busy-label="Confirming…">Confirm</button>
+    </form>
+    {% endif %}
+    {% if booking.status.value == "confirmed" and can_complete %}
+    <form method="post" action="/admin/bookings/{{ booking.id }}/complete" data-submit-once>
+        {{ csrf_field(csrf_token) }}<input type="hidden" name="next" value="{{ next }}">
+        <button type="submit" class="btn btn--commit btn--small" data-busy-label="Saving…">Mark completed</button>
+    </form>
+    {% endif %}
+    {% if live %}
+    <form method="post" action="/admin/bookings/{{ booking.id }}/cancel" data-submit-once
+          data-confirm="Cancel this booking?"
+          data-confirm-body="{{ booking.start_at|local_date(tz) }} at {{ booking.start_at|local_time(tz) }}. The customer sees it as cancelled."
+          data-confirm-yes="Yes, cancel it" data-confirm-no="No, keep it">
+        {{ csrf_field(csrf_token) }}<input type="hidden" name="next" value="{{ next }}">
+        <label class="visually-hidden" for="reason-{{ booking.id }}">Reason for cancelling</label>
+        <input id="reason-{{ booking.id }}" name="reason" maxlength="500"
+               placeholder="Reason{{ '' if booking.status.value == 'confirmed' else ' (optional)' }}"
+               {%- if booking.status.value == "confirmed" %} required{% endif %}>
+        <button type="submit" class="btn btn--danger btn--small" data-busy-label="Cancelling…">Cancel</button>
+    </form>
+    {% endif %}
+</div>
+{% endmacro %}

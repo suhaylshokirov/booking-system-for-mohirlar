@@ -471,6 +471,75 @@ in [`CLAUDE.md`](CLAUDE.md).
     booking, and `dict()` on a SQLAlchemy result does not build a mapping
     (`.all()` first).
 
+## P8 — UI redesign ("tile and ticket")
+
+- **Asked:** the owner found the Theoria-inspired look empty and too basic
+  and asked for a complete redesign, with a free hand on the direction.
+- **Produced:** a new design system in `app/static/css/app.css` and new page
+  CSS; every customer template reworked around a `masthead` block in
+  `base.html`. Cobalt glazed band with a girih lattice (Tashkent tilework),
+  the booking drawn as a *navbat*
+  queue ticket, saffron as the one "committed or selected" colour, a
+  barber-pole stripe for loading. The home page gained a "house rules" ticket
+  built from real business settings and a JS-only shop clock.
+- **Verified how:**
+  - Screenshotted every page (home, service, login, picker, confirm, my
+    bookings, booking page, 404) at 1360 px and 390 px, light and dark, with a
+    headless browser against the seeded app, and checked each by eye.
+  - Scripted the JavaScript paths in the browser: the live picker swaps the
+    grid when the person changes, the chosen time is echoed in the Continue
+    bar, the stub opens the booking, the cancel dialog opens with "No"
+    first, the theme toggle updates `theme-color`; no console errors.
+  - Measured horizontal overflow at 390 px on every page (none).
+  - Full suite 762 tests, ruff check and format clean. Class names the tests
+    assert were kept; only the token test changed (`--lime` → `--saffron`).
+- **Changed / rejected:**
+  - The fonts were first changed too (a slab display face, Onest, and a
+    dot-matrix face for ticket times; the first dot-matrix face, Doto, drew
+    its colon as a cross, "22‡06"). After review the owner asked to keep
+    Theoria's type, so Archivo (expanded titles, condensed labels),
+    Instrument Sans and Spline Sans Mono stay, at the redesign's sizes.
+- **Bugs caught (in AI output, by the screenshots):**
+  - `.masthead a` out-ranked `.btn--light`, so buttons on the band had white
+    text on a white pill (invisible "Choose a service" / "Book a time").
+  - The ticket's print animation clipped its own shadow into a grey box, and
+    its `transform` wiped the hero ticket's tilt; now `translate` + a wider clip.
+  - `.field input { width: 100% }` also sized the hidden radios of the "With"
+    list, making the booking page 436 px wide on a 390 px phone.
+  - `syncThemeColor` read `--paper` with `getPropertyValue`, which returns
+    the unresolved `light-dark(...)` text; it now reads the resolved colour.
+
+---
+
+## P9 — Admin UI
+
+- **Asked:** one task at a time, the admin pages over the existing services:
+  dashboard (P9.1), services (P9.2), providers (P9.3), availability editor
+  (P9.4), all-bookings management (P9.5), business settings (P9.6).
+- **Produced:** `app/web/admin*.py` routers, `services/dashboard.py`, the
+  `admin/` templates, `css/admin.css`, and a `customer_email` filter on
+  `list_all_bookings`. Every page is thin: it parses the form, calls the same
+  service function the JSON API calls, and turns a refusal into a message
+  beside the field (or a notice). Customers get the 404 page on `/admin*`.
+- **Verified how:** an integration test file per task (access for visitor,
+  customer and admin; the happy path; each refusal showing its message and
+  changing nothing); the full suite, 842 tests at the end; ruff check and
+  format. The pages were **not** looked at in a browser this phase, so layout
+  and the live filter's JavaScript are unchecked by eye.
+- **Changed / rejected:**
+  - The pending-queue actions first lived in `admin.py`; in P9.5 they moved
+    to `admin_bookings.py` (same URLs) so one place owns every booking action.
+  - "Live filters" reuse the existing `initLiveFilter` (table fragment on
+    `X-Requested-With`) instead of new JavaScript.
+- **Bugs caught (in AI output, by tests):**
+  - The provider form's "undo if the services are refused" used
+    `db.rollback()`, which also wiped the test's fixtures; replaced with a
+    savepoint, which is also the right scope in production.
+  - The shared `field` macro drew `value` only when truthy, so a saved `0`
+    (lead time, cutoff) showed as an empty box; it now tests for none/empty.
+  - A first dashboard test expected 17% utilization; one 30-minute booking in
+    360 available minutes is 8%. The test was wrong, not the code.
+
 ---
 
 ## Summary (for the submission form)

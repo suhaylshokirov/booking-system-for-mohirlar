@@ -553,7 +553,7 @@ checklist (P11.4) is verified against this table.
 ## P9 — Admin UI
 
 ### P9.1 — Admin dashboard
-- [ ] Status
+- [x] Status
 - Goal: the owner's day at a glance.
 - Requirement(s) served: Bonus 4
 - Acceptance criteria: `/admin` (admin-only; others → 404/redirect to login): `.stats` — today's bookings, pending count, this week's utilization (booked minutes ÷ available minutes); pending bookings list with Confirm / Cancel (reason) actions; expired pendings flagged.
@@ -562,7 +562,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: —
 
 ### P9.2 — Services admin pages
-- [ ] Status
+- [x] Status
 - Goal: CRUD in the browser.
 - Requirement(s) served: Create a service
 - Acceptance criteria: list (incl. inactive), create/edit forms with server-side errors, activate/deactivate.
@@ -571,7 +571,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: —
 
 ### P9.3 — Providers admin pages
-- [ ] Status
+- [x] Status
 - Goal: manage staff and offered services.
 - Requirement(s) served: Create providers
 - Acceptance criteria: list, create/edit, offered-services checkboxes, activate/deactivate.
@@ -580,7 +580,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: —
 
 ### P9.4 — Availability editor
-- [ ] Status
+- [x] Status
 - Goal: set weekly hours and exceptions per provider; see conflicts.
 - Requirement(s) served: **Set availability**
 - Acceptance criteria: per-provider page: weekly rules table grouped by weekday with add/remove; exceptions list with add (day off / custom hours); conflict notice listing affected bookings (P4.4).
@@ -589,7 +589,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: overlapping rules (UI message).
 
 ### P9.5 — All bookings management
-- [ ] Status
+- [x] Status
 - Goal: find and act on any booking.
 - Requirement(s) served: statuses; booking history
 - Acceptance criteria: `/admin/bookings` table with live filters (status, provider, date range, customer email), pagination, row actions (confirm / complete / cancel with reason), detail page with history.
@@ -598,7 +598,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: —
 
 ### P9.6 — Business settings page
-- [ ] Status
+- [x] Status
 - Goal: edit timezone, granularity, lead time, horizon, cutoff.
 - Requirement(s) served: bonus 5, 6
 - Acceptance criteria: form using `services/settings`; validation messages.
@@ -740,3 +740,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-09-30 | P7.3 | The admin booking list is `GET /bookings/all`, not `GET /bookings` | `GET /bookings` is already "my own bookings" for everyone (P6.3, tested and documented, including for admins, who can also book). Making it role-dependent would change the meaning of one URL by who calls it; a separate path keeps each endpoint's contract fixed |
 | 2026-09-30 | P8.2 | A 401 on a web page GET redirects to `/login?next=…` (in `app/web/errors.py`), built now rather than in P8.5; the page renderer also receives the error code, so `CSRF_FAILED` gets wording for people | Every signed-in page (P8.5, P9) needs "send them to log in and back", and the login page's `next` handling is what makes it safe; one place instead of a check per route |
 | 2026-09-30 | P8.4 | "Any" shows every person's free times, grouped by person, rather than one merged list auto-assigned to someone; after booking, the redirect goes to `/me/bookings/{id}`, which P8.5 builds | Grouping reuses `get_slots` as it is and keeps "who gets an any-booking" from becoming a new business rule under deadline; the customer still sees everything free that day. The booking page is the next task in the same phase |
+| 2026-09-30 | P8 (redesign) | The whole customer UI is redesigned: the Theoria-inspired look (white sheet, Archivo, lime) is replaced by "tile and ticket" (cobalt glazed band with a girih lattice, a booking printed as a queue ticket; the owner then asked to keep Theoria's type, so Archivo + Instrument Sans + Spline Sans Mono stay). Rule 12's colour changes from lime to saffron; the rule itself (one colour = committed or selected, never decoration) is unchanged. Base layout gains a `masthead` block; `.field input` no longer styles radios and checkboxes | The owner found the first look empty and too basic and asked for a complete redesign. Class names that the web tests assert (`price-row`, `sheet-title`, `status-chip--*`, `day-title`, `btn--commit`, …) are kept, so only the CSS token test changed (`--lime` → `--saffron`). The home page's "house rules" ticket shows real business settings (timezone, lead time, horizon, cancellation cutoff), and its live shop clock is JS-only (hidden without JS), formatting only |

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "admin" %}
+
+{% block title %}Settings · Admin · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+
+{% block masthead %}
+<header class="masthead">
+    <div class="container">
+        <a class="back-link" href="/admin">Admin</a>
+        <h1 class="sheet-title">Business settings</h1>
+        <p class="sheet-sub">How {{ business.name }} works. Existing bookings are never changed by these.</p>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+{{ ui.admin_nav("settings") }}
+<section class="auth">
+    <form class="form auth-form" method="post" action="/admin/settings" novalidate data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        {{ ui.field("name", "Business name", value=values.name, error=errors.name) }}
+        {{ ui.field("timezone", "Timezone", value=values.timezone, error=errors.timezone,
+                    hint="An IANA name, such as Asia/Tashkent. Working hours are wall-clock time here.") }}
+        {{ ui.field("currency", "Currency", value=values.currency, error=errors.currency,
+                    hint="Three capital letters, such as UZS. Prices are whole units.") }}
+
+        <div class="field{% if errors.slot_granularity_minutes %} field--invalid{% endif %}">
+            <label class="field__label" for="field-slot_granularity_minutes">Slot size</label>
+            <select id="field-slot_granularity_minutes" name="slot_granularity_minutes"
+                    {%- if errors.slot_granularity_minutes %} aria-invalid="true" aria-describedby="field-slot_granularity_minutes-error"{% endif %}>
+                {% for g in granularities %}
+                <option value="{{ g }}"{% if values.slot_granularity_minutes|string == g|string %} selected{% endif %}>{{ g }} minutes</option>
+                {% endfor %}
+            </select>
+            <p class="field__hint">Times start on multiples of this. Every active service must last a multiple of it.</p>
+            {% if errors.slot_granularity_minutes %}<p class="field__error" id="field-slot_granularity_minutes-error">{{ errors.slot_granularity_minutes }}</p>{% endif %}
+        </div>
+
+        {{ ui.field("min_lead_time_minutes", "Notice needed (minutes)", type="number", value=values.min_lead_time_minutes,
+                    error=errors.min_lead_time_minutes, hint="How far ahead a booking must be made.") }}
+        {{ ui.field("max_booking_horizon_days", "Booking window (days)", type="number", value=values.max_booking_horizon_days,
+                    error=errors.max_booking_horizon_days, hint="How far ahead customers may book.") }}
+        {{ ui.field("cancellation_cutoff_hours", "Cancellation cutoff (hours)", type="number", value=values.cancellation_cutoff_hours,
+                    error=errors.cancellation_cutoff_hours, hint="Customers cannot cancel a confirmed booking closer to its start than this.") }}
+
+        <button type="submit" class="btn btn--block" data-busy-label="Saving…">Save settings</button>
+    </form>
+</section>
+{% endblock %}

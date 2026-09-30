@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "admin" %}
+
+{% block title %}Booking {{ "%04d"|format(line.booking.id) }} · Admin · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+
+{% block masthead %}
+<header class="masthead">
+    <div class="container">
+        <a class="back-link" href="/admin/bookings">Bookings</a>
+        <h1 class="sheet-title">{{ line.service_name }} · No. <span class="mono">{{ "%04d"|format(line.booking.id) }}</span></h1>
+        <p class="sheet-sub">{{ customer.full_name }}, {{ line.booking.start_at|local_date(business.timezone) }}.</p>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+{% set tz = business.timezone %}
+{% set booking = line.booking %}
+{% if problem %}
+<div class="notice-list"><p class="notice notice--error" role="alert">{{ problem }}</p></div>
+{% endif %}
+
+<div class="stats">
+    <p class="stat"><span class="stat-value mono">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span><span class="stat-label">{{ booking.start_at|local_date(tz) }}</span></p>
+    <p class="stat"><span class="stat-value">{{ ui.status_chip(booking.status) }}</span><span class="stat-label">{% if is_stale %}Expired: never confirmed{% else %}Status{% endif %}</span></p>
+    <p class="stat"><span class="stat-value mono">{{ booking.price_amount|money(business.currency) }}</span><span class="stat-label">{{ booking.duration_minutes|duration }}</span></p>
+</div>
+
+<section class="section" aria-labelledby="who-title">
+    <div class="section-head"><h2 id="who-title">Details</h2></div>
+    <dl class="facts">
+        <div><dt class="label">Service</dt><dd>{{ line.service_name }}</dd></div>
+        <div><dt class="label">Provider</dt><dd>{{ line.provider_name }}</dd></div>
+        <div><dt class="label">Customer</dt><dd>{{ customer.full_name }} <span class="faint">{{ customer.email }}</span></dd></div>
+        {% if booking.notes %}<div><dt class="label">Customer's note</dt><dd>{{ booking.notes }}</dd></div>{% endif %}
+        {% if booking.cancel_reason %}<div><dt class="label">Cancellation reason</dt><dd>{{ booking.cancel_reason }}</dd></div>{% endif %}
+    </dl>
+    {{ ui.booking_actions(booking, can_complete, is_stale, csrf_token, next, tz) }}
+</section>
+
+<section class="section" aria-labelledby="history-title">
+    <div class="section-head"><h2 id="history-title">History</h2></div>
+    <ol class="timeline">
+        {% for entry in history %}
+        <li>
+            <span class="timeline__what">{{ entry.text }}</span>
+            <span class="timeline__when mono">{{ entry.at|local_date(tz) }}, {{ entry.at|local_time(tz) }}</span>
+            {% if entry.reason %}<span class="timeline__reason">Reason: {{ entry.reason }}</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ol>
+</section>
+{% endblock %}

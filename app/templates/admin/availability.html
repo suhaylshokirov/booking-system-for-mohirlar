@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "admin" %}
+
+{% block title %}Hours of {{ provider.name }} · Admin · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+
+{% block masthead %}
+<header class="masthead">
+    <div class="container">
+        <a class="back-link" href="/admin/providers">Providers</a>
+        <h1 class="sheet-title">Hours of {{ provider.name }}</h1>
+        <p class="sheet-sub">
+            Local times in <span class="mono">{{ business.timezone }}</span>, on a {{ business.slot_granularity_minutes }}-minute grid.
+            Changing hours never changes existing bookings.
+        </p>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+{% set tz = business.timezone %}
+{% set action = "/admin/providers/" ~ provider.id ~ "/availability" %}
+
+{% if problem %}
+<div class="notice-list"><p class="notice notice--error" role="alert">{{ problem }}</p></div>
+{% endif %}
+
+{% if conflicts %}
+<section class="section" aria-labelledby="conflicts-title">
+    <div class="notice-list">
+        <p class="notice notice--error" role="status">
+            <strong id="conflicts-title">{{ conflicts|length }} upcoming booking{{ "" if conflicts|length == 1 else "s" }} no longer fit{{ "s" if conflicts|length == 1 else "" }} these hours.</strong>
+            They are kept; contact the customers or cancel them from the bookings list.
+        </p>
+    </div>
+    <ul class="conflicts">
+        {% for line, why in conflicts %}
+        <li>
+            {{ line.booking.start_at|local_date(tz) }}, <span class="mono">{{ line.booking.start_at|local_time(tz) }}–{{ line.booking.end_at|local_time(tz) }}</span>
+            · {{ line.service_name }} · {{ ui.status_chip(line.booking.status) }}
+            <span class="faint">Because {{ why }}.</span>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+<section class="section" aria-labelledby="weekly-title">
+    <div class="section-head"><h2 id="weekly-title">Weekly hours</h2></div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Day</th><th>Working windows</th></tr></thead>
+            <tbody>
+            {% for index, name, rules in week %}
+            <tr>
+                <th scope="row">{{ name }}</th>
+                <td>
+                    {% if rules %}
+                    <ul class="windows">
+                        {% for rule in rules %}
+                        <li>
+                            <span class="mono">{{ rule.start_time.strftime("%H:%M") }}–{{ rule.end_time.strftime("%H:%M") }}</span>
+                            <form method="post" action="{{ action }}/rules/{{ rule.id }}/delete" data-submit-once
+                                  data-confirm="Remove this window?"
+                                  data-confirm-body="{{ name }} {{ rule.start_time.strftime('%H:%M') }}–{{ rule.end_time.strftime('%H:%M') }}. Existing bookings are kept."
+                                  data-confirm-yes="Yes, remove it" data-confirm-no="No, keep it">
+                                {{ ui.csrf_field(csrf_token) }}
+                                <button type="submit" class="btn btn--quiet btn--small">Remove</button>
+                            </form>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}<span class="faint">Not working</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <form class="inline-form" method="post" action="{{ action }}/rules" data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        <h3>Add a window</h3>
+        <div class="field">
+            <label class="field__label" for="rule-weekday">Day</label>
+            <select id="rule-weekday" name="weekday" required>
+                {% for index, name, rules in week %}
+                <option value="{{ index }}"{% if rule_values.weekday == index|string %} selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field">
+            <label class="field__label" for="rule-start">From</label>
+            <input id="rule-start" name="start_time" type="time" step="{{ step }}" required value="{{ rule_values.start_time or '09:00' }}">
+        </div>
+        <div class="field">
+            <label class="field__label" for="rule-end">To</label>
+            <input id="rule-end" name="end_time" type="time" step="{{ step }}" required value="{{ rule_values.end_time or '18:00' }}">
+        </div>
+        <button type="submit" class="btn btn--small" data-busy-label="Adding…">Add window</button>
+    </form>
+</section>
+
+<section class="section" aria-labelledby="exceptions-title">
+    <div class="section-head"><h2 id="exceptions-title">Days off and custom hours</h2></div>
+    <p class="section-note">A date listed here replaces the weekly hours for that day.</p>
+    {% if exceptions %}
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Date</th><th>Hours</th><th>Reason</th><th>Actions</th></tr></thead>
+            <tbody>
+            {% for row in exceptions %}
+            <tr>
+                <td>{{ row.date|day_label }}{% if row.date < today %} <span class="faint">(past)</span>{% endif %}</td>
+                <td>{% if row.start_time %}<span class="mono">{{ row.start_time.strftime("%H:%M") }}–{{ row.end_time.strftime("%H:%M") }}</span>{% else %}Day off{% endif %}</td>
+                <td>{{ row.reason or "" }}</td>
+                <td>
+                    <form method="post" action="{{ action }}/exceptions/{{ row.id }}/delete" data-submit-once>
+                        {{ ui.csrf_field(csrf_token) }}
+                        <button type="submit" class="btn btn--quiet btn--small">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty">No exceptions. The weekly hours apply every day.</p>
+    {% endif %}
+
+    <form class="inline-form" method="post" action="{{ action }}/exceptions" data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        <h3>Add an exception</h3>
+        <div class="field">
+            <label class="field__label" for="ex-date">Date</label>
+            <input id="ex-date" name="date" type="date" required min="{{ today.isoformat() }}" value="{{ exception_values.date }}">
+        </div>
+        <div class="field">
+            <label class="field__label" for="ex-start">From</label>
+            <input id="ex-start" name="start_time" type="time" step="{{ step }}" value="{{ exception_values.start_time }}">
+        </div>
+        <div class="field">
+            <label class="field__label" for="ex-end">To</label>
+            <input id="ex-end" name="end_time" type="time" step="{{ step }}" value="{{ exception_values.end_time }}">
+        </div>
+        <div class="field">
+            <label class="field__label" for="ex-reason">Reason</label>
+            <input id="ex-reason" name="reason" maxlength="200" value="{{ exception_values.reason }}">
+        </div>
+        <p class="field__hint">Leave both times empty for a day off.</p>
+        <button type="submit" class="btn btn--small" data-busy-label="Adding…">Add exception</button>
+    </form>
+</section>
+{% endblock %}

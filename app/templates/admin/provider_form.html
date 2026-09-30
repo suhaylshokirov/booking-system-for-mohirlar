@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "admin" %}
+
+{% block title %}{{ "Edit " ~ provider.name if provider else "New provider" }} · Admin · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+
+{% block masthead %}
+<header class="masthead masthead--compact">
+    <div class="container">
+        <a class="back-link" href="/admin/providers">Providers</a>
+        <h1 class="sheet-title">{{ "Edit " ~ provider.name if provider else "New provider" }}</h1>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="auth">
+    {% set action = "/admin/providers/" ~ provider.id if provider else "/admin/providers" %}
+    <form class="form auth-form" method="post" action="{{ action }}" novalidate data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        {{ ui.field("name", "Name", value=values.name, error=errors.name, autofocus=true) }}
+        {{ ui.textarea("bio", "Bio", value=values.bio, error=errors.bio, hint="Optional. Shown to customers.") }}
+
+        <fieldset class="field{% if errors.service_ids %} field--invalid{% endif %}">
+            <legend class="field__label">Services offered</legend>
+            {% for service in choices %}
+            <label class="check">
+                <input type="checkbox" name="service_ids" value="{{ service.id }}"{% if service.id in values.service_ids %} checked{% endif %}>
+                {{ service.name }}
+            </label>
+            {% else %}
+            <p class="field__hint">No active services yet. <a href="/admin/services/new">Add one</a> first.</p>
+            {% endfor %}
+            {% if errors.service_ids %}<p class="field__error">{{ errors.service_ids }}</p>{% endif %}
+        </fieldset>
+
+        <button type="submit" class="btn btn--block" data-busy-label="Saving…">Save provider</button>
+    </form>
+</section>
+{% endblock %}

@@ -1,0 +1,32 @@
+{# The admin bookings table and its pager: the part the live filter swaps
+   (app/web/admin_bookings.py). Also included by the full page. #}
+{% import "_macros.html" as ui %}
+{% set tz = business.timezone %}
+<p class="section-note" role="status">{{ total }} booking{{ "" if total == 1 else "s" }}</p>
+{% if rows %}
+<div class="table-wrap">
+    <table>
+        <thead><tr><th>When</th><th>Booking</th><th>Customer</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+        {% for row in rows %}
+        {% set booking = row.line.booking %}
+        <tr>
+            <td>
+                <a href="/admin/bookings/{{ booking.id }}">{{ booking.start_at|local_date(tz) }}</a><br>
+                <span class="mono">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span>
+            </td>
+            <td>{{ row.line.service_name }} with {{ row.line.provider_name }}<br>
+                <span class="mono faint">{{ booking.price_amount|money(business.currency) }}</span></td>
+            <td>{{ row.customer.full_name }}<br><span class="faint">{{ row.customer.email }}</span></td>
+            <td>{{ ui.status_chip(booking.status) }}
+                {% if row.is_stale %}<br><span class="stale">Expired: never confirmed</span>{% endif %}</td>
+            <td>{{ ui.booking_actions(booking, row.can_complete, row.is_stale, csrf_token, next, tz) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{{ ui.pagination(pager, "/admin/bookings", keep) }}
+{% else %}
+<p class="empty">No bookings match these filters.</p>
+{% endif %}
