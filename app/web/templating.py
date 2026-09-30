@@ -29,11 +29,14 @@ from fastapi.templating import Jinja2Templates
 from app.api.cookies import CSRF_COOKIE, set_csrf_cookie
 from app.core.config import get_settings
 from app.core.security import generate_csrf_token
+from app.web import formatting
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
+templates.env.filters["money"] = formatting.money
+templates.env.filters["duration"] = formatting.duration
 
 FLASH_COOKIE = "flash"
 

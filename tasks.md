@@ -522,7 +522,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: double submit; open redirect.
 
 ### P8.3 — Services list and service detail
-- [ ] Status
+- [x] Status
 - Goal: the customer picks what to book.
 - Requirement(s) served: see slots (entry point)
 - Acceptance criteria: `/` lists active services (name, duration, price in mono, description); `/services/{id}` shows detail + providers offering it + "Book" CTA; empty state explains what to do.

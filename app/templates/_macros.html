@@ -16,5 +16,17 @@
 </div>
 {% endmacro %}
 
+{# Previous / next links for a web list (app/web/paging.py). Drawn only when
+   there is more than one page; `base` is the list's own path. #}
+{% macro pagination(pager, base) %}
+{% if pager.pages > 1 %}
+<nav class="pagination" aria-label="Pages">
+    {% if pager.has_prev %}<a href="{{ base }}?page={{ pager.page - 1 }}" rel="prev">Previous</a>{% endif %}
+    <span class="page-state">Page {{ pager.page }} of {{ pager.pages }}</span>
+    {% if pager.has_next %}<a href="{{ base }}?page={{ pager.page + 1 }}" rel="next">Next</a>{% endif %}
+</nav>
+{% endif %}
+{% endmacro %}
+
 {# The hidden field every POST form carries (see app/api/csrf.py). #}
 {% macro csrf_field(token) %}<input type="hidden" name="csrf_token" value="{{ token }}">{% endmacro %}

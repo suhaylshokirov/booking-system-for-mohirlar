@@ -516,6 +516,30 @@ html.has-js .theme-toggle {
   max-width: 62ch;
 }
 
+/* "All services" above a detail page's sheet head: the way back up. */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-stretch: 78%;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-muted);
+}
+
+.back-link::before {
+  content: "←";
+  font-family: var(--font-body);
+}
+
+.back-link:hover {
+  color: var(--ink);
+}
+
 /* --- Sections ---------------------------------------------------------------
    ONE owner for vertical rhythm: a section never sets its own top margin. */
 

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% set active_nav = "services" %}
+
+{% block title %}{{ service.name }} · {{ business.name }}{% endblock %}
+{% block description %}{{ service.description or service.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/catalog.css">{% endblock %}
+
+{% block content %}
+<a class="back-link" href="/">All services</a>
+
+<header class="sheet-head">
+    <h1 class="sheet-title">{{ service.name }}</h1>
+    {% if service.description %}<p class="sheet-sub">{{ service.description }}</p>{% endif %}
+</header>
+
+<div class="stats">
+    <div class="stat">
+        <span class="stat-value">{{ service.duration_minutes|duration }}</span>
+        <span class="stat-label">Duration</span>
+    </div>
+    <div class="stat">
+        <span class="stat-value">{{ service.price|money(business.currency) }}</span>
+        <span class="stat-label">Price</span>
+    </div>
+</div>
+
+{% if staff %}
+<div class="service-cta">
+    <a class="btn" href="/book/{{ service.id }}">Book a time</a>
+    <p class="faint">You'll see the free times next. Nothing is booked until you confirm.</p>
+</div>
+{% endif %}
+
+<section class="sheet-section" aria-labelledby="staff-title">
+    <div class="section-head">
+        <h2 id="staff-title">Who does it</h2>
+        {% if staff|length > 1 %}<span class="section-note">pick one, or let us choose</span>{% endif %}
+    </div>
+
+    {% if staff %}
+    <ul class="staff-list">
+        {% for person in staff %}
+        <li class="staff-row">
+            <div>
+                <p class="staff-row__name">{{ person.name }}</p>
+                {% if person.bio %}<p class="staff-row__bio">{{ person.bio }}</p>{% endif %}
+            </div>
+            <a class="chip" href="/book/{{ service.id }}?provider={{ person.id }}">Book with {{ person.name }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">
+        Nobody offers this service right now, so it can't be booked.
+        <a href="/">Pick another service</a>.
+    </p>
+    {% endif %}
+</section>
+{% endblock %}

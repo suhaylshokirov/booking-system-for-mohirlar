@@ -1,0 +1,145 @@
+/* The services list and a service's page.
+   Adds components only; app.css owns every token and shared control.
+
+   The list is a price board, the thing that hangs on a barbershop wall:
+   the name in the expanded display face, a dotted leader carrying the eye
+   across to how long it takes and what it costs, both in mono so minutes
+   and prices line up down the board. Ink only: nothing here is selected or
+   committed yet, so nothing here is lime. */
+
+.price-board {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule-strong);
+}
+
+.price-row {
+  display: grid;
+  grid-template-columns: auto minmax(var(--space-6), 1fr) auto auto;
+  grid-template-areas:
+    "name leader duration price"
+    "desc desc   desc     desc";
+  align-items: baseline;
+  column-gap: var(--space-4);
+  row-gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  border-bottom: var(--hairline);
+  color: var(--ink);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.price-row:hover {
+  background: var(--sheet);
+  text-decoration: none;
+}
+
+.price-row__name {
+  grid-area: name;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: var(--text-lg);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.price-row:hover .price-row__name {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+/* The leader sits on the baseline (a dotted bottom border, lifted to meet
+   the text rather than hang below it). */
+.price-row__leader {
+  grid-area: leader;
+  align-self: end;
+  margin-bottom: 0.4em;
+  border-bottom: 2px dotted var(--rule-strong);
+}
+
+.price-row__duration {
+  grid-area: duration;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.price-row__price {
+  grid-area: price;
+  font-size: var(--text-md);
+  white-space: nowrap;
+}
+
+.price-row__desc {
+  grid-area: desc;
+  max-width: 62ch;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+/* A phone has no room for a leader and two figures beside a long name:
+   the price stays on the name's line, the duration drops under it. */
+@media (max-width: 560px) {
+  .price-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name     price"
+      "duration duration"
+      "desc     desc";
+    padding-inline: var(--space-2);
+  }
+
+  .price-row__leader {
+    display: none;
+  }
+
+  .price-row__name {
+    font-size: var(--text-md);
+  }
+}
+
+/* --- A service's page ------------------------------------------------------- */
+
+.service-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-5);
+  margin-top: var(--space-7);
+  font-size: var(--text-sm);
+}
+
+/* Same rhythm app.css gives a section after the stats row. */
+.service-cta + .sheet-section {
+  margin-top: var(--space-9);
+}
+
+.staff-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.staff-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4) 0;
+  border-bottom: var(--hairline);
+}
+
+.staff-row__name {
+  font-weight: 600;
+}
+
+.staff-row__bio {
+  margin-top: var(--space-1);
+  max-width: 62ch;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}

@@ -215,6 +215,8 @@ the pages cannot disagree with the API.
 | Rendering | `app/web/templating.py` | `render()` adds the shared context (CSRF token, current user, flash notice) and clears the flash cookie |
 | Current user | `app/web/deps.py` | `load_current_user`, attached to every web router in `app/main.py`, so the header always knows who is looking |
 | Form wording | `app/web/forms.py` | Turns a schema's validation error into one message per field, in the form's own words |
+| Formatting | `app/web/formatting.py` | Jinja filters `money` (`60 000 UZS`, integer amounts, never rounded) and `duration` (`1 h 15 min`) |
+| Paging | `app/web/paging.py` | `?page=N` for web lists on top of the services' limit/offset; a page past the end is 404 |
 | Error pages | `app/web/errors.py` | Wording for the HTML error page; `app/core/errors.py` calls it for any path outside `/api/` |
 | Styles | `app/static/css/app.css` | Every token (light + dark) and shared component. A page stylesheet may add components, never restyle these |
 | Behaviour | `app/static/js/app.js` | One IIFE: theme toggle, mobile nav, confirm dialog, submit-once, inline email check, menu closing. Enhancement only |

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "services" %}
+
+{% block title %}{{ business.name }} · Navbat{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/catalog.css">{% endblock %}
+
+{% block content %}
+<header class="sheet-head">
+    <h1 class="sheet-title">{{ business.name }}</h1>
+    <p class="sheet-sub">
+        Choose a service, pick a free time, and it's booked.
+        Times are shown in <span class="mono">{{ business.timezone }}</span>.
+    </p>
+</header>
+
+<section class="sheet-section" aria-labelledby="services-title">
+    <div class="section-head">
+        <h2 id="services-title">Services</h2>
+        {% if pager.total %}<span class="section-note">{{ pager.total }} to choose from</span>{% endif %}
+    </div>
+
+    {% if services %}
+    {# The price board: what the shop does, how long it takes, what it
+       costs, read left to right the way it hangs on the wall. #}
+    <ul class="price-board">
+        {% for service in services %}
+        <li>
+            <a class="price-row" href="/services/{{ service.id }}">
+                <span class="price-row__name">{{ service.name }}</span>
+                <span class="price-row__leader" aria-hidden="true"></span>
+                <span class="price-row__duration mono">{{ service.duration_minutes|duration }}</span>
+                <span class="price-row__price mono">{{ service.price|money(business.currency) }}</span>
+                {% if service.description %}<span class="price-row__desc">{{ service.description }}</span>{% endif %}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {{ ui.pagination(pager, "/") }}
+    {% else %}
+    <p class="empty">Nothing can be booked yet: the business hasn't listed its services. Check back soon.</p>
+    {% endif %}
+</section>
+{% endblock %}

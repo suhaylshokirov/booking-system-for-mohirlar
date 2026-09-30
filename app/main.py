@@ -7,7 +7,7 @@ from app.api.csrf import csrf_protect
 from app.api.v1 import auth, availability, bookings, health, providers, services, settings, slots
 from app.core.errors import register_error_handlers
 from app.web import auth as web_auth
-from app.web import pages
+from app.web import catalog
 from app.web.deps import load_current_user
 from app.web.errors import render_error_page
 from app.web.templating import STATIC_DIR
@@ -57,7 +57,7 @@ def create_app() -> FastAPI:
     # Every page knows who is looking (for the header), attached here so no
     # web router can forget it.
     web = [Depends(load_current_user)]
-    app.include_router(pages.router, dependencies=web)
+    app.include_router(catalog.router, dependencies=web)
     app.include_router(web_auth.router, dependencies=web)
     return app
 
