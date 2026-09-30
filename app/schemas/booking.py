@@ -9,6 +9,7 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from app.models.booking import BookingStatus
+from app.models.user import UserRole
 from app.schemas.types import UtcDatetime
 
 _EXAMPLE = {
@@ -65,3 +66,17 @@ class BookingResponse(BaseModel):
     created_at: dt.datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EventActor(BaseModel):
+    id: int
+    role: UserRole
+    name: str
+
+
+class BookingEventResponse(BaseModel):
+    from_status: BookingStatus | None = Field(description="`null` for the creation event.")
+    to_status: BookingStatus
+    actor: EventActor | None = Field(description="`null` when the system acted.")
+    reason: str | None
+    created_at: dt.datetime

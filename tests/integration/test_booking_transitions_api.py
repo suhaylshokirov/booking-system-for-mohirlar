@@ -310,3 +310,45 @@ def test_admin_list_is_paginated(client, setup, ali, bob, boss):
 def test_my_list_is_still_only_my_own_for_an_admin(client, setup, ali, boss):
     book(client, setup, ali)
     assert client.get(BASE, headers=boss).json()["total"] == 0
+
+
+# --- history --------------------------------------------------------------
+
+
+def test_history_lists_create_confirm_cancel_in_order(client, setup, ali, boss, ali_user):
+    booking_id = book(client, setup, ali)
+    client.post(f"{BASE}/{booking_id}/confirm", headers=boss)
+    client.post(f"{BASE}/{booking_id}/cancel", json={"reason": "Ill"}, headers=ali)
+
+    response = client.get(f"{BASE}/{booking_id}/history", headers=ali)
+
+    assert response.status_code == 200
+    events = response.json()
+    assert [(e["from_status"], e["to_status"]) for e in events] == [
+        (None, "pending"),
+        ("pending", "confirmed"),
+        ("confirmed", "cancelled"),
+    ]
+    assert events[0]["actor"] == {"id": ali_user.id, "role": "customer", "name": "ali@example.com"}
+    assert events[1]["actor"]["role"] == "admin"
+    assert events[2]["reason"] == "Ill"
+    assert events[0]["reason"] is None
+
+
+def test_admin_can_read_any_history(client, setup, ali, boss):
+    booking_id = book(client, setup, ali)
+    assert len(client.get(f"{BASE}/{booking_id}/history", headers=boss).json()) == 1
+
+
+def test_history_of_someone_elses_booking_is_404(client, setup, ali, bob):
+    booking_id = book(client, setup, ali)
+
+    for who in (bob, ali):
+        missing = booking_id + 1000 if who is ali else booking_id
+        response = client.get(f"{BASE}/{missing}/history", headers=who)
+        assert response.status_code == 404
+        assert error_code(response) == "BOOKING_NOT_FOUND"
+
+
+def test_history_needs_login(client):
+    assert client.get(f"{BASE}/1/history").status_code == 401

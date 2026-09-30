@@ -351,6 +351,19 @@ Each returns the updated booking. Who may do what, and when (full table in
   look again; exactly one of the two wins (ADR 0008).
 - Cancelling frees the time straight away for other customers.
 
+**History: `GET /bookings/{id}/history`** returns every status change, oldest
+first (not paginated; a booking has a handful):
+
+```json
+[
+  {"from_status": null, "to_status": "pending", "actor": {"id": 3, "role": "customer", "name": "Ali"}, "reason": null, "created_at": "2026-10-01T07:00:00Z"},
+  {"from_status": "pending", "to_status": "confirmed", "actor": {"id": 1, "role": "admin", "name": "Owner"}, "reason": null, "created_at": "2026-10-01T09:12:00Z"}
+]
+```
+
+`actor` is `null` when the system acted. Same visibility as the booking: someone
+else's is `404 BOOKING_NOT_FOUND`; admins can read any.
+
 **Admin: `GET /bookings/all`** lists everyone's bookings, soonest start first,
 paginated. Filters: `status`, `provider_id`, `customer_id`, and `date_from` /
 `date_to` (calendar days on the business's clock, both inclusive; a booking

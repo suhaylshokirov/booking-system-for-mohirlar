@@ -10,7 +10,13 @@ from app.core.clock import Clock, get_clock
 from app.core.db import DbSession
 from app.core.pagination import PageParamsDep
 from app.models.booking import BookingStatus
-from app.schemas.booking import BookingCreate, BookingResponse, CancelRequest
+from app.schemas.booking import (
+    BookingCreate,
+    BookingEventResponse,
+    BookingResponse,
+    CancelRequest,
+    EventActor,
+)
 from app.schemas.errors import ErrorResponse
 from app.schemas.pagination import Page
 from app.services import booking as booking_service
@@ -138,6 +144,34 @@ def list_all_bookings(
 )
 def read_booking(booking_id: int, db: DbSession, user: CurrentUser) -> BookingResponse:
     return BookingResponse.model_validate(booking_service.get_booking(db, user, booking_id))
+
+
+@router.get(
+    "/{booking_id}/history",
+    response_model=list[BookingEventResponse],
+    summary="A booking's history",
+    responses={
+        **_UNAUTHENTICATED,
+        404: {
+            "model": ErrorResponse,
+            "description": "`BOOKING_NOT_FOUND`: no such booking, or it is someone else's.",
+        },
+    },
+)
+def booking_history(
+    booking_id: int, db: DbSession, user: CurrentUser
+) -> list[BookingEventResponse]:
+    """Every status change, oldest first: who, from what to what, why, and when."""
+    return [
+        BookingEventResponse(
+            from_status=event.from_status,
+            to_status=event.to_status,
+            actor=EventActor(id=actor.id, role=actor.role, name=actor.full_name) if actor else None,
+            reason=event.reason,
+            created_at=event.created_at,
+        )
+        for event, actor in booking_service.list_history(db, user, booking_id)
+    ]
 
 
 _TRANSITION_ERRORS = {

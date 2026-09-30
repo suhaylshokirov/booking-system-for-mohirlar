@@ -474,7 +474,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: cancelling after the cutoff.
 
 ### P7.5 — Booking history endpoint
-- [ ] Status
+- [x] Status
 - Goal: the audit trail is visible.
 - Requirement(s) served: **Booking history**
 - Acceptance criteria: `GET /bookings/{id}/history` → ordered events `{from_status, to_status, actor {id, role, name}, reason, created_at}`; same visibility rule as the booking (IDOR → 404).

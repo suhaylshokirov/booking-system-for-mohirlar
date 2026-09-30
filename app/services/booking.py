@@ -305,3 +305,23 @@ def transition(
     # The UPDATE bypassed the ORM object; reload it so callers see the new state.
     db.refresh(booking)
     return booking
+
+
+def list_history(
+    db: Session, user: User, booking_id: int
+) -> list[tuple[BookingEvent, User | None]]:
+    """The booking's status changes, oldest first, each with who did it.
+
+    Visible to whoever can see the booking (`get_booking`), so someone else's
+    booking is the same 404 `BOOKING_NOT_FOUND`. Ordered by id, not time:
+    events written in one transaction share `created_at`. The actor is `None`
+    when the system acted; the user row is kept even if they were deactivated.
+    """
+    booking = get_booking(db, user, booking_id)
+    rows = db.execute(
+        select(BookingEvent, User)
+        .join(User, BookingEvent.actor_id == User.id, isouter=True)
+        .where(BookingEvent.booking_id == booking.id)
+        .order_by(BookingEvent.id)
+    )
+    return [(event, actor) for event, actor in rows]
