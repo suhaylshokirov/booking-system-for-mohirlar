@@ -23,8 +23,8 @@ class Settings(BaseSettings):
 
     app_env: Literal["development", "test", "production"] = "development"
 
-    database_url: str = "postgresql+psycopg://navbat:navbat@localhost:5432/navbat"
-    test_database_url: str = "postgresql+psycopg://navbat:navbat@localhost:5432/navbat_test"
+    database_url: str = "postgresql+psycopg://navbat:navbat@localhost:5433/navbat"
+    test_database_url: str = "postgresql+psycopg://navbat:navbat@localhost:5433/navbat_test"
 
     jwt_secret: str = _PLACEHOLDER_JWT_SECRET
     jwt_expire_minutes: int = 720

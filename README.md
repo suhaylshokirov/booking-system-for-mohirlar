@@ -65,10 +65,10 @@ curl http://localhost:8000/api/v1/health     # {"status":"ok","database":"ok"}
 - The first start creates two databases: `navbat` (the app) and `navbat_test`
   (pytest, so tests never touch app data). Postgres runs the init script only
   on a fresh volume; to recreate the test database run `docker compose down -v`.
-- Postgres is published on host port 5432 so pytest and Alembic can reach it
+- Postgres is published on host port 5433 so pytest and Alembic can reach it
   from your machine. If that port is already used, run
-  `DB_HOST_PORT=5433 docker compose up --build` and point `DATABASE_URL` and
-  `TEST_DATABASE_URL` at `localhost:5433`.
+  `DB_HOST_PORT=5434 docker compose up --build` and point `DATABASE_URL` and
+  `TEST_DATABASE_URL` at `localhost:5434`.
 - Only the database is needed for local development:
   `docker compose up -d db`.
 - The `app` container runs `alembic upgrade head` before starting, so a fresh
@@ -165,8 +165,8 @@ which must be replaced in production.
 | Variable | Default | Purpose |
 |---|---|---|
 | `APP_ENV` | `development` | `development`, `test` or `production`. Production turns on Secure cookies and refuses to start with the placeholder `JWT_SECRET`. |
-| `DATABASE_URL` | `postgresql+psycopg://navbat:navbat@localhost:5432/navbat` | The app's database (psycopg 3 driver). Inside Docker Compose the host is `db`. |
-| `TEST_DATABASE_URL` | `postgresql+psycopg://navbat:navbat@localhost:5432/navbat_test` | The database pytest resets and uses. Must differ from `DATABASE_URL`. |
+| `DATABASE_URL` | `postgresql+psycopg://navbat:navbat@localhost:5433/navbat` | The app's database (psycopg 3 driver). Inside Docker Compose the host is `db`. |
+| `TEST_DATABASE_URL` | `postgresql+psycopg://navbat:navbat@localhost:5433/navbat_test` | The database pytest resets and uses. Must differ from `DATABASE_URL`. |
 | `JWT_SECRET` | placeholder | **Secret.** Signs login tokens. Generate: `python -c "import secrets; print(secrets.token_urlsafe(48))"`. |
 | `JWT_EXPIRE_MINUTES` | `720` | Lifetime of a login token. |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | `5` | Failed logins allowed per (IP, email) per window. |

@@ -9,9 +9,9 @@ services:
       POSTGRES_PASSWORD: navbat
       POSTGRES_DB: navbat
     ports:
-      # Published so pytest and alembic on the host can reach it. If 5432 is
-      # already taken on your machine, run with DB_HOST_PORT=5433.
-      - "${DB_HOST_PORT:-5432}:5432"
+      # Published so pytest and alembic on the host can reach it. If 5433 is
+      # already taken on your machine, run with DB_HOST_PORT=5434.
+      - "${DB_HOST_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       # Creates the navbat_test database on first start of a fresh volume.
