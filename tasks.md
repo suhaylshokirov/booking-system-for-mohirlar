@@ -356,7 +356,7 @@ checklist (P11.4) is verified against this table.
 ## P5 — Slots
 
 ### P5.1 — Pure slot algorithm
-- [ ] Status
+- [x] Status
 - Goal: compute bookable start times with no I/O, so it is exhaustively testable.
 - Requirement(s) served: **User can see available time slots**
 - Acceptance criteria: `app/services/slots.py`: `compute_slots(windows_utc, busy_utc, duration, granularity, now, lead_time, horizon_end) -> list[datetime]`, plus `build_windows_for_date(rules, exception, date, tz)`. Candidates step by granularity from each window start; a slot is kept iff `[start, start+duration)` fits entirely inside a window, overlaps no busy interval (half-open), `start >= now + lead_time`, and `start < horizon_end`. Result sorted, deduplicated, UTC-aware.

@@ -63,7 +63,23 @@ yields no slots. A window across a gap is an hour shorter than its wall-clock
 length, and across an overlap an hour longer. Days are 23 or 25 hours long.
 
 ## Slot algorithm
-_P5.1._
+_P5.1._ Slots are computed on request, never stored (ADR 0002). The pure part
+lives in `app/services/slots.py` and does no I/O and no clock reads.
+
+1. `build_windows_for_date(rules, exception, date, tz)` gives the provider's
+   working windows for one local date as UTC `[start, end)` pairs. An exception
+   replaces the weekly rules (day off = no windows; custom hours = one window).
+2. `compute_slots(windows, busy, duration, granularity, now, lead_time,
+   horizon_end)` steps candidate starts by `granularity` from each window start
+   and keeps a candidate iff:
+   - `[start, start + duration)` fits entirely inside the window;
+   - it overlaps no busy interval (half-open, so back-to-back is fine);
+   - `start >= now + lead_time` (inclusive) and `start < horizon_end`.
+3. The result is sorted, de-duplicated UTC datetimes.
+
+The grid is advisory. Two customers can be shown the same slot; the exclusion
+constraint decides who gets it (ADR 0001). P5.2 loads the inputs; P6.1 reuses
+the same rules to validate a requested start, so grid and validator agree.
 
 ## Booking lifecycle (state machine)
 _P7.1._ Mermaid state diagram and transition rules.
