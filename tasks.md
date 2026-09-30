@@ -365,7 +365,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: duration doesn't fit; back-to-back; past/lead/horizon; DST.
 
 ### P5.2 — Slot query service
-- [ ] Status
+- [x] Status
 - Goal: load exactly the data the pure function needs.
 - Requirement(s) served: see available time slots
 - Acceptance criteria: `services/slot_query.get_slots(db, service_id, date, provider_id | None, now)` — validates service/provider active and offered (`PROVIDER_DOES_NOT_OFFER_SERVICE`), loads rules/exception/active bookings for the local day, returns slots **grouped by provider**; with no provider, all active providers offering the service.
