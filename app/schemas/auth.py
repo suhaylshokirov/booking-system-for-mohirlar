@@ -11,7 +11,7 @@ import re
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 from app.models.user import UserRole
 
@@ -24,6 +24,12 @@ def _check_email_shape(value: str) -> str:
     return value
 
 
+# Lengths are checked after trimming, or "   " would pass and be stored as an
+# empty name (the service trims before saving).
+FullNameInput = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+]
+
 # 254 is the longest valid email address, and the width of `users.email`.
 EmailInput = Annotated[str, Field(min_length=3, max_length=254), AfterValidator(_check_email_shape)]
 
@@ -32,7 +38,7 @@ class RegisterRequest(BaseModel):
     email: EmailInput
     # 128 caps the work Argon2 does on one request; 8 is the usual floor.
     password: str = Field(min_length=8, max_length=128)
-    full_name: str = Field(min_length=1, max_length=100)
+    full_name: FullNameInput
 
     model_config = ConfigDict(
         json_schema_extra={

@@ -84,6 +84,7 @@ def test_losing_the_registration_race_is_still_a_clean_409(client, db, monkeypat
         {"password": "short77"},  # 7 characters
         {"password": "x" * 129},
         {"full_name": ""},
+        {"full_name": "   "},  # only spaces would be stored as an empty name
         {"full_name": "n" * 101},
         {"email": "not-an-email"},
         {"email": "two@@example.com"},
