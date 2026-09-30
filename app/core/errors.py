@@ -27,8 +27,9 @@ logger = logging.getLogger(__name__)
 
 API_PATH_PREFIX = "/api/"
 
-# (request, status code, message to show or None for the page's own wording)
-PageRenderer = Callable[[Request, int, str | None], Response]
+# (request, status code, error code if we raised it, message to show or None
+# for the page's own wording)
+PageRenderer = Callable[[Request, int, str | None, str | None], Response]
 
 # Codes for errors raised by the framework (`HTTPException`) rather than by us.
 # Our own errors pass a specific code to AppError instead.
@@ -114,18 +115,18 @@ def register_error_handlers(app: FastAPI, render_page: PageRenderer | None = Non
         if wants_page(request):
             # Our own messages are written for the person using the app, so the
             # page can show them as they are.
-            return render_page(request, exc.status_code, exc.message)
+            return render_page(request, exc.status_code, exc.code, exc.message)
         return _app_error_json(exc)
 
     async def on_validation_error(request: Request, exc: RequestValidationError) -> Response:
         if wants_page(request):
-            return render_page(request, 422, None)
+            return render_page(request, 422, None, None)
         return _validation_error_json(exc)
 
     async def on_http_exception(request: Request, exc: StarletteHTTPException) -> Response:
         if wants_page(request):
             # The framework's detail ("Not Found") is terse; the page has better words.
-            return render_page(request, exc.status_code, None)
+            return render_page(request, exc.status_code, None, None)
         return _http_exception_json(exc)
 
     async def on_unexpected_error(request: Request, exc: Exception) -> Response:
@@ -133,7 +134,7 @@ def register_error_handlers(app: FastAPI, render_page: PageRenderer | None = Non
         # fault, so internals (SQL, paths) never leak.
         logger.exception("Unhandled error on %s %s", request.method, request.url.path)
         if wants_page(request):
-            return render_page(request, 500, None)
+            return render_page(request, 500, None, None)
         return error_response(500, "INTERNAL_ERROR", "Something went wrong on our side.")
 
     app.add_exception_handler(AppError, on_app_error)

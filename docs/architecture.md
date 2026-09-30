@@ -184,6 +184,22 @@ three-method interface (`retry_after`, `record_failure`, `reset`), so a shared
 store could replace it; the trade-off is that it resets on restart and is not
 shared between instances. See `docs/api.md` for the exact behaviour.
 
+**In the browser (`app/web/auth.py`, P8.2).** `/login`, `/register` and
+`POST /logout` validate with the same schemas and call the same service
+functions as `/api/v1/auth`, so the rules and the rate limit are shared; only
+the answer differs (a re-rendered form or a 303 redirect instead of JSON).
+Details worth knowing:
+
+- Login and register are posted before any login cookie exists, so they use
+  the always-on `require_csrf`; `render()` gives every visitor a CSRF cookie on
+  their first page, and a successful login issues a fresh one.
+- `next` goes through `safe_next_path` (`app/web/redirects.py`): only a path
+  on this site, never another host (open-redirect defence).
+- A page GET that raises 401 redirects to `/login?next=<that page>`
+  (`app/web/errors.py`), so any page that needs an account just takes
+  `CurrentUser`.
+- A re-rendered form keeps the email but never the password.
+
 ## Why the web UI and the API share services
 _P8.1. Decision: [ADR 0004](decisions/0004-server-rendered-ui.md)._
 
@@ -196,10 +212,12 @@ the pages cannot disagree with the API.
 | Piece | Where | Job |
 |---|---|---|
 | Templates | `app/templates/` | `base.html` (layout, header, flash notice, confirm dialog), one file per page, `_partials/` for fragments JS swaps in. Formatting only |
-| Rendering | `app/web/templating.py` | `render()` adds the shared context (the flash notice) and clears the flash cookie |
+| Rendering | `app/web/templating.py` | `render()` adds the shared context (CSRF token, current user, flash notice) and clears the flash cookie |
+| Current user | `app/web/deps.py` | `load_current_user`, attached to every web router in `app/main.py`, so the header always knows who is looking |
+| Form wording | `app/web/forms.py` | Turns a schema's validation error into one message per field, in the form's own words |
 | Error pages | `app/web/errors.py` | Wording for the HTML error page; `app/core/errors.py` calls it for any path outside `/api/` |
 | Styles | `app/static/css/app.css` | Every token (light + dark) and shared component. A page stylesheet may add components, never restyle these |
-| Behaviour | `app/static/js/app.js` | One IIFE: theme toggle, mobile nav, confirm dialog. Enhancement only |
+| Behaviour | `app/static/js/app.js` | One IIFE: theme toggle, mobile nav, confirm dialog, submit-once, inline email check, menu closing. Enhancement only |
 
 **Which errors are pages.** `/api/*` always answers with the JSON envelope,
 whoever asks. Every other path is a page a person reads, so a 404, a bad link

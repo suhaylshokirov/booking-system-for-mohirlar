@@ -73,6 +73,43 @@
                 </svg>
                 Navbat
             </a>
+            {# Each page sets `active_nav` at its top; the matching link gets
+               aria-current, which the CSS underlines in lime. #}
+            <div class="nav-links" id="nav-links">
+                <a href="/"{% if active_nav == "services" %} aria-current="page"{% endif %}>Services</a>
+            </div>
+            {# The account area stays in the header row at every width: the
+               hamburger never hides who you are or how to sign in. Left out
+               on an error page for an unknown address, where the user wasn't
+               loaded (see app/web/templating.py). #}
+            {% if current_user is defined %}
+            <div class="account">
+                {% if current_user %}
+                {# <details> opens and closes with no JS; app.js only adds
+                   "close when clicking elsewhere" and Escape. #}
+                <details class="menu account-menu">
+                    <summary aria-label="Account: {{ current_user.full_name }}">
+                        <span class="account-disc" aria-hidden="true">{{ current_user.full_name[:1]|upper }}</span>
+                        <span class="account-name">{{ (current_user.full_name.split() or [current_user.email])[0] }}</span>
+                    </summary>
+                    <div class="menu-panel">
+                        <p class="menu-meta">
+                            <span class="menu-meta__name">{{ current_user.full_name }}</span>
+                            <span class="mono">{{ current_user.email }}</span>
+                        </p>
+                        <form method="post" action="/logout"
+                              data-confirm="Sign out?" data-confirm-yes="Yes, sign out" data-confirm-no="No, stay">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="menu-option menu-option--danger">Sign out</button>
+                        </form>
+                    </div>
+                </details>
+                {% else %}
+                {% set here = request.url.path %}
+                <a class="btn btn--quiet btn--small" href="/login{% if here not in ('/', '/login', '/register') %}?next={{ here|urlencode }}{% endif %}">Sign in</a>
+                {% endif %}
+            </div>
+            {% endif %}
             <button type="button" class="nav-toggle" id="nav-toggle"
                     aria-expanded="false" aria-controls="nav-links" aria-label="Open menu">
                 <svg class="icon-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -84,11 +121,6 @@
                     <path d="M5 5l14 14M19 5L5 19"/>
                 </svg>
             </button>
-            {# Each page sets `active_nav` at its top; the matching link gets
-               aria-current, which the CSS underlines in lime. #}
-            <div class="nav-links" id="nav-links">
-                <a href="/"{% if active_nav == "services" %} aria-current="page"{% endif %}>Services</a>
-            </div>
             <button type="button" class="theme-toggle" id="theme-toggle"
                     aria-label="Switch to dark theme" title="Switch theme">
                 {# Moon = "go dark", sun = "go light". Both stay in the DOM so

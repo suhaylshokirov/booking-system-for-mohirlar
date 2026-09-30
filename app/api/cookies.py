@@ -37,9 +37,13 @@ def set_access_cookie(response: Response, token: str) -> None:
     )
 
 
-def set_csrf_cookie(response: Response) -> str:
-    """Set a fresh CSRF cookie and return its value (for a hidden form field)."""
-    token = generate_csrf_token()
+def set_csrf_cookie(response: Response, token: str | None = None) -> str:
+    """Set the CSRF cookie and return its value (for a hidden form field).
+
+    A fresh token unless `token` is given: an HTML page renders the token into
+    its forms before the response exists, then stores that same value here.
+    """
+    token = token or generate_csrf_token()
     response.set_cookie(
         CSRF_COOKIE,
         token,

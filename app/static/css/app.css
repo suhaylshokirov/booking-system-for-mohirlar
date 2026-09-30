@@ -636,6 +636,38 @@ html.has-js .theme-toggle {
   cursor: not-allowed;
 }
 
+/* Same height as the 34px header icon buttons, so the row reads as one set. */
+.btn--small {
+  min-height: 34px;
+  padding: var(--space-2) var(--space-5);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+/* While a form is on its way (initSubmitState in app.js) the button shows
+   this spinner beside its busy label. Disabled, but not faded: the button
+   is working, not unavailable. */
+.btn.is-busy {
+  opacity: 1;
+  cursor: progress;
+}
+
+.btn-spinner {
+  flex: none;
+  width: 0.9em;
+  height: 0.9em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -1156,6 +1188,71 @@ td.num {
   text-decoration: none;
 }
 
+/* Ends something (the session): the danger colour, only on hover and focus,
+   so the resting menu stays quiet. */
+.menu-option--danger:hover,
+.menu-option--danger:focus-visible {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+/* Who the menu belongs to: a caption, not an option. */
+.menu-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  margin-bottom: var(--space-1);
+  border-bottom: var(--hairline);
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  overflow-wrap: anywhere;
+}
+
+.menu-meta__name {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+
+/* --- Account ------------------------------------------------------------------
+   The header's account area: "Sign in" for a visitor, a menu for a
+   signed-in person. The trigger is a pill with an initial disc: the disc
+   stays paper-on-ink whatever state the pill is in, so it reads as the same
+   person throughout. */
+
+.account {
+  display: flex;
+  align-items: center;
+}
+
+.account-menu > summary {
+  padding: 3px var(--space-4) 3px 3px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.account-disc {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: var(--text-xs);
+}
+
+.account-name {
+  max-width: 10rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* --- Pagination ------------------------------------------------------------- */
 
 .pagination {
@@ -1368,14 +1465,21 @@ td.num {
    links: longer, but working. With it, the links fold into a panel under the
    header and the hamburger takes their place. */
 @media (max-width: 680px) {
-  html.has-js .nav-toggle {
-    display: inline-grid;
-    order: 2;
+  /* Row: brand · account · hamburger · theme. The account area takes the
+     free space, pulling the three controls to the right edge together. */
+  html.has-js .account {
     margin-left: auto;
   }
 
-  html.has-js .theme-toggle {
-    order: 3;
+  html.has-js .nav-toggle {
+    display: inline-grid;
+    margin-left: auto;
+  }
+
+  /* With an account area before it, that area already took the free space.
+     (An error page for an unknown address has none.) */
+  html.has-js .account + .nav-toggle {
+    margin-left: 0;
   }
 
   html.has-js .nav-links {

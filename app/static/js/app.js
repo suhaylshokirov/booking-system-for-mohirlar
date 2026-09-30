@@ -161,10 +161,138 @@
     });
   }
 
+  /* --- Submit once ------------------------------------------------------------
+     A <form data-submit-once> posts once per page load: the button disables
+     and shows its data-busy-label with a spinner, and a second Enter or click
+     is dropped. A double-click would otherwise send two requests, and the
+     second arrives after the first rotated the CSRF token (a 403) or tries
+     to create the same thing twice (the server rejects that anyway; this
+     just keeps the person from seeing it).
+
+     Listens on document, after initConfirmDialog, so a form still waiting on
+     "Are you sure?" (defaultPrevented) is not marked as sent. */
+
+  function initSubmitState() {
+    document.addEventListener("submit", function (event) {
+      var form = event.target;
+      if (!(form instanceof HTMLFormElement) || !form.hasAttribute("data-submit-once")) return;
+      if (event.defaultPrevented) return;
+      if (form.getAttribute("data-submitting") === "true") {
+        event.preventDefault();
+        return;
+      }
+      form.setAttribute("data-submitting", "true");
+
+      var btn = form.querySelector('button[type="submit"]');
+      if (!btn) return;
+      btn.setAttribute("data-idle-label", btn.textContent);
+      btn.disabled = true;
+      btn.classList.add("is-busy");
+      var spinner = document.createElement("span");
+      spinner.className = "btn-spinner";
+      spinner.setAttribute("aria-hidden", "true");
+      var label = document.createElement("span");
+      label.textContent = btn.getAttribute("data-busy-label") || "Sending…";
+      btn.replaceChildren(spinner, label);
+    });
+
+    // The back/forward cache can bring a page back mid-submit; unlock it so
+    // the button isn't stuck on a spinner that will never finish.
+    window.addEventListener("pageshow", function (event) {
+      if (!event.persisted) return;
+      document.querySelectorAll('form[data-submitting="true"]').forEach(function (form) {
+        form.removeAttribute("data-submitting");
+        var btn = form.querySelector('button[type="submit"]');
+        if (!btn) return;
+        btn.disabled = false;
+        btn.classList.remove("is-busy");
+        btn.textContent = btn.getAttribute("data-idle-label") || btn.textContent;
+      });
+    });
+  }
+
+  /* --- Inline email check ------------------------------------------------------
+     Catches a malformed address on blur, before the round trip. Uses the
+     same .field__error markup and wording as the server's message, so the
+     two look identical, and clears on the next keystroke that fixes it
+     (including a server-rendered error). The server still checks: the
+     browser accepts "a@b", which the server does not. */
+
+  var EMAIL_MESSAGE = "Enter an email address like name@example.com.";
+
+  function initInlineValidation() {
+    document.querySelectorAll(".field input[type=email]").forEach(function (input) {
+      var field = input.closest(".field");
+      var errorId = input.id + "-error";
+
+      function describedBy() {
+        return (input.getAttribute("aria-describedby") || "").split(" ").filter(Boolean);
+      }
+
+      function showError() {
+        var error = document.getElementById(errorId);
+        if (!error) {
+          error = document.createElement("p");
+          error.className = "field__error";
+          error.id = errorId;
+          field.appendChild(error);
+          input.setAttribute("aria-describedby", describedBy().concat(errorId).join(" "));
+        }
+        error.textContent = EMAIL_MESSAGE;
+        input.setAttribute("aria-invalid", "true");
+        field.classList.add("field--invalid");
+      }
+
+      function clearError() {
+        var error = document.getElementById(errorId);
+        if (error) error.remove();
+        var rest = describedBy().filter(function (id) {
+          return id !== errorId;
+        });
+        if (rest.length) input.setAttribute("aria-describedby", rest.join(" "));
+        else input.removeAttribute("aria-describedby");
+        input.removeAttribute("aria-invalid");
+        field.classList.remove("field--invalid");
+      }
+
+      input.addEventListener("blur", function () {
+        if (input.value && !input.checkValidity()) showError();
+      });
+
+      input.addEventListener("input", function () {
+        if (!input.value || input.checkValidity()) clearError();
+      });
+    });
+  }
+
+  /* --- Menus -------------------------------------------------------------------
+     <details class="menu"> already opens and closes without JS. This adds
+     what people expect of a menu: a click anywhere else closes it, and so
+     does Escape (returning focus to its trigger). */
+
+  function initMenus() {
+    document.addEventListener("click", function (event) {
+      document.querySelectorAll("details.menu[open]").forEach(function (menu) {
+        if (!menu.contains(event.target)) menu.open = false;
+      });
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape") return;
+      document.querySelectorAll("details.menu[open]").forEach(function (menu) {
+        menu.open = false;
+        menu.querySelector("summary").focus();
+      });
+    });
+  }
+
   function init() {
     initThemeToggle();
     initNavToggle();
     initConfirmDialog();
+    initSubmitState(); // after initConfirmDialog: see its comment
+    initInlineValidation();
+    initMenus();
   }
 
   if (document.readyState === "loading") {

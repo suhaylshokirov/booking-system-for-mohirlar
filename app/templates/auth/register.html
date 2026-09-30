@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+
+{% block title %}Create an account · Navbat{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/auth.css">{% endblock %}
+
+{% block content %}
+<section class="auth">
+    <header class="sheet-head">
+        <h1 class="sheet-title">Create an account</h1>
+        <p class="sheet-sub">
+            Your bookings, their status and their history live in your account.
+            Already have one?
+            <a href="/login{% if next != '/' %}?next={{ next|urlencode }}{% endif %}">Sign in</a>.
+        </p>
+    </header>
+
+    {# The cursor starts in the first field that needs fixing. #}
+    {% set focus = "full_name" if errors.full_name or not errors else ("email" if errors.email else "password") %}
+    <form class="form auth-form" method="post" action="/register" novalidate data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        <input type="hidden" name="next" value="{{ next }}">
+
+        {{ ui.field("full_name", "Your name", value=values.full_name, error=errors.full_name,
+                    autocomplete="name", autofocus=focus == "full_name") }}
+        {{ ui.field("email", "Email", type="email", value=values.email, error=errors.email,
+                    autocomplete="email", autofocus=focus == "email") }}
+        {% if email_taken %}
+        <p class="auth-alt">
+            Is it yours?
+            <a href="/login?{{ {'next': next}|urlencode }}">Sign in instead</a>.
+        </p>
+        {% endif %}
+        {{ ui.field("password", "Password", type="password", error=errors.password,
+                    hint="At least 8 characters.", autocomplete="new-password",
+                    autofocus=focus == "password") }}
+
+        <button type="submit" class="btn btn--block" data-busy-label="Creating your account…">Create account</button>
+    </form>
+</section>
+{% endblock %}

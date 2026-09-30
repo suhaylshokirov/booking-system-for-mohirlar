@@ -513,7 +513,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: no-JS rendering.
 
 ### P8.2 — Web auth pages
-- [ ] Status
+- [x] Status
 - Goal: sign up / sign in / sign out in the browser.
 - Requirement(s) served: Authentication
 - Acceptance criteria: `/login`, `/register`, `POST /logout` using `services/auth`; cookie + CSRF hidden field; errors re-render the form with field messages; `next` redirect restricted to same-site paths; submit-button disable (`initSubmitState`) and inline email validation ported.
@@ -738,3 +738,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-09-30 | P4.4 | `DELETE` of a rule or exception returns `200 {id, details}` instead of `204`; every write response gains `details.conflicts` | The criteria want the conflict warning "in rule/exception write responses", and removing a rule is the write that most often strands bookings, so it needs a body to carry the warning. `docs/api.md` and the P4.2/P4.3 delete tests updated |
 | 2026-09-30 | P4.4 | `build_windows_for_date` (pure, in `app/services/slots.py`) is written in P4.4, not P5.1. P5.1 adds `compute_slots` beside it and keeps its own tests | Deciding whether a booking still fits the hours needs exactly "rules + exception + date + tz -> UTC windows", and a second copy would break the one-place rule for the exception-replaces-rules logic |
 | 2026-09-30 | P7.3 | The admin booking list is `GET /bookings/all`, not `GET /bookings` | `GET /bookings` is already "my own bookings" for everyone (P6.3, tested and documented, including for admins, who can also book). Making it role-dependent would change the meaning of one URL by who calls it; a separate path keeps each endpoint's contract fixed |
+| 2026-09-30 | P8.2 | A 401 on a web page GET redirects to `/login?next=…` (in `app/web/errors.py`), built now rather than in P8.5; the page renderer also receives the error code, so `CSRF_FAILED` gets wording for people | Every signed-in page (P8.5, P9) needs "send them to log in and back", and the login page's `next` handling is what makes it safe; one place instead of a check per route |

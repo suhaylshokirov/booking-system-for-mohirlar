@@ -1,0 +1,20 @@
+{# One labelled form control, with its hint and the server's error message.
+   The input points at both through aria-describedby, and aria-invalid marks
+   it for screen readers when the server rejected it. #}
+{% macro field(name, label, type="text", value="", error=none, hint=none, autocomplete=none, required=true, autofocus=false) %}
+<div class="field{% if error %} field--invalid{% endif %}">
+    <label class="field__label" for="field-{{ name }}">{{ label }}</label>
+    <input id="field-{{ name }}" name="{{ name }}" type="{{ type }}"
+           {%- if value %} value="{{ value }}"{% endif %}
+           {%- if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}
+           {%- if required %} required{% endif %}
+           {%- if autofocus %} autofocus{% endif %}
+           {%- if error %} aria-invalid="true"{% endif %}
+           {%- if hint or error %} aria-describedby="{% if hint %}field-{{ name }}-hint{% endif %}{% if hint and error %} {% endif %}{% if error %}field-{{ name }}-error{% endif %}"{% endif %}>
+    {% if hint %}<p class="field__hint" id="field-{{ name }}-hint">{{ hint }}</p>{% endif %}
+    {% if error %}<p class="field__error" id="field-{{ name }}-error">{{ error }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{# The hidden field every POST form carries (see app/api/csrf.py). #}
+{% macro csrf_field(token) %}<input type="hidden" name="csrf_token" value="{{ token }}">{% endmacro %}

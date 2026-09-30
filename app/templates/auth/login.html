@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+
+{% block title %}Sign in · Navbat{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/auth.css">{% endblock %}
+
+{% block content %}
+<section class="auth">
+    <header class="sheet-head">
+        <h1 class="sheet-title">Sign in</h1>
+        <p class="sheet-sub">
+            New here?
+            <a href="/register{% if next != '/' %}?next={{ next|urlencode }}{% endif %}">Create an account</a>.
+        </p>
+    </header>
+
+    {# novalidate: the server's messages are the ones people see, so the
+       browser's own bubbles don't compete with them. app.js still checks the
+       email shape on blur. #}
+    <form class="form auth-form" method="post" action="/login" novalidate data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        <input type="hidden" name="next" value="{{ next }}">
+
+        {% if problem %}<p class="notice notice--error" role="alert">{{ problem }}</p>{% endif %}
+
+        {# After a wrong password the email is kept, so the cursor goes
+           straight to the password. #}
+        {{ ui.field("email", "Email", type="email", value=values.email, error=errors.email,
+                    autocomplete="email", autofocus=not problem) }}
+        {{ ui.field("password", "Password", type="password", error=errors.password,
+                    autocomplete="current-password", autofocus=problem) }}
+
+        <button type="submit" class="btn btn--block" data-busy-label="Signing in…">Sign in</button>
+    </form>
+</section>
+{% endblock %}
