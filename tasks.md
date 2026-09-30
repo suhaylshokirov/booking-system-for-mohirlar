@@ -483,7 +483,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: —
 
 ### P7.6 — Concurrency: confirm vs cancel
-- [ ] Status
+- [x] Status
 - Goal: prove the guarded update.
 - Requirement(s) served: No double booking / status integrity
 - Acceptance criteria / Tests: `test_concurrent_confirm_and_cancel_exactly_one_wins` — barrier-released admin confirm vs customer cancel; exactly one succeeds, the other gets 409; history has exactly one transition after creation. Also: a cancelled slot is immediately bookable by another customer.

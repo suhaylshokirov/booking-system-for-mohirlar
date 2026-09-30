@@ -373,6 +373,52 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P7 — Lifecycle and history
+
+- **Asked:** the booking state machine, guarded transitions with history
+  events, the confirm/cancel/complete endpoints and admin list, the
+  cancellation policy, the history endpoint, and the confirm-vs-cancel race
+  test. (P7.7, stale pendings, is still to do; this entry is extended then.)
+- **Produced:** `app/services/booking_state.py` (pure transition table and
+  `check_transition`), `booking.transition` / `list_all_bookings` /
+  `list_history` in `app/services/booking.py`, the transition, admin-list and
+  history routes, ADR 0008, the Mermaid state diagram;
+  `tests/unit/test_booking_state.py`, `tests/integration/test_transition.py`,
+  `tests/integration/test_booking_transitions_api.py`,
+  `tests/concurrency/test_transition_races.py`.
+- **Verified how:**
+  - The state machine has a parametrised test for every (from, to) pair not in
+    the table and for every role, plus the exact boundaries at the cutoff,
+    `start_at` and `end_at`.
+  - The race: a barrier placed after each request's rules check makes both
+    read `pending` before either writes, so only the guarded UPDATE can stop
+    the second. **Mutation check done:** with `Booking.status == expected`
+    removed, `test_concurrent_confirm_and_cancel_exactly_one_wins` fails
+    (`[200, 200]`); with it restored it passes.
+  - Stress-ran the concurrency folder 15 times in a row after the fix below:
+    15 of 15 green. Full suite 606 tests, ruff check and format clean.
+- **Not verified:** the P6.4 gap "drop both exclusion constraints and see the
+  tests fail" is still not demonstrated.
+- **Changed / rejected:**
+  - The admin list is `GET /bookings/all`, not `GET /bookings` (deviations
+    log): that URL already meant "my own bookings" for everyone.
+  - A customer cancelling a pending booking has no cutoff, only "before it
+    starts"; the cutoff protects confirmed bookings.
+  - The state machine also refuses a non-owner customer as a backstop; the
+    404 for someone else's booking happens before it, in `get_booking`.
+- **Bugs caught:**
+  - Stress-running the concurrency tests showed a **P6 bug**: about one run in
+    five, two overlapping inserts (one customer, two providers) deadlocked in
+    Postgres and the loser got a 500. `create_booking` now maps the deadlock
+    (40P01) to 409 `SLOT_TAKEN`; ADR 0001 records it. The earlier
+    "ran it three times, not flaky" in the P6 entry was too few runs to see it.
+  - The unforced confirm/cancel test first used start times outside the
+    provider's working window (422); fixed by using the 04:00 to 07:00 UTC window.
+  - Tests initially assumed a `set()` on the frozen clock that does not exist;
+    they advance it by the difference instead.
+
+---
+
 ## Summary (for the submission form)
 
 _Written in P11.5._
