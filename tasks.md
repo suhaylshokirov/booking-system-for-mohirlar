@@ -414,7 +414,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: IDOR; naive datetime.
 
 ### P6.4 — Concurrency tests (headline)
-- [ ] Status
+- [x] Status
 - Goal: prove the race condition is closed under real parallelism.
 - Requirement(s) served: **No double booking**; "edge cases I discover myself"
 - Acceptance criteria / Tests (`tests/concurrency/`, real commits, separate sessions, `threading.Barrier`):

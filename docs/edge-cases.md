@@ -9,16 +9,34 @@ names a real test once it exists._
 
 ## The headline race: two users book the same slot at the same moment
 
-_P6.5: two-transaction timeline showing why check-then-insert fails and how
-the exclusion constraint closes it._
+Ali and Bob both tap the 10:00 slot within milliseconds of each other.
+
+| Step | Ali's request | Bob's request |
+|---|---|---|
+| 1 | pre-check: no overlapping booking, slot looks free | pre-check: still no booking, slot looks free |
+| 2 | `INSERT` the booking (transaction open) | `INSERT` the same range: Postgres sees Ali's uncommitted row and makes Bob **wait** |
+| 3 | `COMMIT` | wakes up, finds the committed overlap, fails with SQLSTATE `23P01` |
+| 4 | `201 Created` | savepoint rolled back, constraint name `no_provider_overlap` mapped to `409 SLOT_TAKEN` |
+
+Step 1 is why "check, then insert" in Python is not enough: both checks pass
+because neither booking exists yet. Only the database can order the two
+inserts, so the exclusion constraint is the guarantee and the pre-check just
+gives the ordinary, non-racing case a friendly message.
+
+Proof, with real commits, separate sessions and a `threading.Barrier`
+(`tests/concurrency/test_booking_races.py`): ten customers on one slot give
+exactly one `201` and nine `409 SLOT_TAKEN`, one row in the database. A second
+test holds every thread between the pre-check and the insert, so all ten
+*certainly* pass the pre-check, and the constraint still stops nine. P6.5
+adds the design reasoning (ADR 0001).
 
 ## Table
 
 | # | Edge case | Why it's a risk | How it's handled | Where | Test |
 |---|---|---|---|---|---|
-| 1 | Two users book the same slot simultaneously | Both pass a "is it free?" check before either inserts | Exclusion constraint `no_provider_overlap`; 23P01 → 409 `SLOT_TAKEN` | DB, Service | DB half proven in `tests/integration/test_db_constraints.py` (`test_overlapping_booking_for_same_provider_is_rejected`); service mapping: `tests/integration/test_create_booking.py` (`test_same_provider_overlap_is_409_slot_taken`, `test_database_constraint_maps_to_409_when_the_precheck_is_skipped`); service mapping: `tests/integration/test_create_booking.py` (`test_customer_overlap_with_another_provider_is_409_customer_overlap`, `test_database_constraint_maps_to_409_when_the_precheck_is_skipped`); concurrent test planned [P6.4] |
-| 2 | Double-click / double submit | Same request sent twice | Constraint rejects the 2nd; UI disables the submit button | DB, UI | planned [P6.4, P8.2] |
-| 3 | Same customer, overlapping bookings with different providers | Customer can't be in two places | Exclusion constraint `no_customer_overlap` → 409 `CUSTOMER_OVERLAP` | DB, Service | DB half proven in `tests/integration/test_db_constraints.py` (`test_overlapping_booking_for_same_customer_with_other_provider_is_rejected`); concurrent test planned [P6.4] |
+| 1 | Two users book the same slot simultaneously | Both pass a "is it free?" check before either inserts | Exclusion constraint `no_provider_overlap`; 23P01 → 409 `SLOT_TAKEN` | DB, Service | DB half proven in `tests/integration/test_db_constraints.py` (`test_overlapping_booking_for_same_provider_is_rejected`); service mapping: `tests/integration/test_create_booking.py` (`test_same_provider_overlap_is_409_slot_taken`, `test_database_constraint_maps_to_409_when_the_precheck_is_skipped`); service mapping: `tests/integration/test_create_booking.py` (`test_customer_overlap_with_another_provider_is_409_customer_overlap`, `test_database_constraint_maps_to_409_when_the_precheck_is_skipped`); concurrent: `tests/concurrency/test_booking_races.py` (`test_n_customers_same_slot_exactly_one_wins`, `test_all_pass_the_precheck_and_the_constraint_still_stops_them`, `test_overlapping_but_not_identical_starts_still_allow_only_one`) |
+| 2 | Double-click / double submit | Same request sent twice | Constraint rejects the 2nd; UI disables the submit button | DB, UI | server half: `tests/concurrency/test_booking_races.py` (`test_double_submit_same_request_creates_one_booking`); button disabling planned [P8.2] |
+| 3 | Same customer, overlapping bookings with different providers | Customer can't be in two places | Exclusion constraint `no_customer_overlap` → 409 `CUSTOMER_OVERLAP` | DB, Service | DB half proven in `tests/integration/test_db_constraints.py` (`test_overlapping_booking_for_same_customer_with_other_provider_is_rejected`); concurrent: `tests/concurrency/test_booking_races.py` (`test_same_customer_two_providers_overlapping_one_rejected`) |
 | 4 | Back-to-back bookings | Must be allowed; closed ranges would wrongly conflict | Half-open `[start, end)` ranges | DB, Service | `tests/integration/test_db_constraints.py` (`test_back_to_back_bookings_are_allowed`); slot algorithm: `tests/unit/test_slots.py` (`test_back_to_back_busy_intervals_leave_the_gap_around_them`, `test_busy_intervals_touching_a_slot_boundary_do_not_block_it`) |
 | 5 | Booking in the past / inside lead time / beyond horizon / misaligned | Invalid appointments | Booking rules with distinct error codes | Service | grid half: `tests/unit/test_slots.py` (`test_lead_time_cutoff_is_inclusive`, `test_slots_already_in_the_past_are_dropped`, `test_horizon_is_exclusive`); validator: `tests/unit/test_booking_rules.py` (`test_start_in_past`, `test_inside_lead_time`, `test_exactly_at_lead_time_is_allowed`, `test_beyond_horizon`, `test_last_instant_before_horizon_is_allowed`, `test_not_aligned`, `test_outside_availability_before_opening`, `test_day_off_has_no_windows`) |
 | 6 | Service duration doesn't fit before the window ends | Appointment would run past closing | Slot must fit entirely inside a window | Service | `tests/unit/test_slots.py` (`test_a_service_longer_than_the_window_gets_no_slot`, `test_a_slot_that_would_run_past_closing_is_dropped`) |
