@@ -1,15 +1,16 @@
-"""/bookings: a customer books and looks at their own bookings."""
+"""/bookings: a customer books, looks at and cancels their own; an admin runs them all."""
 
+import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import CurrentUser
+from app.api.deps import AdminUser, CurrentUser
 from app.core.clock import Clock, get_clock
 from app.core.db import DbSession
 from app.core.pagination import PageParamsDep
 from app.models.booking import BookingStatus
-from app.schemas.booking import BookingCreate, BookingResponse
+from app.schemas.booking import BookingCreate, BookingResponse, CancelRequest
 from app.schemas.errors import ErrorResponse
 from app.schemas.pagination import Page
 from app.services import booking as booking_service
@@ -86,6 +87,43 @@ def list_bookings(
 
 
 @router.get(
+    "/all",
+    response_model=Page[BookingResponse],
+    summary="List every booking (admin)",
+    responses={
+        **_UNAUTHENTICATED,
+        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not an administrator."},
+    },
+)
+def list_all_bookings(
+    db: DbSession,
+    admin: AdminUser,
+    params: PageParamsDep,
+    booking_status: Annotated[
+        BookingStatus | None, Query(alias="status", description="Only this status.")
+    ] = None,
+    provider_id: Annotated[int | None, Query(description="Only this provider.")] = None,
+    customer_id: Annotated[int | None, Query(description="Only this customer.")] = None,
+    date_from: Annotated[
+        dt.date | None, Query(description="First day (business-local, inclusive) it starts on.")
+    ] = None,
+    date_to: Annotated[
+        dt.date | None, Query(description="Last day (business-local, inclusive) it starts on.")
+    ] = None,
+) -> Page[BookingResponse]:
+    """All customers' bookings, soonest start first."""
+    items, total = booking_service.list_all_bookings(
+        db, params, booking_status, provider_id, customer_id, date_from, date_to
+    )
+    return Page[BookingResponse](
+        items=[BookingResponse.model_validate(item) for item in items],
+        total=total,
+        limit=params.limit,
+        offset=params.offset,
+    )
+
+
+@router.get(
     "/{booking_id}",
     response_model=BookingResponse,
     summary="One booking",
@@ -100,3 +138,75 @@ def list_bookings(
 )
 def read_booking(booking_id: int, db: DbSession, user: CurrentUser) -> BookingResponse:
     return BookingResponse.model_validate(booking_service.get_booking(db, user, booking_id))
+
+
+_TRANSITION_ERRORS = {
+    **_UNAUTHENTICATED,
+    404: {"model": ErrorResponse, "description": "`BOOKING_NOT_FOUND` (or someone else's)."},
+    409: {
+        "model": ErrorResponse,
+        "description": "`INVALID_TRANSITION`, `CANCELLATION_CUTOFF_PASSED` "
+        "(`details.cutoff_at`), `TOO_EARLY_TO_COMPLETE`, or `BOOKING_STATE_CHANGED` "
+        "(someone changed it at the same moment; reload and retry).",
+    },
+}
+
+
+@router.post(
+    "/{booking_id}/cancel",
+    response_model=BookingResponse,
+    summary="Cancel a booking",
+    responses={
+        **_TRANSITION_ERRORS,
+        422: {"model": ErrorResponse, "description": "`REASON_REQUIRED` (admin, confirmed)."},
+    },
+)
+def cancel_booking(
+    booking_id: int,
+    db: DbSession,
+    user: CurrentUser,
+    clock: ClockDep,
+    body: CancelRequest | None = None,
+) -> BookingResponse:
+    """Customers cancel their own; admins any. Cancelling frees the time at once."""
+    reason = body.reason if body else None
+    booking = booking_service.transition(
+        db, user, booking_id, BookingStatus.CANCELLED, clock.now(), reason
+    )
+    return BookingResponse.model_validate(booking)
+
+
+@router.post(
+    "/{booking_id}/confirm",
+    response_model=BookingResponse,
+    summary="Confirm a pending booking (admin)",
+    responses={
+        **_TRANSITION_ERRORS,
+        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not an administrator."},
+    },
+)
+def confirm_booking(
+    booking_id: int, db: DbSession, admin: AdminUser, clock: ClockDep
+) -> BookingResponse:
+    booking = booking_service.transition(
+        db, admin, booking_id, BookingStatus.CONFIRMED, clock.now()
+    )
+    return BookingResponse.model_validate(booking)
+
+
+@router.post(
+    "/{booking_id}/complete",
+    response_model=BookingResponse,
+    summary="Mark a confirmed booking completed (admin)",
+    responses={
+        **_TRANSITION_ERRORS,
+        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not an administrator."},
+    },
+)
+def complete_booking(
+    booking_id: int, db: DbSession, admin: AdminUser, clock: ClockDep
+) -> BookingResponse:
+    booking = booking_service.transition(
+        db, admin, booking_id, BookingStatus.COMPLETED, clock.now()
+    )
+    return BookingResponse.model_validate(booking)

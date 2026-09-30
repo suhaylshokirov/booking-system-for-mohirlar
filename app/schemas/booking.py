@@ -34,6 +34,22 @@ class BookingCreate(BaseModel):
         return value or None
 
 
+class CancelRequest(BaseModel):
+    """Optional for a customer or for cancelling a pending booking; an admin
+    cancelling a confirmed booking must give one (`REASON_REQUIRED`)."""
+
+    reason: Annotated[str, StringConstraints(max_length=500)] | None = None
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True, json_schema_extra={"examples": [{"reason": "Feeling unwell."}]}
+    )
+
+    @field_validator("reason")
+    @classmethod
+    def _blank_reason_to_none(cls, value: str | None) -> str | None:
+        return value or None
+
+
 class BookingResponse(BaseModel):
     id: int
     customer_id: int

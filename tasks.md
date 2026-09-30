@@ -456,7 +456,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: concurrent confirm + cancel.
 
 ### P7.3 — Transition endpoints and admin booking list
-- [ ] Status
+- [x] Status
 - Goal: customers cancel, admins run the day.
 - Requirement(s) served: statuses; backend API
 - Acceptance criteria: `POST /bookings/{id}/cancel` (customer own / admin, `reason`), `POST /bookings/{id}/confirm`, `POST /bookings/{id}/complete` (admin); `GET /bookings` for admin with filters `status, provider_id, customer_id, date_from, date_to`, paginated.
@@ -737,3 +737,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-09-30 | P4.3 | `GET /providers/{id}/availability/exceptions` is admin-only, and an exception whose date has passed cannot be edited (only deleted) | The criteria say "admin CRUD" without a public read; a reason such as "sick leave" is not for customers, who see only the resulting slots |
 | 2026-09-30 | P4.4 | `DELETE` of a rule or exception returns `200 {id, details}` instead of `204`; every write response gains `details.conflicts` | The criteria want the conflict warning "in rule/exception write responses", and removing a rule is the write that most often strands bookings, so it needs a body to carry the warning. `docs/api.md` and the P4.2/P4.3 delete tests updated |
 | 2026-09-30 | P4.4 | `build_windows_for_date` (pure, in `app/services/slots.py`) is written in P4.4, not P5.1. P5.1 adds `compute_slots` beside it and keeps its own tests | Deciding whether a booking still fits the hours needs exactly "rules + exception + date + tz -> UTC windows", and a second copy would break the one-place rule for the exception-replaces-rules logic |
+| 2026-09-30 | P7.3 | The admin booking list is `GET /bookings/all`, not `GET /bookings` | `GET /bookings` is already "my own bookings" for everyone (P6.3, tested and documented, including for admins, who can also book). Making it role-dependent would change the meaning of one URL by who calls it; a separate path keeps each endpoint's contract fixed |

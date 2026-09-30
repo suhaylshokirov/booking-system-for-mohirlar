@@ -16,7 +16,7 @@ concurrent changes cannot both succeed (ADR 0008).
 """
 
 import enum
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from psycopg import errors as pg_errors
 from sqlalchemy import select, update
@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
 from app.core.pagination import PageParams, paginate
-from app.core.timezones import utc_to_local
+from app.core.timezones import local_day_bounds_utc, utc_to_local
 from app.models.availability import AvailabilityException, AvailabilityRule
 from app.models.booking import Booking, BookingEvent, BookingStatus
 from app.models.provider import Provider, ProviderService
@@ -204,6 +204,39 @@ def list_my_bookings(
     else:
         query = query.order_by(Booking.start_at.desc(), Booking.id)
     return paginate(db, query, params)
+
+
+def list_all_bookings(
+    db: Session,
+    params: PageParams,
+    status: BookingStatus | None = None,
+    provider_id: int | None = None,
+    customer_id: int | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> tuple[list[Booking], int]:
+    """One page of every booking (the caller has checked the user is an admin), and the total.
+
+    `date_from` / `date_to` are calendar days on the business's clock, both
+    inclusive: a booking matches if it *starts* on one of those local days. They
+    become UTC instants here so the DST-correct conversion stays in
+    `core/timezones`. Soonest start first (ties by id), which is the order an
+    admin runs the day in.
+    """
+    query = select(Booking)
+    if status is not None:
+        query = query.where(Booking.status == status)
+    if provider_id is not None:
+        query = query.where(Booking.provider_id == provider_id)
+    if customer_id is not None:
+        query = query.where(Booking.customer_id == customer_id)
+    if date_from is not None or date_to is not None:
+        timezone = get_business_settings(db).timezone
+        if date_from is not None:
+            query = query.where(Booking.start_at >= local_day_bounds_utc(date_from, timezone)[0])
+        if date_to is not None:
+            query = query.where(Booking.start_at < local_day_bounds_utc(date_to, timezone)[1])
+    return paginate(db, query.order_by(Booking.start_at, Booking.id), params)
 
 
 def get_booking(db: Session, user: User, booking_id: int) -> Booking:

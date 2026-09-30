@@ -320,6 +320,38 @@ your own bookings (paginated). `upcoming` means not over yet, soonest first;
 is `404 BOOKING_NOT_FOUND`, exactly like one that does not exist. Admins can
 read any booking by id.
 
+**Step: confirm or cancel.** Status changes are separate calls:
+
+```bash
+# admin confirms
+curl -X POST localhost:8000/api/v1/bookings/7/confirm -H "Authorization: Bearer $ADMIN_TOKEN"
+# the customer (or an admin) cancels; the body is optional
+curl -X POST localhost:8000/api/v1/bookings/7/cancel \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"reason": "Feeling unwell."}'
+```
+
+Each returns the updated booking. Who may do what, and when (full table in
+`docs/architecture.md`):
+
+| Call | Who | Errors |
+|---|---|---|
+| `POST /bookings/{id}/confirm` | admin, before it starts | `403 FORBIDDEN` (customer), `409 INVALID_TRANSITION` |
+| `POST /bookings/{id}/cancel` | its customer, or an admin | `409 CANCELLATION_CUTOFF_PASSED` (`details.cutoff_at`), `422 REASON_REQUIRED` (admin, confirmed booking), `409 INVALID_TRANSITION` |
+| `POST /bookings/{id}/complete` | admin, after it ends | `403 FORBIDDEN`, `409 TOO_EARLY_TO_COMPLETE` |
+
+- Someone else's booking is `404 BOOKING_NOT_FOUND` on every call.
+- `409 BOOKING_STATE_CHANGED` means another request changed it at the same
+  moment (say, the admin confirmed while the customer cancelled). Reload and
+  look again; exactly one of the two wins (ADR 0008).
+- Cancelling frees the time straight away for other customers.
+
+**Admin: `GET /bookings/all`** lists everyone's bookings, soonest start first,
+paginated. Filters: `status`, `provider_id`, `customer_id`, and `date_from` /
+`date_to` (calendar days on the business's clock, both inclusive; a booking
+matches when it *starts* on one of those days). Customers get `403`.
+`GET /bookings` stays "my own bookings" for everyone, admins included.
+
 ## Error envelope
 Every error has the same shape, whether we raised it, request validation
 rejected the input, the route doesn't exist, or something crashed:
