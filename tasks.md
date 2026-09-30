@@ -396,7 +396,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: past / lead / horizon / misaligned / not offered / inactive / outside availability.
 
 ### P6.2 — Create booking (service)
-- [ ] Status
+- [x] Status
 - Goal: create a pending booking whose uniqueness is guaranteed by Postgres.
 - Requirement(s) served: **User can book**; **No double booking**; booking history
 - Acceptance criteria: `services/booking.create_booking(db, customer, service_id, provider_id, start_at, notes, now)`: validates (P6.1); computes `end_at` from the service duration; snapshots price and duration; friendly pre-check for overlap; inserts booking + `booking_events` (None → pending) in one transaction; catches `IntegrityError` with SQLSTATE `23P01` and maps by constraint name → `SlotTaken` / `CustomerOverlap` (409). Docstring explains why the pre-check alone is a race.

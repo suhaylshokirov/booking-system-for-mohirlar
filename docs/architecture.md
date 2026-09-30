@@ -27,8 +27,39 @@ The health endpoint shows the pattern in miniature: the router
 `SELECT 1` and raises `AppError` on failure.
 
 ## Request lifecycle: create a booking
-_P6.5._ Mermaid sequence diagram, including the exclusion-constraint path
-(SQLSTATE 23P01 → 409 `SLOT_TAKEN`).
+`services/booking.create_booking` (P6.2). The router only authenticates and
+calls it; the request's session commits when the handler returns.
+
+```mermaid
+sequenceDiagram
+    participant C as Customer
+    participant R as Router
+    participant S as booking.create_booking
+    participant DB as PostgreSQL
+
+    C->>R: POST /bookings
+    R->>S: create_booking(customer, service, provider, start_at, now)
+    S->>DB: load service, provider, settings, availability
+    S->>S: booking_rules.validate_booking_start (422 on failure)
+    S->>DB: pre-check overlap (provider, then customer)
+    alt pre-check finds a clash
+        S-->>C: 409 SLOT_TAKEN / CUSTOMER_OVERLAP
+    else looks free
+        S->>DB: SAVEPOINT; INSERT booking (pending) + booking_events
+        alt a concurrent request won the race
+            DB-->>S: SQLSTATE 23P01 (constraint name)
+            S->>DB: ROLLBACK TO SAVEPOINT
+            S-->>C: 409 SLOT_TAKEN (no_provider_overlap) / CUSTOMER_OVERLAP (no_customer_overlap)
+        else inserted
+            DB-->>S: ok
+            S-->>R: booking
+            R-->>C: 201 Created (commit)
+        end
+    end
+```
+
+The pre-check is only for a friendly message; the exclusion constraint is the
+guarantee, because two requests can pass the pre-check at the same moment.
 
 ## Components
 _P6.5 / P11.4._ Component diagram.

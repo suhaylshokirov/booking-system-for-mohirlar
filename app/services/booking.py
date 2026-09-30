@@ -1,0 +1,169 @@
+"""Creating bookings. The database, not this module, guarantees no double booking.
+
+`create_booking` validates the request (`booking_rules`), then inserts a
+`pending` booking and its first `booking_events` row in one transaction.
+
+Why the overlap pre-check is not enough: two requests can both run the
+pre-check, both see the slot free, and both insert. The pre-check only exists
+to give the common case a friendly message before we touch the constraints.
+The truth is the two Postgres exclusion constraints (`no_provider_overlap`,
+`no_customer_overlap`); when the second insert loses the race, Postgres raises
+SQLSTATE 23P01 and we map the constraint name to the same 409 the pre-check
+would have given (ADR 0001).
+"""
+
+from datetime import datetime, timedelta
+
+from psycopg import errors as pg_errors
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.core.errors import AppError
+from app.core.timezones import utc_to_local
+from app.models.availability import AvailabilityException, AvailabilityRule
+from app.models.booking import Booking, BookingEvent, BookingStatus
+from app.models.provider import Provider, ProviderService
+from app.models.service import Service
+from app.models.user import User
+from app.services.booking_rules import validate_booking_start
+from app.services.business_settings import get_business_settings
+from app.services.slots import build_windows_for_date
+
+# Statuses that hold time. Cancelled and completed bookings free it.
+_ACTIVE = [BookingStatus.PENDING, BookingStatus.CONFIRMED]
+
+
+def slot_taken() -> AppError:
+    return AppError("SLOT_TAKEN", "That time was just taken. Please pick another.", status_code=409)
+
+
+def customer_overlap() -> AppError:
+    return AppError(
+        "CUSTOMER_OVERLAP",
+        "You already have a booking that overlaps this time.",
+        status_code=409,
+    )
+
+
+# Constraint name -> the error it means. Names come from migration 0003.
+_OVERLAP_ERRORS = {"no_provider_overlap": slot_taken, "no_customer_overlap": customer_overlap}
+
+
+def create_booking(
+    db: Session,
+    customer: User,
+    service_id: int,
+    provider_id: int,
+    start_at: datetime,
+    notes: str | None,
+    now: datetime,
+) -> Booking:
+    """Create a pending booking for `customer`; return it (flushed, not committed).
+
+    `end_at` is `start_at` plus the service duration; price and duration are
+    copied onto the booking so later edits to the service do not change it
+    (ADR 0007). `start_at` must be timezone-aware.
+
+    Raises: 404 `NOT_FOUND` (service or provider does not exist); 422 for any
+    rule in `booking_rules.validate_booking_start`; 409 `SLOT_TAKEN` (provider
+    busy) or 409 `CUSTOMER_OVERLAP` (customer busy with anyone), from the
+    pre-check or, if a concurrent request won the race, from the database.
+    """
+    service = db.get(Service, service_id)
+    provider = db.get(Provider, provider_id)
+    if service is None:
+        raise AppError("NOT_FOUND", "Service not found.", status_code=404)
+    if provider is None:
+        raise AppError("NOT_FOUND", "Provider not found.", status_code=404)
+
+    settings = get_business_settings(db)
+    duration = timedelta(minutes=service.duration_minutes)
+    day = utc_to_local(start_at, settings.timezone).date()
+    validate_booking_start(
+        service_active=service.is_active,
+        provider_active=provider.is_active,
+        provider_offers_service=db.get(ProviderService, (provider_id, service_id)) is not None,
+        start=start_at,
+        windows_utc=_working_windows(db, provider_id, day, settings.timezone),
+        duration=duration,
+        granularity=timedelta(minutes=settings.slot_granularity_minutes),
+        now=now,
+        lead_time=timedelta(minutes=settings.min_lead_time_minutes),
+        horizon_days=settings.max_booking_horizon_days,
+    )
+
+    end_at = start_at + duration
+    _precheck_overlap(db, customer.id, provider_id, start_at, end_at)
+
+    booking = Booking(
+        customer_id=customer.id,
+        provider_id=provider_id,
+        service_id=service_id,
+        start_at=start_at,
+        end_at=end_at,
+        status=BookingStatus.PENDING,
+        price_amount=service.price,
+        duration_minutes=service.duration_minutes,
+        notes=notes,
+    )
+    # A savepoint: if the constraint rejects the insert, only this block is
+    # undone and the caller's transaction stays usable.
+    try:
+        with db.begin_nested():
+            db.add(booking)
+            db.flush()
+            db.add(
+                BookingEvent(
+                    booking_id=booking.id,
+                    from_status=None,
+                    to_status=BookingStatus.PENDING,
+                    actor_id=customer.id,
+                )
+            )
+            db.flush()
+    except IntegrityError as exc:
+        raise _map_overlap_error(exc) from exc
+    return booking
+
+
+def _working_windows(db: Session, provider_id: int, day, timezone: str):
+    rules = db.scalars(select(AvailabilityRule).where(AvailabilityRule.provider_id == provider_id))
+    exception = db.scalar(
+        select(AvailabilityException).where(
+            AvailabilityException.provider_id == provider_id, AvailabilityException.date == day
+        )
+    )
+    return build_windows_for_date(list(rules), exception, day, timezone)
+
+
+def _precheck_overlap(
+    db: Session, customer_id: int, provider_id: int, start_at: datetime, end_at: datetime
+) -> None:
+    """Friendly early 409s. Provider first, matching which constraint would fire."""
+    for column, value, error in (
+        (Booking.provider_id, provider_id, slot_taken),
+        (Booking.customer_id, customer_id, customer_overlap),
+    ):
+        clash = db.scalar(
+            select(Booking.id)
+            .where(
+                column == value,
+                Booking.status.in_(_ACTIVE),
+                Booking.start_at < end_at,
+                Booking.end_at > start_at,
+            )
+            .limit(1)
+        )
+        if clash is not None:
+            raise error()
+
+
+def _map_overlap_error(exc: IntegrityError) -> Exception:
+    """Turn an exclusion violation into its 409; anything else is a real bug, re-raise it."""
+    orig = exc.orig
+    if isinstance(orig, pg_errors.ExclusionViolation):
+        make_error = _OVERLAP_ERRORS.get(orig.diag.constraint_name or "")
+        if make_error is not None:
+            return make_error()
+    return exc
