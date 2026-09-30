@@ -97,6 +97,8 @@ def test_stale_expected_status_is_409_and_writes_no_event(db, admin_user, pendin
     assert exc.value.status_code == 409
     assert exc.value.code == "BOOKING_STATE_CHANGED"
     assert len(events(db, pending)) == before
+    # A page rendered after the failure must show what is really in the database.
+    assert pending.status == BookingStatus.CANCELLED
 
 
 def test_illegal_transition_changes_nothing(db, admin_user, pending):

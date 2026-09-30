@@ -55,6 +55,7 @@ FLASH_MESSAGES: dict[str, Notice] = {
     "signed_in": Notice("You're signed in.", "success"),
     "registered": Notice("Your account is ready, and you're signed in.", "success"),
     "signed_out": Notice("You're signed out."),
+    "cancelled": Notice("Booking cancelled. That time is free again.", "success"),
     "booked": Notice(
         "Booking requested. It shows as pending until the business confirms it.", "success"
     ),

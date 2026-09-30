@@ -9,6 +9,7 @@ from app.core.errors import register_error_handlers
 from app.web import auth as web_auth
 from app.web import booking as web_booking
 from app.web import catalog
+from app.web import my_bookings as web_my_bookings
 from app.web.deps import load_current_user
 from app.web.errors import render_error_page
 from app.web.templating import STATIC_DIR
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(catalog.router, dependencies=web)
     app.include_router(web_auth.router, dependencies=web)
     app.include_router(web_booking.router, dependencies=web)
+    app.include_router(web_my_bookings.router, dependencies=web)
     return app
 
 

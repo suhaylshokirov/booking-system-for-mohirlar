@@ -16,6 +16,7 @@ concurrent changes cannot both succeed (ADR 0008).
 """
 
 import enum
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from psycopg import errors as pg_errors
@@ -260,6 +261,21 @@ def get_booking(db: Session, user: User, booking_id: int) -> Booking:
     return booking
 
 
+def get_own_booking(db: Session, user: User, booking_id: int) -> Booking:
+    """A booking that belongs to `user`, even for an admin (the customer's own pages).
+
+    `get_booking` lets an admin read anyone's; "My bookings" must not, or an
+    admin opening someone else's link would get a page whose Cancel button is
+    not theirs to press.
+
+    Raises: 404 `BOOKING_NOT_FOUND`, the same as `get_booking`.
+    """
+    booking = get_booking(db, user, booking_id)
+    if booking.customer_id != user.id:
+        raise AppError("BOOKING_NOT_FOUND", "Booking not found.", status_code=404)
+    return booking
+
+
 def transition(
     db: Session,
     actor: User,
@@ -307,6 +323,8 @@ def transition(
         .execution_options(synchronize_session=False)
     )
     if result.rowcount == 0:
+        # The object in the session still shows the status we read; show the real one.
+        db.refresh(booking)
         raise AppError(
             "BOOKING_STATE_CHANGED",
             "This booking was just changed by someone else. Reload and try again.",
@@ -345,3 +363,33 @@ def list_history(
         .order_by(BookingEvent.id)
     )
     return [(event, actor) for event, actor in rows]
+
+
+@dataclass(frozen=True)
+class BookingLine:
+    """A booking with the names a page shows next to it."""
+
+    booking: Booking
+    service_name: str
+    provider_name: str
+
+
+def describe_bookings(db: Session, bookings: list[Booking]) -> list[BookingLine]:
+    """Attach service and provider names to `bookings`, keeping their order.
+
+    Two queries for the whole list rather than one per row. Names are looked
+    up even for retired services and providers: bookings keep pointing at them
+    (they are deactivated, never deleted), and history must still read.
+    """
+    service_ids = {booking.service_id for booking in bookings}
+    provider_ids = {booking.provider_id for booking in bookings}
+    services = dict(
+        db.execute(select(Service.id, Service.name).where(Service.id.in_(service_ids))).all()
+    )
+    providers = dict(
+        db.execute(select(Provider.id, Provider.name).where(Provider.id.in_(provider_ids))).all()
+    )
+    return [
+        BookingLine(booking, services[booking.service_id], providers[booking.provider_id])
+        for booking in bookings
+    ]

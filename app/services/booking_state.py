@@ -162,3 +162,17 @@ def check_transition(
         cutoff_at = cancellation_cutoff_at(booking.start_at, settings.cancellation_cutoff_hours)
         if now > cutoff_at:
             raise CancellationCutoffPassed(cutoff_at)
+
+
+def can_cancel(booking: _Booking, actor: _Actor, now: datetime, settings: _Settings) -> bool:
+    """Would `check_transition` let `actor` cancel this booking right now?
+
+    For deciding whether to show a Cancel button. It asks the same function
+    that enforces the rule, so the button and the server cannot disagree. An
+    admin's reason requirement is not a "no": it is asked for at cancel time.
+    """
+    try:
+        check_transition(booking, BookingStatus.CANCELLED, actor, now, settings, reason="-")
+    except AppError:
+        return False
+    return True

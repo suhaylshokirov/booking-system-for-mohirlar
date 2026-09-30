@@ -540,7 +540,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: slot taken between viewing and booking; double submit.
 
 ### P8.5 — My bookings
-- [ ] Status
+- [x] Status
 - Goal: customers see and manage their bookings.
 - Requirement(s) served: **Booking history**; statuses
 - Acceptance criteria: `/me/bookings` with Upcoming / Past segmented tabs, table with status chips (text always), time in business tz (mono); `/me/bookings/{id}` detail with the event timeline and Cancel (confirm dialog, "No" focused first; hidden with explanation after cutoff).

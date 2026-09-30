@@ -424,6 +424,55 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P8 — Customer UI
+
+- **Asked:** the server-rendered customer side: base layout and design system,
+  sign in / create account / sign out, the services price board and service
+  page, booking with a live slot picker, and "My bookings" with cancel.
+- **Produced:** `app/web/` (`auth`, `catalog`, `booking`, `my_bookings`,
+  `errors`, `templating`, `formatting`, `paging`), the Jinja templates and
+  `_partials/slot_grid.html`, `static/css/*` and `static/js/app.js`;
+  service additions the pages needed and the rules already lived in:
+  `slot_query.bookable_dates`, `booking_state.cancellation_cutoff_at` and
+  `can_cancel`, `booking.get_own_booking`, `booking.describe_bookings`;
+  `tests/integration/test_web_*.py` and the matching unit tests.
+- **Verified how:**
+  - Every page is tested through the real app against real Postgres with the
+    frozen clock: what is shown, the status codes, and that nothing changed
+    when a request was refused.
+  - The Cancel button asks `can_cancel`, which calls `check_transition`, so the
+    button cannot disagree with the rule; tests cover the cutoff exactly and
+    one second after it, and pressing Cancel after the cutoff (409, nothing changes).
+  - **Mutation check done (P8.5):** with the ownership check removed from
+    `get_own_booking`, `test_an_admin_does_not_get_a_customer_page_for_someone_else_s_booking`
+    fails; restored, it passes.
+  - Full suite 762 tests, ruff check and format clean.
+- **Not verified:** the pages were checked by tests and by reading the HTML,
+  not by eye in a browser, and the live picker and confirm dialog (JavaScript)
+  have no automated test; the no-JavaScript path is what the tests cover.
+- **Changed / rejected:**
+  - Lime is used only for committed or selected things (rule 12); the ported
+    Theoria buttons and stat ticks that were lime became ink.
+  - A customer's page for a booking is not shown to an admin who is not its
+    owner (`get_own_booking`), although the API lets admins read any: the
+    customer page's Cancel button would not be theirs to press.
+  - A cancelled future booking stays under Upcoming with its "Cancelled" chip,
+    because the service's `upcoming` means "not over yet"; it was not split out.
+- **Bugs caught:**
+  - A registration name of only spaces passed validation (the length was
+    checked before trimming); found while building the header, which greets
+    the user by first name. Fixed in `5336427`.
+  - After losing a race, `transition` raised 409 but left the booking object in
+    the session showing the old status, so the re-rendered page would have
+    shown the wrong status. `transition` now refreshes it before raising, and
+    `test_stale_expected_status_is_409_and_writes_no_event` asserts it.
+  - The first run of the P8.5 tests failed for two of my own mistakes: the
+    login cookie in the test expired once the frozen clock moved past the
+    booking, and `dict()` on a SQLAlchemy result does not build a mapping
+    (`.all()` first).
+
+---
+
 ## Summary (for the submission form)
 
 _Written in P11.5._

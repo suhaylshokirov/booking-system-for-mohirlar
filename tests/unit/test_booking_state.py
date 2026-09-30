@@ -14,6 +14,7 @@ from app.services.booking_state import (
     CancellationCutoffPassed,
     ReasonRequired,
     TooEarlyToComplete,
+    can_cancel,
     check_transition,
     is_stale_pending,
 )
@@ -150,3 +151,30 @@ def test_stale_pending_means_pending_and_started():
     assert is_stale_pending(Booking(S.PENDING), START)
     assert not is_stale_pending(Booking(S.CONFIRMED), END)
     assert not is_stale_pending(Booking(S.CANCELLED), END)
+
+
+# --- can_cancel: the Cancel button asks the same rule the server enforces ------------
+
+
+@pytest.mark.parametrize(
+    ("status", "now", "expected"),
+    [
+        (S.PENDING, START - timedelta(minutes=1), True),  # no cutoff for a pending booking
+        (S.PENDING, START, False),
+        (S.CONFIRMED, CUTOFF, True),  # inclusive, like check_transition
+        (S.CONFIRMED, CUTOFF + timedelta(seconds=1), False),
+        (S.CANCELLED, BEFORE, False),
+        (S.COMPLETED, BEFORE, False),
+    ],
+)
+def test_can_cancel_follows_check_transition_for_the_owner(status, now, expected):
+    assert can_cancel(Booking(status), OWNER, now, Settings()) is expected
+
+
+def test_can_cancel_is_false_for_a_stranger():
+    assert can_cancel(Booking(S.PENDING), STRANGER, BEFORE, Settings()) is False
+
+
+def test_an_admin_can_cancel_a_confirmed_booking_without_a_reason_being_a_no():
+    # The reason is asked for at cancel time; it must not hide the button.
+    assert can_cancel(Booking(S.CONFIRMED), ADMIN, BEFORE, Settings()) is True

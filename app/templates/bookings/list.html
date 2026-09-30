@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "bookings" %}
+
+{% block title %}My bookings · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/booking.css">{% endblock %}
+
+{% block content %}
+{% set tz = business.timezone %}
+<header class="sheet-head">
+    <h1 class="sheet-title">My bookings</h1>
+    <p class="sheet-sub">
+        Every time you've booked with {{ business.name }}.
+        Times are shown in <span class="mono">{{ tz }}</span>.
+    </p>
+</header>
+
+<section class="sheet-section" aria-labelledby="bookings-title">
+    <div class="section-head">
+        <h2 id="bookings-title">{{ "Upcoming" if tab == "upcoming" else "Past" }}</h2>
+        <nav class="segmented" aria-label="Which bookings">
+            <a href="/me/bookings"{% if tab == "upcoming" %} aria-current="page"{% endif %}>Upcoming</a>
+            <a href="/me/bookings?tab=past"{% if tab == "past" %} aria-current="page"{% endif %}>Past</a>
+        </nav>
+    </div>
+
+    {% if lines %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th scope="col">When</th>
+                    <th scope="col">Service</th>
+                    <th scope="col">With</th>
+                    <th scope="col" class="num">Price</th>
+                    <th scope="col">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in lines %}
+                {% set booking = line.booking %}
+                <tr>
+                    <th scope="row">
+                        <a href="/me/bookings/{{ booking.id }}">{{ booking.start_at|local_date(tz) }}</a>
+                        <span class="mono row-time">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span>
+                    </th>
+                    <td>{{ line.service_name }}</td>
+                    <td>{{ line.provider_name }}</td>
+                    <td class="num">{{ booking.price_amount|money(business.currency) }}</td>
+                    <td>{{ ui.status_chip(booking.status) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {{ ui.pagination(pager, "/me/bookings", "tab=" ~ tab ~ "&") }}
+    {% elif tab == "upcoming" %}
+    <p class="empty">Nothing coming up. <a href="/">Pick a service</a> to book a time.</p>
+    {% else %}
+    <p class="empty">No past bookings yet. Once a booking is over, or cancelled, it shows up here.</p>
+    {% endif %}
+</section>
+{% endblock %}

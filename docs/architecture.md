@@ -248,6 +248,19 @@ broken booking rule re-renders the picker for that day with the reason, never an
 error page. The live picker asks the same URL with `X-Requested-With` and gets
 only `_partials/slot_grid.html`; responses carry `Vary: X-Requested-With`.
 
+**My bookings (`app/web/my_bookings.py`, P8.5).** `/me/bookings` lists the
+signed-in user's own bookings in Upcoming / Past tabs
+(`booking.list_my_bookings`, names from `booking.describe_bookings`: two
+queries for the whole page); `/me/bookings/{id}` shows the ticket, a
+plain-language history from `booking.list_history`, and Cancel. Ownership is
+`booking.get_own_booking`: someone else's booking, or a missing one, is the
+same 404 page, admins included. The Cancel button is drawn only when
+`booking_state.can_cancel` says the server would accept it; that function calls
+`check_transition`, so the button and the rule cannot drift apart. Past the
+cutoff the page shows the deadline instead. `POST /me/bookings/{id}/cancel`
+goes through `booking.transition`, so it is the same guarded UPDATE and
+history row as the API; a 409 re-renders the booking with the reason.
+
 **CSRF.** HTML forms are covered by the same app-wide `csrf_protect`
 dependency as the API; forms carry the token in a `csrf_token` hidden field.
 

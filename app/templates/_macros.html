@@ -17,16 +17,20 @@
 {% endmacro %}
 
 {# Previous / next links for a web list (app/web/paging.py). Drawn only when
-   there is more than one page; `base` is the list's own path. #}
-{% macro pagination(pager, base) %}
+   there is more than one page; `base` is the list's own path, `keep` any other
+   query the list needs carried along, ending in "&" ("tab=past&"). #}
+{% macro pagination(pager, base, keep="") %}
 {% if pager.pages > 1 %}
 <nav class="pagination" aria-label="Pages">
-    {% if pager.has_prev %}<a href="{{ base }}?page={{ pager.page - 1 }}" rel="prev">Previous</a>{% endif %}
+    {% if pager.has_prev %}<a href="{{ base }}?{{ keep }}page={{ pager.page - 1 }}" rel="prev">Previous</a>{% endif %}
     <span class="page-state">Page {{ pager.page }} of {{ pager.pages }}</span>
-    {% if pager.has_next %}<a href="{{ base }}?page={{ pager.page + 1 }}" rel="next">Next</a>{% endif %}
+    {% if pager.has_next %}<a href="{{ base }}?{{ keep }}page={{ pager.page + 1 }}" rel="next">Next</a>{% endif %}
 </nav>
 {% endif %}
 {% endmacro %}
+
+{# A booking's status, always spelled out in words (rule 12). #}
+{% macro status_chip(status) %}<span class="status-chip status-chip--{{ status.value }}">{{ status.value|capitalize }}</span>{% endmacro %}
 
 {# Where you are in booking. Numbered because it is a real sequence; the
    current step is the lime one (rule 12), steps behind you are ink. #}

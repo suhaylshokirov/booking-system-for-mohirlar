@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "bookings" %}
+
+{% block title %}{{ line.service_name }} on {{ line.booking.start_at|local_date(business.timezone) }} · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/booking.css">{% endblock %}
+
+{% block content %}
+{% set tz = business.timezone %}
+{% set booking = line.booking %}
+<a class="back-link" href="/me/bookings">My bookings</a>
+
+<header class="sheet-head">
+    <h1 class="sheet-title">{{ line.service_name }}</h1>
+    <p class="sheet-sub">{{ ui.status_chip(booking.status) }}</p>
+</header>
+
+{% if problem %}
+<div class="notice-list"><p class="notice notice--error" role="alert">{{ problem }}</p></div>
+{% endif %}
+
+<article class="ticket" aria-labelledby="ticket-time">
+    <p class="ticket__time mono" id="ticket-time">
+        {{ booking.start_at|local_time(tz) }}<span class="ticket__to">–{{ booking.end_at|local_time(tz) }}</span>
+    </p>
+    <p class="ticket__day">{{ booking.start_at|local_date(tz) }} <span class="faint mono">{{ tz }}</span></p>
+    <dl class="ticket__facts">
+        <div><dt class="label">Service</dt><dd>{{ line.service_name }}</dd></div>
+        <div><dt class="label">With</dt><dd>{{ line.provider_name }}</dd></div>
+        <div><dt class="label">Duration</dt><dd class="mono">{{ booking.duration_minutes|duration }}</dd></div>
+        <div><dt class="label">Price</dt><dd class="mono">{{ booking.price_amount|money(business.currency) }}</dd></div>
+        {% if booking.notes %}<div class="ticket__wide"><dt class="label">Your note</dt><dd>{{ booking.notes }}</dd></div>{% endif %}
+    </dl>
+    {% if booking.status.value == "pending" %}
+    <p class="ticket__policy">Waiting for {{ business.name }} to confirm it.</p>
+    {% endif %}
+</article>
+
+{% if cancellable %}
+<section class="sheet-section booking-cancel" aria-labelledby="cancel-title">
+    <div class="section-head"><h2 id="cancel-title">Can't make it?</h2></div>
+    <p class="faint">
+        {% if booking.status.value == "confirmed" %}
+        You can cancel online until <span class="mono">{{ cutoff_at|local_time(tz) }}</span> on {{ cutoff_at|local_date(tz) }}.
+        {% else %}
+        You can cancel any time before it starts.
+        {% endif %}
+        The time is released straight away.
+    </p>
+    <form method="post" action="/me/bookings/{{ booking.id }}/cancel" class="actions"
+          data-confirm="Cancel this booking?"
+          data-confirm-body="{{ line.service_name }} on {{ booking.start_at|local_date(tz) }} at {{ booking.start_at|local_time(tz) }}. The time is released straight away."
+          data-confirm-yes="Yes, cancel it" data-confirm-no="No, keep it" data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        <button type="submit" class="btn btn--danger" data-busy-label="Cancelling…">Cancel booking</button>
+    </form>
+</section>
+{% elif cancel_closed %}
+<section class="sheet-section booking-cancel" aria-labelledby="cancel-title">
+    <div class="section-head"><h2 id="cancel-title">Cancelling</h2></div>
+    <p class="faint">
+        {% if cancel_closed == "started" %}
+        This booking has already started, so it can't be cancelled online.
+        {% else %}
+        Online cancellation closed at <span class="mono">{{ cutoff_at|local_time(tz) }}</span> on {{ cutoff_at|local_date(tz) }},
+        {{ business.cancellation_cutoff_hours }} hour{{ "" if business.cancellation_cutoff_hours == 1 else "s" }} before it starts.
+        To change it now, contact {{ business.name }}.
+        {% endif %}
+    </p>
+</section>
+{% endif %}
+
+<section class="sheet-section" aria-labelledby="history-title">
+    <div class="section-head"><h2 id="history-title">History</h2></div>
+    <ol class="timeline">
+        {% for entry in history %}
+        <li>
+            <span class="timeline__what">{{ entry.text }}</span>
+            <span class="timeline__when mono">{{ entry.at|local_date(tz) }}, {{ entry.at|local_time(tz) }}</span>
+            {% if entry.reason %}<span class="timeline__reason">Reason: {{ entry.reason }}</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ol>
+</section>
+{% endblock %}
