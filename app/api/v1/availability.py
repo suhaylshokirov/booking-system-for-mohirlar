@@ -2,23 +2,51 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
 
 from app.api.deps import AdminUser, OptionalUser, is_admin
 from app.core.clock import Clock, get_clock
 from app.core.db import DbSession
 from app.schemas.availability import (
+    ConflictDetails,
+    ConflictResponse,
+    DeleteResponse,
     ExceptionCreate,
     ExceptionResponse,
     ExceptionUpdate,
+    ExceptionWriteResponse,
     RuleCreate,
     RuleResponse,
     RuleUpdate,
+    RuleWriteResponse,
 )
 from app.schemas.errors import ErrorResponse
 from app.services import availability
 
 router = APIRouter(prefix="/providers/{provider_id}/availability", tags=["availability"])
+
+ClockDep = Annotated[Clock, Depends(get_clock)]
+
+
+def _conflicts(db: Session, provider_id: int, clock: Clock) -> ConflictDetails:
+    """The warning attached to every availability change: what no longer fits."""
+    found = availability.find_conflicts(db, provider_id, clock.now())
+    return ConflictDetails(conflicts=[ConflictResponse.from_conflict(c) for c in found])
+
+
+def _rule_write(db: Session, rule, clock: Clock) -> RuleWriteResponse:
+    details = _conflicts(db, rule.provider_id, clock)
+    return RuleWriteResponse(**RuleResponse.model_validate(rule).model_dump(), details=details)
+
+
+def _exception_write(db: Session, row, clock: Clock) -> ExceptionWriteResponse:
+    details = _conflicts(db, row.provider_id, clock)
+    return ExceptionWriteResponse(
+        **ExceptionResponse.model_validate(row).model_dump(exclude={"is_day_off"}),
+        details=details,
+    )
+
 
 _ADMIN_ERRORS = {
     401: {"model": ErrorResponse, "description": "Not logged in."},
@@ -56,42 +84,50 @@ def list_rules(provider_id: int, db: DbSession, user: OptionalUser) -> list[Rule
 
 @router.post(
     "/rules",
-    response_model=RuleResponse,
+    response_model=RuleWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Add a weekly working window (admin)",
     responses={**_ADMIN_ERRORS, **_NOT_FOUND, **_RULE_ERRORS},
 )
 def create_rule(
-    provider_id: int, body: RuleCreate, db: DbSession, admin: AdminUser
-) -> RuleResponse:
+    provider_id: int, body: RuleCreate, db: DbSession, admin: AdminUser, clock: ClockDep
+) -> RuleWriteResponse:
     """Windows that touch (12:00 ends, 12:00 starts) are allowed; windows that overlap are not."""
-    return RuleResponse.model_validate(availability.create_rule(db, provider_id, body.model_dump()))
+    rule = availability.create_rule(db, provider_id, body.model_dump())
+    return _rule_write(db, rule, clock)
 
 
 @router.patch(
     "/rules/{rule_id}",
-    response_model=RuleResponse,
+    response_model=RuleWriteResponse,
     summary="Change a weekly working window (admin)",
     responses={**_ADMIN_ERRORS, **_NOT_FOUND, **_RULE_ERRORS},
 )
 def update_rule(
-    provider_id: int, rule_id: int, body: RuleUpdate, db: DbSession, admin: AdminUser
-) -> RuleResponse:
+    provider_id: int,
+    rule_id: int,
+    body: RuleUpdate,
+    db: DbSession,
+    admin: AdminUser,
+    clock: ClockDep,
+) -> RuleWriteResponse:
     rule = availability.update_rule(db, provider_id, rule_id, body.changes())
-    return RuleResponse.model_validate(rule)
+    return _rule_write(db, rule, clock)
 
 
 @router.delete(
     "/rules/{rule_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=DeleteResponse,
     summary="Remove a weekly working window (admin)",
     responses={**_ADMIN_ERRORS, **_NOT_FOUND},
 )
-def delete_rule(provider_id: int, rule_id: int, db: DbSession, admin: AdminUser) -> Response:
-    """Existing bookings are never removed; the admin sees which ones no longer fit
-    once P4.4 lands."""
+def delete_rule(
+    provider_id: int, rule_id: int, db: DbSession, admin: AdminUser, clock: ClockDep
+) -> DeleteResponse:
+    """Existing bookings are never removed; `details.conflicts` lists the ones that no
+    longer fit."""
     availability.delete_rule(db, provider_id, rule_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return DeleteResponse(id=rule_id, details=_conflicts(db, provider_id, clock))
 
 
 _EXCEPTION_ERRORS = {
@@ -123,7 +159,7 @@ def list_exceptions(provider_id: int, db: DbSession, admin: AdminUser) -> list[E
 
 @router.post(
     "/exceptions",
-    response_model=ExceptionResponse,
+    response_model=ExceptionWriteResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Close a date or give it custom hours (admin)",
     responses={**_ADMIN_ERRORS, **_NOT_FOUND, **_EXCEPTION_ERRORS},
@@ -133,18 +169,18 @@ def create_exception(
     body: ExceptionCreate,
     db: DbSession,
     admin: AdminUser,
-    clock: Annotated[Clock, Depends(get_clock)],
-) -> ExceptionResponse:
+    clock: ClockDep,
+) -> ExceptionWriteResponse:
     """The exception **replaces** the weekly rules for that date. Send no times for a
     day off, or both times for one custom window. Bookings already made for the
     date are not touched."""
     row = availability.create_exception(db, provider_id, body.model_dump(), clock)
-    return ExceptionResponse.model_validate(row)
+    return _exception_write(db, row, clock)
 
 
 @router.patch(
     "/exceptions/{exception_id}",
-    response_model=ExceptionResponse,
+    response_model=ExceptionWriteResponse,
     summary="Change an exception (admin)",
     responses={**_ADMIN_ERRORS, **_NOT_FOUND, **_EXCEPTION_ERRORS},
 )
@@ -154,22 +190,38 @@ def update_exception(
     body: ExceptionUpdate,
     db: DbSession,
     admin: AdminUser,
-    clock: Annotated[Clock, Depends(get_clock)],
-) -> ExceptionResponse:
+    clock: ClockDep,
+) -> ExceptionWriteResponse:
     """`null` times make it a day off. An exception in the past cannot be edited."""
     row = availability.update_exception(db, provider_id, exception_id, body.changes(), clock)
-    return ExceptionResponse.model_validate(row)
+    return _exception_write(db, row, clock)
 
 
 @router.delete(
     "/exceptions/{exception_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=DeleteResponse,
     summary="Remove an exception (admin)",
     responses={**_ADMIN_ERRORS, **_NOT_FOUND},
 )
 def delete_exception(
-    provider_id: int, exception_id: int, db: DbSession, admin: AdminUser
-) -> Response:
-    """The weekly rules apply to that date again."""
+    provider_id: int, exception_id: int, db: DbSession, admin: AdminUser, clock: ClockDep
+) -> DeleteResponse:
+    """The weekly rules apply to that date again; `details.conflicts` lists bookings
+    that still do not fit them."""
     availability.delete_exception(db, provider_id, exception_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return DeleteResponse(id=exception_id, details=_conflicts(db, provider_id, clock))
+
+
+@router.get(
+    "/conflicts",
+    response_model=list[ConflictResponse],
+    summary="Future bookings that no longer fit the provider's hours (admin)",
+    responses={**_ADMIN_ERRORS, **_NOT_FOUND},
+)
+def list_conflicts(
+    provider_id: int, db: DbSession, admin: AdminUser, clock: ClockDep
+) -> list[ConflictResponse]:
+    """Pending and confirmed bookings that have not started, earliest first, that
+    are not fully inside the provider's working hours (weekly rules, or the
+    exception for their date). Nothing is changed: the admin decides what to do."""
+    return _conflicts(db, provider_id, clock).conflicts

@@ -347,6 +347,6 @@ def test_admin_deletes_an_exception_even_a_past_one(client, admin, db):
     provider = _provider(db)
     past = _exception(db, provider, date(2026, 9, 1))
 
-    assert client.delete(_url(provider, f"/{past.id}"), headers=admin).status_code == 204
+    assert client.delete(_url(provider, f"/{past.id}"), headers=admin).status_code == 200
     assert _rows(db, provider) == []
     assert client.delete(_url(provider, f"/{past.id}"), headers=admin).status_code == 404

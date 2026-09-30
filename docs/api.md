@@ -182,14 +182,14 @@ curl 'localhost:8000/api/v1/providers?service_id=1'
 ## Availability rules
 _P4.2._ The weekly hours each provider works, as **local wall-clock times in the
 business timezone** (`GET /settings`). `weekday` is 0 = Monday … 6 = Sunday.
-Days off and custom hours are exceptions (below); conflict reporting arrives in P4.4.
+Days off and custom hours are exceptions (below); bookings that stop fitting after a change are reported as conflicts (last part of this section).
 
 | Endpoint | Who | Success | Notes |
 |---|---|---|---|
 | `GET /providers/{id}/availability/rules` | public | 200 list | Monday first, earliest window first. An inactive provider is `404` for everyone but admins. |
-| `POST /providers/{id}/availability/rules` | admin | 201 rule | Body `{"weekday": 0, "start_time": "09:00", "end_time": "18:00"}`. |
-| `PATCH /providers/{id}/availability/rules/{rule_id}` | admin | 200 rule | Partial; the result is validated as a whole. A rule id that belongs to another provider is `404`. |
-| `DELETE /providers/{id}/availability/rules/{rule_id}` | admin | 204 | A hard delete (nothing references a rule). Bookings are never touched. |
+| `POST /providers/{id}/availability/rules` | admin | 201 rule + `details.conflicts` | Body `{"weekday": 0, "start_time": "09:00", "end_time": "18:00"}`. |
+| `PATCH /providers/{id}/availability/rules/{rule_id}` | admin | 200 rule + `details.conflicts` | Partial; the result is validated as a whole. A rule id that belongs to another provider is `404`. |
+| `DELETE /providers/{id}/availability/rules/{rule_id}` | admin | 200 `{id, details}` | A hard delete (nothing references a rule). Bookings are never touched; `details.conflicts` lists the ones that no longer fit. |
 
 Rules: `start_time`/`end_time` are whole minutes with no offset, `end_time` is
 later than `start_time` (a window cannot cross midnight, and `24:00` does not
@@ -213,9 +213,9 @@ only that window (the weekly rules for the date are ignored, not merged).
 | Endpoint | Who | Success | Notes |
 |---|---|---|---|
 | `GET /providers/{id}/availability/exceptions` | admin | 200 list | Earliest date first, past dates included. Admin-only: a `reason` such as "sick leave" is not for customers, who only see the resulting slots. |
-| `POST /providers/{id}/availability/exceptions` | admin | 201 exception | Day off: `{"date": "2026-10-12", "reason": "Public holiday"}`. Custom hours: add `start_time` and `end_time`. |
-| `PATCH /providers/{id}/availability/exceptions/{exception_id}` | admin | 200 exception | Partial, validated as a whole. Here `null` means something: `{"start_time": null, "end_time": null}` turns the date into a day off; `reason: null` clears it. `date` cannot be null. |
-| `DELETE /providers/{id}/availability/exceptions/{exception_id}` | admin | 204 | The weekly rules apply to that date again. Allowed for past dates too. |
+| `POST /providers/{id}/availability/exceptions` | admin | 201 exception + `details.conflicts` | Day off: `{"date": "2026-10-12", "reason": "Public holiday"}`. Custom hours: add `start_time` and `end_time`. |
+| `PATCH /providers/{id}/availability/exceptions/{exception_id}` | admin | 200 exception + `details.conflicts` | Partial, validated as a whole. Here `null` means something: `{"start_time": null, "end_time": null}` turns the date into a day off; `reason: null` clears it. `date` cannot be null. |
+| `DELETE /providers/{id}/availability/exceptions/{exception_id}` | admin | 200 `{id, details}` | The weekly rules apply to that date again. Allowed for past dates too. |
 
 Rules: one exception per provider per date (`409 AVAILABILITY_EXCEPTION_EXISTS`);
 the date must be **today or later in the business timezone** (`422 DATE_IN_PAST`,
@@ -223,13 +223,37 @@ with `details.today`), so an exception cannot be created or edited once its date
 has ended on the business's wall clock. Custom hours follow the same grid and
 range rules as weekly rules. `is_day_off` in the response is `true` when both
 times are `null`. An exception on a date that already has bookings is allowed and
-**never touches those bookings**; P4.4 lists the ones that no longer fit.
+**never touches those bookings**; see conflicts below.
 
 ```bash
 curl -X POST localhost:8000/api/v1/providers/1/availability/exceptions \
   -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
   -d '{"date": "2026-10-13", "start_time": "12:00", "end_time": "16:00"}'
 ```
+
+### Conflicts: what no longer fits
+_P4.4._ Editing availability **never modifies, cancels or moves a booking**. Instead
+the admin is told which future bookings now fall outside the provider's hours.
+
+| Endpoint | Who | Success | Notes |
+|---|---|---|---|
+| `GET /providers/{id}/availability/conflicts` | admin | 200 list | Pending and confirmed bookings that have not started yet and are not fully inside a working window of their **local** date (the exception for that date if there is one, else the weekly rules). Earliest first. |
+
+Every rule or exception write (`POST`, `PATCH`, `DELETE`) also returns the same
+list as `details.conflicts`. It is a **warning, not an error**: the status is
+`2xx` and the change has been applied. A booking that ends exactly at closing time
+still fits (half-open ranges). Each item:
+
+```json
+{"booking_id": 12, "status": "confirmed", "start_at": "2026-10-05T11:00:00Z",
+ "end_at": "2026-10-05T11:30:00Z", "customer_id": 3, "service_id": 1,
+ "reason": "day_off"}
+```
+
+`reason` is `day_off` (an exception closes that date), `no_hours` (no weekly rule
+for that weekday) or `outside_hours` (there are hours that day, but not around the
+booking). Note that the deletes return `200` with a body rather than `204`, so the
+warning has somewhere to go.
 
 ## Walkthrough: book an appointment with curl
 _Built up in P5.3, P6.3, P7.3; verified end to end in P10.4._

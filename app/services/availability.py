@@ -20,10 +20,15 @@ Exceptions override one date:
   in the past once it has ended on the business's wall clock. Past dates cannot
   be created or edited (they can be deleted).
 * Exceptions never modify bookings, even ones on that date.
+
+Editing availability never touches bookings either. `find_conflicts` lists the
+future active bookings that no longer fit inside the provider's hours, and the
+write endpoints return that list as a warning.
 """
 
 from collections.abc import Callable
-from datetime import date, time
+from dataclasses import dataclass
+from datetime import date, datetime, time
 from typing import Any
 
 from sqlalchemy import select
@@ -34,8 +39,10 @@ from app.core.clock import Clock
 from app.core.errors import AppError
 from app.core.timezones import utc_to_local
 from app.models.availability import AvailabilityException, AvailabilityRule
+from app.models.booking import Booking, BookingStatus
 from app.models.provider import Provider
 from app.services.business_settings import get_business_settings
+from app.services.slots import build_windows_for_date
 
 _OVERLAP_CONSTRAINT = "no_availability_rule_overlap"
 _EXCEPTION_DATE_CONSTRAINT = "uq_availability_exceptions_provider_date"
@@ -363,3 +370,70 @@ def delete_exception(db: Session, provider_id: int, exception_id: int) -> None:
     _get_provider(db, provider_id, include_inactive=True, lock=True)
     db.delete(_get_exception(db, provider_id, exception_id))
     db.flush()
+
+
+# --- conflicts ---------------------------------------------------------------
+
+
+@dataclass
+class Conflict:
+    """A future booking that no longer fits, and why."""
+
+    booking: Booking
+    reason: str  # "day_off", "no_hours" or "outside_hours"
+
+
+def find_conflicts(db: Session, provider_id: int, now: datetime) -> list[Conflict]:
+    """Future pending/confirmed bookings of the provider outside their working hours.
+
+    A booking fits when `[start, end)` lies entirely inside one working window
+    of its *local* date (a booking touching the window's end still fits). The
+    reason says what is wrong: `day_off` (an exception closes that date),
+    `no_hours` (no rule covers that weekday) or `outside_hours` (there are
+    hours that day, but not around the booking). Earliest booking first.
+
+    Read-only: it never changes a booking. A booking that already started is
+    not "future" and is not listed.
+
+    Raises: 404 `NOT_FOUND` if the provider does not exist.
+    """
+    _get_provider(db, provider_id, include_inactive=True)
+    timezone = get_business_settings(db).timezone
+    bookings = list(
+        db.scalars(
+            select(Booking)
+            .where(
+                Booking.provider_id == provider_id,
+                Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED]),
+                Booking.start_at >= now,
+            )
+            .order_by(Booking.start_at, Booking.id)
+        )
+    )
+    if not bookings:
+        return []
+    rules = list(
+        db.scalars(select(AvailabilityRule).where(AvailabilityRule.provider_id == provider_id))
+    )
+    exceptions = {
+        row.date: row
+        for row in db.scalars(
+            select(AvailabilityException).where(AvailabilityException.provider_id == provider_id)
+        )
+    }
+
+    conflicts = []
+    for booking in bookings:
+        day = utc_to_local(booking.start_at, timezone).date()
+        exception = exceptions.get(day)
+        windows = build_windows_for_date(rules, exception, day, timezone)
+        if any(start <= booking.start_at and booking.end_at <= end for start, end in windows):
+            continue
+        if exception is not None and exception.start_time is None:
+            reason = "day_off"
+        elif not windows:
+            reason = "no_hours"
+        else:
+            reason = "outside_hours"
+        conflicts.append(Conflict(booking, reason))
+    return conflicts

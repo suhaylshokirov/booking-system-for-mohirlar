@@ -343,7 +343,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: exception on a date with existing bookings.
 
 ### P4.4 — Conflicts after availability changes
-- [ ] Status
+- [x] Status
 - Goal: editing availability never silently drops bookings; the admin sees what no longer fits.
 - Requirement(s) served: Set availability; product thinking
 - Acceptance criteria: availability edits never modify bookings. `services/availability.find_conflicts(provider_id, now)` lists future active bookings that no longer fit inside availability; exposed as `GET /providers/{id}/availability/conflicts` (admin) and returned as `details.conflicts` (warning, not error) in rule/exception write responses.
@@ -733,3 +733,7 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-09-29 | P2.4 | The pre-session CSRF cookie for login/register forms is delivered as tested building blocks (`ensure_csrf_cookie`, always-on `require_csrf`), not wired into HTML forms | The forms do not exist until P8.2, which must call them (its tests already include "CSRF missing → 403"). Until then only the JSON API exists, where anonymous calls have no cookie to abuse |
 | 2026-09-29 | P3.2 | The pagination helper (`app/core/pagination.py`: `PageParams`, `PageParamsDep`, `paginate`; `app/schemas/pagination.py`: `Page[T]`) is built in P3.2, not P3.4. P3.4 keeps its own tests and docs pass | `GET /services` must be paginated (P3.2's criteria) and a throwaway version would be rewritten. `docs/api.md` Pagination is already written |
 | 2026-09-29 | P3.2 | Service `description` is limited to 1000 characters, not the 2000 in the criteria | The `services.description` column is `varchar(1000)` (P1.2). A longer text would be a database error, and a service blurb does not need more. Widening it would be a migration for no requirement |
+| 2026-09-30 | P4.2 | Availability-rule times cannot end at 24:00, so with a 15-minute grid the latest closing time is 23:45 (the "ends at 23:59" hint in the model docstring is not usable, since 23:59 is off the grid) | The criteria require times aligned to the granularity and a window never crosses midnight; `time` has no 24:00. Closing at midnight is not needed for a barbershop |
+| 2026-09-30 | P4.3 | `GET /providers/{id}/availability/exceptions` is admin-only, and an exception whose date has passed cannot be edited (only deleted) | The criteria say "admin CRUD" without a public read; a reason such as "sick leave" is not for customers, who see only the resulting slots |
+| 2026-09-30 | P4.4 | `DELETE` of a rule or exception returns `200 {id, details}` instead of `204`; every write response gains `details.conflicts` | The criteria want the conflict warning "in rule/exception write responses", and removing a rule is the write that most often strands bookings, so it needs a body to carry the warning. `docs/api.md` and the P4.2/P4.3 delete tests updated |
+| 2026-09-30 | P4.4 | `build_windows_for_date` (pure, in `app/services/slots.py`) is written in P4.4, not P5.1. P5.1 adds `compute_slots` beside it and keeps its own tests | Deciding whether a booking still fits the hours needs exactly "rules + exception + date + tz -> UTC windows", and a second copy would break the one-place rule for the exception-replaces-rules logic |

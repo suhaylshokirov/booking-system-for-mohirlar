@@ -302,6 +302,6 @@ def test_admin_deletes_a_rule(client, admin, db):
 
     response = client.delete(_url(provider, f"/{rule.id}"), headers=admin)
 
-    assert response.status_code == 204
+    assert response.status_code == 200
     assert _rules(db, provider) == []
     assert client.delete(_url(provider, f"/{rule.id}"), headers=admin).status_code == 404

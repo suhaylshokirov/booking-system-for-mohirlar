@@ -5,7 +5,8 @@ business rules and live in `services/availability.py`.
 """
 
 from datetime import date as Date
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
@@ -149,3 +150,52 @@ class ExceptionResponse(BaseModel):
     @property
     def is_day_off(self) -> bool:
         return self.start_time is None
+
+
+class ConflictResponse(BaseModel):
+    """A future booking that no longer fits the provider's hours."""
+
+    booking_id: int
+    status: Literal["pending", "confirmed"]
+    start_at: datetime
+    end_at: datetime
+    customer_id: int
+    service_id: int
+    reason: Literal["day_off", "no_hours", "outside_hours"] = Field(
+        description="`day_off`: an exception closes that date; `no_hours`: no weekly rule "
+        "covers that weekday; `outside_hours`: there are hours that day, but not around "
+        "the booking."
+    )
+
+    @classmethod
+    def from_conflict(cls, conflict: Any) -> "ConflictResponse":
+        booking = conflict.booking
+        return cls(
+            booking_id=booking.id,
+            status=booking.status.value,
+            start_at=booking.start_at,
+            end_at=booking.end_at,
+            customer_id=booking.customer_id,
+            service_id=booking.service_id,
+            reason=conflict.reason,
+        )
+
+
+class ConflictDetails(BaseModel):
+    conflicts: list[ConflictResponse] = Field(
+        description="Future bookings that no longer fit after this change. A warning, not an "
+        "error: the change was applied and no booking was touched."
+    )
+
+
+class RuleWriteResponse(RuleResponse):
+    details: ConflictDetails
+
+
+class ExceptionWriteResponse(ExceptionResponse):
+    details: ConflictDetails
+
+
+class DeleteResponse(BaseModel):
+    id: int = Field(description="The id of the removed rule or exception.")
+    details: ConflictDetails
