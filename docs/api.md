@@ -340,6 +340,11 @@ Each returns the updated booking. Who may do what, and when (full table in
 | `POST /bookings/{id}/cancel` | its customer, or an admin | `409 CANCELLATION_CUTOFF_PASSED` (`details.cutoff_at`), `422 REASON_REQUIRED` (admin, confirmed booking), `409 INVALID_TRANSITION` |
 | `POST /bookings/{id}/complete` | admin, after it ends | `403 FORBIDDEN`, `409 TOO_EARLY_TO_COMPLETE` |
 
+- Cancellation policy: a customer may cancel a *confirmed* booking until
+  `cancellation_cutoff_hours` before it starts (`GET /settings`, so a client can
+  say so up front); a *pending* one until it starts. After that,
+  `409 CANCELLATION_CUTOFF_PASSED` with `details.cutoff_at`. Admins are exempt
+  but must give a reason. Changing the setting applies to existing bookings too.
 - Someone else's booking is `404 BOOKING_NOT_FOUND` on every call.
 - `409 BOOKING_STATE_CHANGED` means another request changed it at the same
   moment (say, the admin confirmed while the customer cancelled). Reload and

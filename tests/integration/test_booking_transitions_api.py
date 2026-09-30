@@ -172,6 +172,26 @@ def test_customer_cancel_of_confirmed_booking_respects_the_cutoff(
     assert ok.status_code == 200
 
 
+def test_changing_the_cutoff_setting_changes_the_deadline(
+    client, setup, ali_user, boss, frozen_clock
+):
+    booking_id = book(client, setup, headers(ali_user, frozen_clock))
+    client.post(f"{BASE}/{booking_id}/confirm", headers=boss)
+    assert (
+        client.patch(
+            "/api/v1/settings", json={"cancellation_cutoff_hours": 24}, headers=boss
+        ).status_code
+        == 200
+    )
+    assert client.get("/api/v1/settings").json()["cancellation_cutoff_hours"] == 24
+
+    move_clock_to(frozen_clock, START - timedelta(hours=23))  # inside the new 24 h cutoff
+    late = client.post(f"{BASE}/{booking_id}/cancel", headers=headers(ali_user, frozen_clock))
+
+    assert late.status_code == 409
+    assert late.json()["error"]["details"]["cutoff_at"].startswith("2026-10-04T05:00:00")
+
+
 def test_admin_cancelling_a_confirmed_booking_needs_a_reason(client, setup, ali, boss):
     booking_id = book(client, setup, ali)
     client.post(f"{BASE}/{booking_id}/confirm", headers=boss)

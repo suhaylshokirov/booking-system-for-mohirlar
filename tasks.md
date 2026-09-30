@@ -465,7 +465,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: customer cancelling another's booking → 404.
 
 ### P7.4 — Cancellation policy
-- [ ] Status
+- [x] Status
 - Goal: customers can't cancel a confirmed booking at the last minute.
 - Requirement(s) served: Bonus 6
 - Acceptance criteria: cutoff read from `business_settings.cancellation_cutoff_hours`; error `CANCELLATION_CUTOFF_PASSED` with `details.cutoff_at`; admins exempt (with reason). Public settings expose the policy so the UI can explain it.
