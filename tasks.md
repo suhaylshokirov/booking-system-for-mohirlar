@@ -504,7 +504,7 @@ checklist (P11.4) is verified against this table.
 ## P8 — Customer UI
 
 ### P8.1 — Web foundation: base template, CSS and JS port
-- [ ] Status
+- [x] Status
 - Goal: Theoria's design system, re-pointed at booking semantics.
 - Requirement(s) served: working application (UI)
 - Acceptance criteria: Jinja2 environment + `app/web/` router mounted at `/`; `base.html` (inline pre-paint theme script, `has-js` class, skip link, header with new Navbat mark, nav toggle, theme toggle, flash notices, footer, confirm `<dialog>`); `static/css/app.css` porting tokens (light + `--dark-*` swap under `[data-theme="dark"]` and `prefers-color-scheme`), type roles (Archivo expanded/condensed, Instrument Sans, Spline Sans Mono), page skeleton (`.sheet-head` → `.sheet-section` → `.section-head`), and components `.btn`, `.chip`, `.segmented`, `.field`, `.stats/.stat`, `.table-wrap`, `.notice`, `.empty`, `.menu`, `.pagination`, dialog; new `.slot-grid/.slot` and `.status-chip--{pending,confirmed,completed,cancelled}`; `static/js/app.js` single IIFE with `initThemeToggle`, `initNavToggle`, `initConfirmDialog`. 404/500 pages. Web errors render HTML, not JSON.

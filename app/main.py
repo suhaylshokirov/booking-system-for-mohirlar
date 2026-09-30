@@ -1,10 +1,14 @@
 """App factory: builds the FastAPI app, registers routers and error handlers."""
 
 from fastapi import Depends, FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.csrf import csrf_protect
 from app.api.v1 import auth, availability, bookings, health, providers, services, settings, slots
 from app.core.errors import register_error_handlers
+from app.web import pages
+from app.web.errors import render_error_page
+from app.web.templating import STATIC_DIR
 
 API_PREFIX = "/api/v1"
 
@@ -29,6 +33,7 @@ TAGS = [
 
 def create_app() -> FastAPI:
     # csrf_protect is app-wide so that no endpoint can forget it (see app/api/csrf.py).
+    # That includes the HTML forms of app/web/.
     app = FastAPI(
         title="Navbat",
         description=DESCRIPTION,
@@ -36,7 +41,8 @@ def create_app() -> FastAPI:
         openapi_tags=TAGS,
         dependencies=[Depends(csrf_protect)],
     )
-    register_error_handlers(app)
+    # JSON envelope under /api/, an HTML error page everywhere else.
+    register_error_handlers(app, render_page=render_error_page)
     app.include_router(auth.router, prefix=API_PREFIX)
     app.include_router(settings.router, prefix=API_PREFIX)
     app.include_router(services.router, prefix=API_PREFIX)
@@ -45,6 +51,8 @@ def create_app() -> FastAPI:
     app.include_router(slots.router, prefix=API_PREFIX)
     app.include_router(bookings.router, prefix=API_PREFIX)
     app.include_router(health.router, prefix=API_PREFIX)
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.include_router(pages.router)
     return app
 
 

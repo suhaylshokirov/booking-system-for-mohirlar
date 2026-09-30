@@ -185,7 +185,45 @@ store could replace it; the trade-off is that it resets on restart and is not
 shared between instances. See `docs/api.md` for the exact behaviour.
 
 ## Why the web UI and the API share services
-_P8.1._
+_P8.1. Decision: [ADR 0004](decisions/0004-server-rendered-ui.md)._
+
+The browser UI is server-rendered Jinja2 served by the same FastAPI app.
+`app/web/` routers are as thin as `app/api/v1/` ones: they call the same
+service functions and hand the result to a template. So a rule (slot
+availability, the double-booking check, a status transition) exists once, and
+the pages cannot disagree with the API.
+
+| Piece | Where | Job |
+|---|---|---|
+| Templates | `app/templates/` | `base.html` (layout, header, flash notice, confirm dialog), one file per page, `_partials/` for fragments JS swaps in. Formatting only |
+| Rendering | `app/web/templating.py` | `render()` adds the shared context (the flash notice) and clears the flash cookie |
+| Error pages | `app/web/errors.py` | Wording for the HTML error page; `app/core/errors.py` calls it for any path outside `/api/` |
+| Styles | `app/static/css/app.css` | Every token (light + dark) and shared component. A page stylesheet may add components, never restyle these |
+| Behaviour | `app/static/js/app.js` | One IIFE: theme toggle, mobile nav, confirm dialog. Enhancement only |
+
+**Which errors are pages.** `/api/*` always answers with the JSON envelope,
+whoever asks. Every other path is a page a person reads, so a 404, a bad link
+(422), a CSRF failure (403) or a crash (500) renders `error.html`. Our own
+`AppError` messages are shown as written; a 500 never shows the exception.
+
+**Flash notices.** A redirect after a form post ("Booking requested") leaves a
+short-lived `flash` cookie holding a *key* into `FLASH_MESSAGES`, never text,
+so a tampered cookie cannot put words on the page. The page that shows it
+deletes the cookie.
+
+**Without JavaScript.** Every page is complete HTML and every form posts
+normally. An inline script in `<head>` adds `html.has-js` before first paint
+(and applies the saved theme, to avoid a white flash); CSS shows JS-only
+controls (theme and menu toggles) only under that class, so no dead buttons
+appear when JS is off.
+
+**CSRF.** HTML forms are covered by the same app-wide `csrf_protect`
+dependency as the API; forms carry the token in a `csrf_token` hidden field.
+
+**Visual language.** Lime means *committed or selected*: the chosen slot, a
+Confirmed status, the page you're on, the button that books. Everything else
+is ink on paper. Status chips always spell the status and add a shape (ring,
+dot, dash), so colour is never the only signal.
 
 ## Testing strategy
 Three layers: unit (pure logic, no database), integration (API + real

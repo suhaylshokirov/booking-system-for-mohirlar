@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% set active_nav = "services" %}
+
+{% block title %}{{ business.name }} · Navbat{% endblock %}
+
+{% block content %}
+<header class="sheet-head">
+    <h1 class="sheet-title">{{ business.name }}</h1>
+    <p class="sheet-sub">
+        Choose a service, pick a free time, and it's booked.
+        Times are shown in <span class="mono">{{ business.timezone }}</span>.
+    </p>
+</header>
+
+<section class="sheet-section" aria-labelledby="services-title">
+    <div class="section-head">
+        <h2 id="services-title">Services</h2>
+    </div>
+    <p class="empty">No services are open for booking yet. Check back soon.</p>
+</section>
+{% endblock %}

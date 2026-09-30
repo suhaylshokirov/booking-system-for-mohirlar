@@ -1,4 +1,8 @@
-"""Every kind of error, ours and the framework's, renders the one envelope."""
+"""Every kind of error under /api/, ours and the framework's, renders the one envelope.
+
+The probe routes live under /api/ because paths outside it are web pages and
+get an HTML error page instead (tests/integration/test_web_foundation.py).
+"""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +20,7 @@ class _Payload(BaseModel):
 def client() -> TestClient:
     app = create_app()
 
-    @app.get("/boom-app-error")
+    @app.get("/api/test/boom-app-error")
     def boom_app_error():
         raise AppError(
             "SLOT_TAKEN",
@@ -26,11 +30,11 @@ def client() -> TestClient:
             headers={"Retry-After": "5"},
         )
 
-    @app.post("/needs-body")
+    @app.post("/api/test/needs-body")
     def needs_body(payload: _Payload):
         return {"name": payload.name}
 
-    @app.get("/boom-unexpected")
+    @app.get("/api/test/boom-unexpected")
     def boom_unexpected():
         raise RuntimeError("secret internal detail: password=hunter2")
 
@@ -49,7 +53,7 @@ def _assert_envelope(response, status: int, code: str) -> dict:
 
 
 def test_app_error_uses_its_own_code_status_details_and_headers(client):
-    response = client.get("/boom-app-error")
+    response = client.get("/api/test/boom-app-error")
 
     error = _assert_envelope(response, 409, "SLOT_TAKEN")
     assert error["message"] == "That time was just booked by someone else."
@@ -58,7 +62,7 @@ def test_app_error_uses_its_own_code_status_details_and_headers(client):
 
 
 def test_validation_error_is_422_with_field_level_details(client):
-    response = client.post("/needs-body", json={"name": ""})
+    response = client.post("/api/test/needs-body", json={"name": ""})
 
     error = _assert_envelope(response, 422, "VALIDATION_ERROR")
     problem = error["details"]["errors"][0]
@@ -68,7 +72,7 @@ def test_validation_error_is_422_with_field_level_details(client):
 
 def test_malformed_json_is_422_in_the_same_envelope(client):
     response = client.post(
-        "/needs-body", content="{not json", headers={"Content-Type": "application/json"}
+        "/api/test/needs-body", content="{not json", headers={"Content-Type": "application/json"}
     )
 
     _assert_envelope(response, 422, "VALIDATION_ERROR")
@@ -86,7 +90,7 @@ def test_wrong_method_is_405_envelope_and_keeps_allow_header(client):
 
 
 def test_unexpected_exception_is_500_and_does_not_leak_internals(client):
-    response = client.get("/boom-unexpected")
+    response = client.get("/api/test/boom-unexpected")
 
     error = _assert_envelope(response, 500, "INTERNAL_ERROR")
     assert "hunter2" not in response.text

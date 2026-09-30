@@ -1,0 +1,1428 @@
+/* ===========================================================================
+   NAVBAT — the appointment sheet
+   ---------------------------------------------------------------------------
+   One design system for the whole site: plain white paper, ink, hairline
+   rules, and one lime green. Ported from the owner's earlier project
+   (Theoria) and re-pointed at booking.
+
+   LIME MEANS COMMITTED OR SELECTED. The chosen time slot, a Confirmed
+   booking, the current step, the page you're on, the one button that books.
+   Never decoration, never a gradient, never a glow. Spending it anywhere
+   else is what would make it stop meaning anything. (Theoria used lime for
+   every button and for stat ticks; here those are ink, on purpose.)
+
+   No framework, no build step: custom properties + grid/flex. Dark mode is
+   ONLY a token swap: every component reads its colours from tokens, so no
+   component rule is duplicated per theme.
+
+   Contract with page stylesheets: this file owns every token and every
+   shared component. A page stylesheet may ADD a component of its own; it may
+   never restyle one defined here. That keeps margins from cancelling out.
+   =========================================================================== */
+
+:root {
+  /* --- Color ---------------------------------------------------------------
+     Contrast against --paper #FFFFFF:
+       --ink 19.7:1 · --ink-muted 7.6:1 · --ink-faint 4.8:1 · --lime-text 5.0:1
+       --lime-mark 3.1:1 (clears the 3:1 floor for non-text marks)
+       --ink-on-lime on --lime 13.1:1
+     --lime itself is 1.5:1 on paper: a FILL, never a mark on its own and
+     never text. Every lime fill carries ink text or an ink outline. */
+  --paper: #ffffff;
+  --sheet: #f7f7f5;
+  --sheet-2: #efeeea;
+  --rule: #e3e2dd;
+  --rule-strong: #c9c7c0;
+
+  --ink: #0b0b0b;
+  --ink-muted: #57534e;
+  --ink-faint: #78716c;
+
+  --lime: #a3e635;
+  --lime-wash: #f2fbe0;
+  --lime-text: #4d7c0f;
+  --lime-mark: #65a30d;
+  --lime-deep: #365314;
+  --lime-hover: #93d128;
+  /* Lime is equally bright in both themes, so text on it must stay fixed
+     rather than swap with --ink. Never redefined for dark mode. */
+  --ink-on-lime: #0b0b0b;
+  /* Errors and destructive actions only: a form field to fix, "Yes, cancel".
+     6.2:1 on --sheet. */
+  --danger: #b91c1c;
+
+  /* --- Type ----------------------------------------------------------------
+     Archivo carries two roles through its width axis: expanded for display,
+     condensed for labels. One family doing two opposite jobs is the
+     typographic signature. Spline Sans Mono is for every time, price and ID:
+     a booking is a record of numbers, and tabular figures line them up. */
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-label: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Spline Sans Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --text-3xs: 0.6875rem;
+  --text-2xs: 0.75rem;
+  --text-xs: 0.8125rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.125rem;
+  --text-lg: 1.375rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.5rem;
+
+  /* --- Space --------------------------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.375rem;
+  --space-3: 0.5rem;
+  --space-4: 0.75rem;
+  --space-5: 1rem;
+  --space-6: 1.5rem;
+  --space-7: 2rem;
+  --space-8: 2.75rem;
+  --space-9: 4rem;
+  --space-10: 6rem;
+
+  /* --- Form ---------------------------------------------------------------- */
+  --radius: 2px;          /* sheets, fields and slot tiles, not pills */
+  --radius-pill: 999px;   /* chips, buttons, pagination */
+  --hairline: 1px solid var(--rule);
+  --measure: 1240px;
+  /* The one shadow, for surfaces that sit above the page (the dialog). */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06), 0 12px 32px -8px rgba(0, 0, 0, 0.12);
+
+  --z-header: 100;
+  --z-skip: 200;
+
+  --ease: cubic-bezier(0.2, 0, 0.1, 1);
+  --dur-fast: 120ms;
+  --dur: 220ms;
+
+  /* The <select> chevron. appearance:none removes each engine's own arrow
+     (they all differ), and this draws one back. A background-image can't be
+     tinted, so the colour is baked in and re-declared for dark mode. */
+  --icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960' fill='%2378716c'%3E%3Cpath d='M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z'/%3E%3C/svg%3E");
+
+  color-scheme: light;
+}
+
+/* --- Dark counterpart -------------------------------------------------------
+   Every token is re-picked against the dark surface rather than inverted.
+   Contrast against --paper #12120f:
+     --ink 16.6:1 · --ink-muted 7.6:1 · --ink-faint 5.2:1 · --lime-text 14.4:1
+   On ink, lime is the brightest thing available, so the text and mark steps
+   move UP the ramp instead of down.
+
+   Applied two ways, with the values in ONE place (--dark-*):
+     [data-theme="dark"]   the reader picked dark from the header toggle
+     prefers-color-scheme  no pick saved, so follow the OS
+   The :not([data-theme]) guard lets an explicit "light" pick beat a dark OS. */
+:root {
+  --dark-paper: #12120f;
+  --dark-sheet: #1b1b17;
+  --dark-sheet-2: #24241f;
+  --dark-rule: #2c2c26;
+  --dark-rule-strong: #423f38;
+  --dark-ink: #f2f1ed;
+  --dark-ink-muted: #a8a49c;
+  --dark-ink-faint: #8a867e;
+  --dark-lime-wash: #1e2612;
+  --dark-lime-text: #bef264;
+  --dark-lime-mark: #a3e635;
+  --dark-lime-deep: #d9f99d;
+  --dark-lime-hover: #bef264;
+  --dark-danger: #f87171;
+  --dark-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 40px -8px rgba(0, 0, 0, 0.5);
+  --dark-icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960' fill='%238a867e'%3E%3Cpath d='M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z'/%3E%3C/svg%3E");
+}
+
+[data-theme="dark"] {
+  --paper: var(--dark-paper);
+  --sheet: var(--dark-sheet);
+  --sheet-2: var(--dark-sheet-2);
+  --rule: var(--dark-rule);
+  --rule-strong: var(--dark-rule-strong);
+  --ink: var(--dark-ink);
+  --ink-muted: var(--dark-ink-muted);
+  --ink-faint: var(--dark-ink-faint);
+  --lime-wash: var(--dark-lime-wash);
+  --lime-text: var(--dark-lime-text);
+  --lime-mark: var(--dark-lime-mark);
+  --lime-deep: var(--dark-lime-deep);
+  --lime-hover: var(--dark-lime-hover);
+  --danger: var(--dark-danger);
+  --shadow-card: var(--dark-shadow-card);
+  --icon-chevron: var(--dark-icon-chevron);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --paper: var(--dark-paper);
+    --sheet: var(--dark-sheet);
+    --sheet-2: var(--dark-sheet-2);
+    --rule: var(--dark-rule);
+    --rule-strong: var(--dark-rule-strong);
+    --ink: var(--dark-ink);
+    --ink-muted: var(--dark-ink-muted);
+    --ink-faint: var(--dark-ink-faint);
+    --lime-wash: var(--dark-lime-wash);
+    --lime-text: var(--dark-lime-text);
+    --lime-mark: var(--dark-lime-mark);
+    --lime-deep: var(--dark-lime-deep);
+    --lime-hover: var(--dark-lime-hover);
+    --danger: var(--dark-danger);
+    --shadow-card: var(--dark-shadow-card);
+    --icon-chevron: var(--dark-icon-chevron);
+    color-scheme: dark;
+  }
+}
+
+/* --- Reset ---------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  /* The header is sticky, so an anchor target (the skip link's #content)
+     would otherwise land underneath it. */
+  scroll-padding-top: calc(60px + var(--space-5));
+  -webkit-tap-highlight-color: rgba(163, 230, 53, 0.24);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+main.container {
+  flex: 1 0 auto; /* keeps the footer at the bottom of a short page */
+}
+
+a {
+  color: var(--lime-text);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* One focus treatment for the whole site. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--lime-mark);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: 700;
+}
+
+p {
+  margin: 0;
+}
+
+/* Elements hidden with the attribute stay hidden even when a component rule
+   gives them a display value. */
+[hidden] {
+  display: none !important;
+}
+
+/* --- Type roles ------------------------------------------------------------ */
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  text-transform: uppercase;
+}
+
+/* The shelf label: condensed, spaced, small. Field labels, table headers,
+   stat labels. */
+.label {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-stretch: 78%;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+}
+
+/* Times, prices, durations and IDs. Spline Sans Mono ships 400/500 only;
+   asking for 600 would make the browser smear a synthetic bold. */
+.mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.muted { color: var(--ink-muted); }
+.faint { color: var(--ink-faint); }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Page shell ------------------------------------------------------------ */
+
+.skip-link {
+  position: absolute;
+  left: var(--space-4);
+  top: calc(-1 * var(--space-10));
+  z-index: var(--z-skip);
+  background: var(--ink);
+  color: var(--paper);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: top var(--dur) var(--ease);
+}
+
+.skip-link:focus {
+  top: var(--space-4);
+  text-decoration: none;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--measure);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+
+main.container {
+  padding-block: var(--space-8) var(--space-10);
+}
+
+/* --- Header ---------------------------------------------------------------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  background: var(--paper);
+  border-bottom: var(--hairline);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  min-height: 60px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: var(--text-md);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.brand:hover {
+  text-decoration: none;
+  color: var(--ink);
+}
+
+/* Inline <svg> rather than an image so the outlines follow currentColor and
+   flip with the theme. Sized to the wordmark's cap height, not its em box. */
+.brand .mark {
+  width: 1.05em;
+  height: 1.05em;
+  flex: none;
+  overflow: visible;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.nav-links a {
+  position: relative;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+  padding-block: var(--space-2);
+}
+
+.nav-links a:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* The page you're on: a lime rule under the label ("selected"). */
+.nav-links a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.nav-links a[aria-current="page"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(-1 * var(--space-2) - 1px);
+  height: 3px;
+  background: var(--lime);
+}
+
+/* --- Theme toggle & nav toggle ----------------------------------------------
+   Two quiet icon buttons of one shape. Each pair of glyphs is stacked and
+   swapped by opacity so neither control changes size when pressed.
+
+   Both only do something with JS, so both are hidden until the inline script
+   in base.html adds html.has-js. Without JS the site follows the OS theme
+   and every nav link stays on screen: no dead buttons. */
+
+.theme-toggle,
+.nav-toggle {
+  display: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--sheet-2);
+  color: var(--ink);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease),
+              background var(--dur-fast) var(--ease);
+}
+
+html.has-js .theme-toggle {
+  display: inline-grid;
+}
+
+.theme-toggle:hover,
+.nav-toggle:hover {
+  background: var(--sheet);
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
+}
+
+/* The open menu is the selected state of the hamburger. */
+.nav-toggle[aria-expanded="true"] {
+  background: var(--lime);
+  color: var(--ink-on-lime);
+}
+
+.theme-toggle svg,
+.nav-toggle svg {
+  grid-area: 1 / 1;
+  width: 16px;
+  height: 16px;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+/* Show the glyph for the theme you'd switch TO: a moon means "go dark". */
+.theme-toggle .icon-dark { opacity: 1; }
+.theme-toggle .icon-light { opacity: 0; }
+[data-theme="dark"] .theme-toggle .icon-dark { opacity: 0; }
+[data-theme="dark"] .theme-toggle .icon-light { opacity: 1; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .theme-toggle .icon-dark { opacity: 0; }
+  :root:not([data-theme]) .theme-toggle .icon-light { opacity: 1; }
+}
+
+.nav-toggle .icon-menu { opacity: 1; }
+.nav-toggle .icon-close { opacity: 0; }
+.nav-toggle[aria-expanded="true"] .icon-menu { opacity: 0; }
+.nav-toggle[aria-expanded="true"] .icon-close { opacity: 1; }
+
+/* --- Footer ---------------------------------------------------------------- */
+
+.site-footer {
+  border-top: var(--hairline);
+  padding-block: var(--space-7);
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+}
+
+.site-footer .footer-row {
+  display: flex;
+  gap: var(--space-5);
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.site-footer a {
+  color: var(--ink-muted);
+}
+
+/* --- The sheet head ---------------------------------------------------------
+   Every page opens with this band: the title in expanded display, an
+   optional sub-line, then a rule. The one device that makes every page read
+   as one site. Page skeleton: .sheet-head → .sheet-section → .section-head. */
+
+.sheet-head {
+  border-bottom: 1px solid var(--rule-strong);
+  padding-bottom: var(--space-5);
+}
+
+.sheet-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: var(--text-2xl);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.sheet-sub {
+  margin-top: var(--space-3);
+  color: var(--ink-muted);
+  font-size: var(--text-md);
+  max-width: 62ch;
+}
+
+/* --- Sections ---------------------------------------------------------------
+   ONE owner for vertical rhythm: a section never sets its own top margin. */
+
+.sheet-section + .sheet-section,
+.sheet-head + .sheet-section,
+.stats + .sheet-section {
+  margin-top: var(--space-9);
+}
+
+.sheet-head + .stats {
+  margin-top: var(--space-6);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--hairline);
+}
+
+.section-head h2 {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-stretch: 78%;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink);
+}
+
+.section-head .section-note {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+}
+
+/* --- Buttons ----------------------------------------------------------------
+   Ink is the default action. Lime is reserved for the one action that
+   commits a booking (.btn--commit), so the brightest thing on a booking page
+   is always the button that books. Only .btn is styled: bare <button>s keep
+   their own component rules, so nothing has to "shed" a global style. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.5rem;
+  padding: var(--space-3) var(--space-6);
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-stretch: 78%;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease),
+              color var(--dur-fast) var(--ease);
+}
+
+.btn:hover {
+  background: color-mix(in srgb, var(--ink) 82%, var(--paper));
+  border-color: color-mix(in srgb, var(--ink) 82%, var(--paper));
+  color: var(--paper);
+  text-decoration: none;
+}
+
+.btn--commit {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: var(--ink-on-lime);
+}
+
+.btn--commit:hover {
+  background: var(--lime-hover);
+  border-color: var(--lime-hover);
+  color: var(--ink-on-lime);
+}
+
+.btn--quiet {
+  background: transparent;
+  border-color: var(--rule-strong);
+  color: var(--ink);
+}
+
+.btn--quiet:hover {
+  background: var(--sheet-2);
+  border-color: var(--rule-strong);
+  color: var(--ink);
+}
+
+/* --paper text flips with the theme, as --danger does, so it reads in both. */
+.btn--danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--paper);
+}
+
+.btn--danger:hover {
+  background: color-mix(in srgb, var(--danger) 85%, var(--ink));
+  border-color: color-mix(in srgb, var(--danger) 85%, var(--ink));
+  color: var(--paper);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+/* --- Chips ------------------------------------------------------------------
+   A small filled pill for facts and links (a provider's name, "45 min"). */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.chip {
+  display: inline-block;
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-stretch: 78%;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  background: var(--sheet-2);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+a.chip:hover {
+  background: var(--rule);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* --- Status chips -----------------------------------------------------------
+   A booking's status, always spelled out in text; the leading glyph repeats
+   it in shape so colour is never the only signal:
+     pending    hollow ring, dashed edge   waiting for the business
+     confirmed  lime fill, ink dot         committed: the one lime status
+     completed  solid ink dot              done
+     cancelled  a dash, faint text         off the books */
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-stretch: 78%;
+  font-size: var(--text-3xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
+}
+
+.status-chip::before {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+
+.status-chip--pending {
+  color: var(--ink);
+  border: 1px dashed var(--rule-strong);
+}
+
+.status-chip--pending::before {
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.status-chip--confirmed {
+  color: var(--ink-on-lime);
+  background: var(--lime);
+  border-color: var(--lime);
+}
+
+.status-chip--confirmed::before {
+  background: var(--ink-on-lime);
+}
+
+.status-chip--completed {
+  color: var(--ink);
+  background: var(--sheet-2);
+}
+
+.status-chip--completed::before {
+  background: currentColor;
+}
+
+.status-chip--cancelled {
+  color: var(--ink-faint);
+  border-color: var(--rule);
+}
+
+.status-chip--cancelled::before {
+  height: 2px;
+  border-radius: 0;
+  background: currentColor;
+}
+
+/* --- Slot picker -------------------------------------------------------------
+   Free times as radio tiles, in mono so the minutes line up in columns.
+   Neutral at rest; the chosen slot is the lime tile. It is a real radio
+   inside a <label>, so it works with no JS and submits with the form:
+
+     <div class="slot-grid">
+       <label class="slot">
+         <input type="radio" name="start_at" value="2026-10-01T05:00:00Z">
+         <span>10:00</span>
+       </label>
+     </div>
+
+   The <span> is the visible tile; the radio is visually hidden but still
+   focusable, and its focus ring is drawn on the tile. */
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.slot {
+  position: relative;
+  display: block;
+  cursor: pointer;
+}
+
+.slot input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.slot > span {
+  display: block;
+  padding: var(--space-3) var(--space-2);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  transition: background var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+
+.slot:hover > span {
+  background: var(--sheet);
+  border-color: var(--ink-faint);
+}
+
+.slot input:checked + span {
+  background: var(--lime);
+  border-color: var(--ink-on-lime);
+  color: var(--ink-on-lime);
+}
+
+.slot input:focus-visible + span {
+  outline: 2px solid var(--lime-mark);
+  outline-offset: 2px;
+}
+
+/* --- Forms ------------------------------------------------------------------
+   .field is one labelled control: label, input, optional hint, optional
+   error. The server re-renders the form with .field--invalid and the
+   message; the input's aria-describedby points at it. */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 28rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.field__label {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-stretch: 78%;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-muted);
+}
+
+.field__hint {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+}
+
+.field__error {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.field input:not([type="radio"], [type="checkbox"]),
+.field select,
+.field textarea {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-3) var(--space-4);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.field textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.field select {
+  background-image: var(--icon-chevron);
+  background-repeat: no-repeat;
+  background-position: right var(--space-4) center;
+  background-size: 0.7rem;
+  padding-right: calc(var(--space-4) + 1.1rem);
+  cursor: pointer;
+}
+
+.field input:not([type="radio"], [type="checkbox"]):focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--lime-mark);
+  box-shadow: 0 0 0 1px var(--lime-mark);
+}
+
+.field--invalid input:not([type="radio"], [type="checkbox"]),
+.field--invalid select,
+.field--invalid textarea {
+  border-color: var(--danger);
+}
+
+::placeholder {
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+/* A row of filters above a list or a slot grid. */
+.toolbar {
+  display: flex;
+  gap: var(--space-5);
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+/* Shown only without JS: with JS the filters apply as they change. */
+html.has-js .apply-btn {
+  display: none;
+}
+
+/* --- Segmented control -------------------------------------------------------
+   Radio inputs in a <fieldset>, so it works with no JS and submits with the
+   form. The checked segment is lime: it is the selected one. */
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented label {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-stretch: 78%;
+  font-size: var(--text-3xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+  padding: var(--space-3) var(--space-5);
+  cursor: pointer;
+  border-right: 1px solid var(--rule);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease),
+              color var(--dur-fast) var(--ease);
+}
+
+.segmented label:last-of-type { border-right: none; }
+
+.segmented label:hover { background: var(--sheet); }
+
+.segmented input:checked + label {
+  background: var(--lime);
+  color: var(--ink-on-lime);
+}
+
+.segmented input:focus-visible + label {
+  outline: 2px solid var(--lime-mark);
+  outline-offset: -2px;
+}
+
+/* The link form of the same control (Upcoming / Past tabs): each option is a
+   page of its own, so it is a link with aria-current, not a radio. */
+.segmented a {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-stretch: 78%;
+  font-size: var(--text-3xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+  padding: var(--space-3) var(--space-5);
+  border-right: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+.segmented a:last-child { border-right: none; }
+
+.segmented a:hover {
+  background: var(--sheet);
+  text-decoration: none;
+}
+
+.segmented a[aria-current="page"] {
+  background: var(--lime);
+  color: var(--ink-on-lime);
+}
+
+/* --- Stat row ---------------------------------------------------------------
+   Ruled cells rather than boxed tiles: a ledger, not a dashboard. The tick
+   above each figure is ink; a count is information, not a commitment. */
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.stat {
+  padding: var(--space-5) 0 0;
+}
+
+.stat .stat-value {
+  position: relative;
+  display: block;
+  padding-top: var(--space-3);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: var(--text-lg);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.stat .stat-value::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 3px;
+  background: var(--ink);
+}
+
+.stat .stat-label {
+  display: block;
+  margin-top: var(--space-3);
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-stretch: 78%;
+  font-size: var(--text-3xs);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+}
+
+/* --- Tables ----------------------------------------------------------------- */
+
+.table-wrap {
+  overflow-x: auto;
+  /* Stops a sideways swipe on a wide table from triggering the browser's
+     back gesture on iOS Safari and Chrome for Android. */
+  overscroll-behavior-x: contain;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+thead th {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-stretch: 78%;
+  font-size: var(--text-3xs);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--rule-strong);
+  white-space: nowrap;
+}
+
+tbody td,
+tbody th[scope="row"] {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--hairline);
+  vertical-align: middle;
+  text-align: left;
+}
+
+tbody th[scope="row"] {
+  font-weight: 600;
+}
+
+tbody tr:hover { background: var(--sheet); }
+
+th.num,
+td.num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- Menu -------------------------------------------------------------------
+   A small disclosure menu (the account menu) built on <details>/<summary>,
+   so it opens and closes with no JS at all. */
+
+.menu {
+  position: relative;
+}
+
+.menu > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  list-style: none;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink-muted);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--sheet-2);
+}
+
+.menu > summary::-webkit-details-marker { display: none; }
+
+.menu > summary:hover,
+.menu[open] > summary {
+  color: var(--ink);
+  background: var(--rule);
+}
+
+.menu-panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 30;
+  min-width: 12rem;
+  padding: var(--space-1);
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+.menu-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.menu-option:hover {
+  background: var(--sheet);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* --- Pagination ------------------------------------------------------------- */
+
+.pagination {
+  display: flex;
+  gap: var(--space-5);
+  align-items: center;
+  justify-content: center;
+  margin-top: var(--space-8);
+  padding-top: var(--space-5);
+  border-top: var(--hairline);
+}
+
+.pagination .page-state {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-faint);
+}
+
+.pagination a {
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-stretch: 78%;
+  font-size: var(--text-3xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  background: var(--sheet-2);
+  border-radius: var(--radius-pill);
+  padding: var(--space-3) var(--space-5);
+}
+
+.pagination a:hover {
+  background: var(--rule);
+  text-decoration: none;
+}
+
+/* --- Notices -----------------------------------------------------------------
+   One-time messages after a redirect ("Booking requested"), and page-level
+   problems ("That time was just taken"). Quiet by default; the left edge
+   carries the kind, and the words carry the meaning. */
+
+.notice-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-7);
+}
+
+.notice {
+  color: var(--ink);
+  background: var(--sheet-2);
+  border-left: 3px solid var(--rule-strong);
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.notice--success { border-left-color: var(--lime-mark); }
+.notice--error { border-left-color: var(--danger); }
+
+/* --- Empty states ------------------------------------------------------------
+   An empty screen is an invitation to act: say what to do, not "no data". */
+
+.empty {
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  padding: var(--space-7);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+  grid-column: 1 / -1; /* spans the whole grid when used inside one */
+}
+
+/* --- Confirm dialog ------------------------------------------------------------
+   The one lifted sheet. Led by a short --danger bar: it only ever asks about
+   something that ends (a booking, a session). Padding lives on the inner
+   wrapper so a click on the <dialog> element itself is always the backdrop. */
+
+.confirm-dialog {
+  width: min(26rem, calc(100% - 2rem));
+  max-width: none;
+  padding: 0;
+  margin: auto;
+  background: var(--paper);
+  color: var(--ink);
+  border: var(--hairline);
+  border-radius: 0.875rem;
+  box-shadow: var(--shadow-card);
+}
+
+.confirm-dialog[open] {
+  animation: confirm-dialog-in var(--dur) var(--ease);
+}
+
+.confirm-dialog::backdrop {
+  background: rgb(11 11 11 / 0.55);
+  backdrop-filter: blur(3px);
+}
+
+@keyframes confirm-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.confirm-dialog__inner {
+  padding: var(--space-7) var(--space-7) var(--space-6);
+}
+
+.confirm-dialog__bar {
+  display: block;
+  width: 56px;
+  height: 5px;
+  background: var(--danger);
+}
+
+.confirm-dialog__title {
+  margin-top: 18px;
+  font-size: var(--text-xl);
+  line-height: 0.95;
+}
+
+.confirm-dialog__body {
+  margin-top: var(--space-4);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.confirm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
+}
+
+.confirm-dialog__actions .btn {
+  min-height: 44px;
+}
+
+/* --- Error pages --------------------------------------------------------------
+   Centred, narrow and quiet: what happened, and one way back. */
+
+.error-page {
+  max-width: 32rem;
+  margin: var(--space-9) auto;
+  text-align: center;
+}
+
+.error-code {
+  font-size: var(--text-sm);
+  letter-spacing: 0.2em;
+  color: var(--ink-faint);
+  margin-bottom: var(--space-4);
+}
+
+.error-title {
+  font-size: var(--text-2xl);
+  margin-bottom: var(--space-4);
+  text-wrap: balance;
+}
+
+.error-lead {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-7);
+}
+
+/* --- Responsive ---------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .container { padding-inline: var(--space-5); }
+  main.container { padding-block: var(--space-7) var(--space-8); }
+  .nav { gap: var(--space-4); }
+  .sheet-title { font-size: var(--text-xl); }
+  .error-title { font-size: var(--text-xl); }
+  .stats { gap: var(--space-6); }
+
+  /* A row of segments can overflow a phone; wrapping keeps every option
+     reachable without JS. */
+  .segmented {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .segmented label,
+  .segmented a {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .confirm-dialog__actions {
+    flex-direction: column-reverse;
+  }
+}
+
+/* Mobile Safari zooms in on a focused control under 16px and never zooms
+   back out. Keyed on pointer:coarse, not width: an iPad zooms too. */
+@media (pointer: coarse) {
+  .field input:not([type="radio"], [type="checkbox"]),
+  .field select,
+  .field textarea {
+    font-size: 16px;
+  }
+}
+
+/* --- Mobile nav ----------------------------------------------------------------
+   Gated on html.has-js. Without it .nav-links stays a plain wrapping row of
+   links: longer, but working. With it, the links fold into a panel under the
+   header and the hamburger takes their place. */
+@media (max-width: 680px) {
+  html.has-js .nav-toggle {
+    display: inline-grid;
+    order: 2;
+    margin-left: auto;
+  }
+
+  html.has-js .theme-toggle {
+    order: 3;
+  }
+
+  html.has-js .nav-links {
+    display: none;
+    order: 10;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    margin-left: 0;
+    padding-block: var(--space-2);
+    border-top: var(--hairline);
+  }
+
+  html.has-js .nav-links.is-open {
+    display: flex;
+  }
+
+  html.has-js .nav-links a {
+    padding-block: var(--space-4);
+    border-bottom: var(--hairline);
+  }
+
+  html.has-js .nav-links a:last-child {
+    border-bottom: none;
+  }
+
+  /* In a vertical list an underline would run the full width; the lime
+     text says "you are here" instead. */
+  html.has-js .nav-links a[aria-current="page"]::after {
+    display: none;
+  }
+
+  html.has-js .nav-links a[aria-current="page"] {
+    color: var(--lime-text);
+  }
+}
+
+/* --- Quality floor -------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
