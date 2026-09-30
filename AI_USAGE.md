@@ -291,6 +291,37 @@ in [`CLAUDE.md`](CLAUDE.md).
   - Every new test file except one passed on its first run, so the mutation
     checks above are what show the tests can fail.
 
+## P5 — Slots
+
+- **Asked:** the pure slot algorithm (`compute_slots`), the query service that
+  loads its inputs, and the public `GET /slots` endpoint.
+- **Produced:** `app/services/slots.py` (`compute_slots`), `app/services/slot_query.py`
+  (`get_slots`), `app/api/v1/slots.py` and `app/schemas/slots.py`; ADR 0002;
+  27 unit tests for the algorithm, 13 integration tests for the query and 7 for
+  the endpoint.
+- **Verified how:**
+  - Read every boundary in `compute_slots` against the rules: window end
+    inclusive for fitting, lead time inclusive, horizon exclusive, busy ranges
+    half-open.
+  - Mutation checks on `compute_slots`: I changed each comparison by one
+    character (window fit, lead time, horizon, both busy-overlap comparisons) and
+    removed the sort; every change made the unit tests fail, then I restored the
+    file. The busy-interval and DST tests were not mutation-checked separately.
+  - Ran the whole suite (485 tests), ruff check and ruff format.
+- **Changed / rejected:** the horizon is `now + max_booking_horizon_days` as an
+  instant, not the end of a calendar day; P6.1 must reuse it. The date-range
+  rule lives in `get_slots` (service layer), not the router. No Deviations-log
+  entry was needed.
+- **Bugs caught:**
+  - One of my own unit tests expected a 60-minute slot at 09:00 to be blocked by
+    a booking starting at 10:00; it touches, so it is valid. The algorithm was
+    right and the test was fixed.
+  - A first draft of a P5.2 test had a nonsense assertion I had to rewrite, and
+    the response schema's field named `date` shadowed the `date` type (Pydantic
+    refused to build it); fixed with `import datetime as dt`.
+  - Integration tests first all errored because another Postgres holds port
+    5432 on this machine; ran the project database on 5433 (`DB_HOST_PORT`).
+
 ---
 
 ## Summary (for the submission form)
