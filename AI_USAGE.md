@@ -233,6 +233,66 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P4 — Availability
+
+- **Asked:** from the P4 tasks in `tasks.md`, build the timezone module with a
+  documented DST policy (P4.1), weekly availability rules (P4.2), day-off and
+  custom-hours exceptions (P4.3) and conflict reporting when availability
+  changes (P4.4), under my rules: local time becomes UTC in one module only,
+  the database enforces overlaps, "today" comes from the injected clock, and an
+  availability edit never touches a booking.
+- **Produced:** `app/core/timezones.py` (`local_window_to_utc`,
+  `local_day_bounds_utc`, gap/overlap policy); `UtcDatetime` and `LocalTime`
+  schema types; `app/services/availability.py` with rules, exceptions and
+  `find_conflicts`; the pure `build_windows_for_date` in `app/services/slots.py`;
+  eleven endpoints under `/providers/{id}/availability`. 113 new tests
+  (332 at the end of P3, 445 now), ADR 0006 and the time model in
+  `docs/architecture.md`, API docs, and edge-case rows 9 and 12-14, 47-55.
+- **Verified:**
+  - Tests and lint after every task: whole `pytest` suite, `ruff check`,
+    `ruff format --check`.
+  - **Mutation checks at the end of the phase:** 18 deliberate breakages, each
+    followed by the P4 tests and restored afterwards. All were caught: the DST
+    gap snap removed; the overlap taking the second occurrence; wrong day end;
+    naive datetimes accepted; adjacent rules counted as overlapping; an edited
+    rule overlapping itself; autoflush allowed during validation; the grid check
+    removed; past dates allowed; the UTC date used for "today"; the overlap check
+    ignoring the provider; another provider's rule reachable by id; a booking
+    touching closing time flagged; past bookings and cancelled bookings listed;
+    the UTC date used for a booking's day; day-off exceptions ignored;
+    exceptions ignored altogether.
+  - The backstops are proven by blinding the friendly pre-check on purpose
+    (`test_database_exclusion_constraint_is_the_backstop`,
+    `test_unique_constraint_is_the_backstop`), so the database's own refusal is
+    what produces the 409.
+  - **Not verified by a test:** the provider-row lock that makes two admins
+    writing rules at once queue up. It needs real threads and commits; the
+    concurrency tests are P6.4 and P7.6. The constraint backstop covers the
+    outcome, the lock only makes the friendly message reliable.
+- **Changed / rejected:** four Deviations-log entries. The 23:45 limit on
+  closing times (24:00 does not exist on a `time`); an admin-only exceptions list
+  and no edits to past exceptions; `DELETE` answering `200` with the conflict
+  warning instead of `204`; and `build_windows_for_date` written in P4.4 instead
+  of P5.1. I chose to snap a time inside a DST gap forward to the moment the
+  clocks jump (02:30 becomes 03:00), not to shift it by the gap length (03:30)
+  which is what `zoneinfo` does by default, so a window can never run past the
+  time the admin wrote. ADR 0006 records it.
+- **Bugs caught:**
+  - The first update path changed a rule in memory and then ran the overlap
+    query, which autoflushed the half-edited row into the exclusion constraint
+    and would have been a 500. Found by reading the flow; fixed with
+    `no_autoflush` in the validation step.
+  - A test of "today is the business date, not the UTC date" failed with 401
+    because advancing the frozen clock 13 hours expired the admin's token. The
+    product was right; the test now mints a new token.
+  - The Postgres container had stopped overnight and restarting it fought with
+    the other database on port 5432. Compose already documents
+    `DB_HOST_PORT=5433` for this; the same environment problem as P3.
+  - Every new test file except one passed on its first run, so the mutation
+    checks above are what show the tests can fail.
+
+---
+
 ## Summary (for the submission form)
 
 _Written in P11.5._
