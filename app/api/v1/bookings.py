@@ -11,6 +11,7 @@ from app.core.db import DbSession
 from app.core.pagination import PageParamsDep
 from app.models.booking import BookingStatus
 from app.schemas.booking import (
+    AdminBookingResponse,
     BookingCreate,
     BookingEventResponse,
     BookingResponse,
@@ -20,6 +21,7 @@ from app.schemas.booking import (
 from app.schemas.errors import ErrorResponse
 from app.schemas.pagination import Page
 from app.services import booking as booking_service
+from app.services.booking_state import is_stale_pending
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -94,7 +96,7 @@ def list_bookings(
 
 @router.get(
     "/all",
-    response_model=Page[BookingResponse],
+    response_model=Page[AdminBookingResponse],
     summary="List every booking (admin)",
     responses={
         **_UNAUTHENTICATED,
@@ -104,6 +106,7 @@ def list_bookings(
 def list_all_bookings(
     db: DbSession,
     admin: AdminUser,
+    clock: ClockDep,
     params: PageParamsDep,
     booking_status: Annotated[
         BookingStatus | None, Query(alias="status", description="Only this status.")
@@ -116,13 +119,21 @@ def list_all_bookings(
     date_to: Annotated[
         dt.date | None, Query(description="Last day (business-local, inclusive) it starts on.")
     ] = None,
-) -> Page[BookingResponse]:
-    """All customers' bookings, soonest start first."""
+) -> Page[AdminBookingResponse]:
+    """All customers' bookings, soonest start first. `stale_pending` marks pending
+    bookings whose time has passed."""
+    now = clock.now()
     items, total = booking_service.list_all_bookings(
         db, params, booking_status, provider_id, customer_id, date_from, date_to
     )
-    return Page[BookingResponse](
-        items=[BookingResponse.model_validate(item) for item in items],
+    return Page[AdminBookingResponse](
+        items=[
+            AdminBookingResponse(
+                **BookingResponse.model_validate(item).model_dump(),
+                stale_pending=is_stale_pending(item, now),
+            )
+            for item in items
+        ],
         total=total,
         limit=params.limit,
         offset=params.offset,

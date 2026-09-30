@@ -15,6 +15,7 @@ from app.services.booking_state import (
     ReasonRequired,
     TooEarlyToComplete,
     check_transition,
+    is_stale_pending,
 )
 
 START = datetime(2026, 10, 6, 10, 0, tzinfo=UTC)
@@ -142,3 +143,10 @@ def test_cannot_complete_before_end_at():
     with pytest.raises(TooEarlyToComplete) as exc:
         check(S.CONFIRMED, S.COMPLETED, ADMIN, now=END - timedelta(seconds=1))
     assert exc.value.details == {"end_at": END.isoformat()}
+
+
+def test_stale_pending_means_pending_and_started():
+    assert not is_stale_pending(Booking(S.PENDING), START - timedelta(seconds=1))
+    assert is_stale_pending(Booking(S.PENDING), START)
+    assert not is_stale_pending(Booking(S.CONFIRMED), END)
+    assert not is_stale_pending(Booking(S.CANCELLED), END)

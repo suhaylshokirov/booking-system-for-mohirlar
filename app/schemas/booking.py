@@ -80,3 +80,10 @@ class BookingEventResponse(BaseModel):
     actor: EventActor | None = Field(description="`null` when the system acted.")
     reason: str | None
     created_at: dt.datetime
+
+
+class AdminBookingResponse(BookingResponse):
+    stale_pending: bool = Field(
+        description="Still `pending` although its start has passed. Cancel it "
+        "(`POST /bookings/{id}/cancel`); it can no longer be confirmed."
+    )

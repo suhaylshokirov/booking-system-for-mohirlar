@@ -32,7 +32,7 @@ from app.models.provider import Provider, ProviderService
 from app.models.service import Service
 from app.models.user import User, UserRole
 from app.services.booking_rules import validate_booking_start
-from app.services.booking_state import check_transition
+from app.services.booking_state import STALE_PENDING_REASON, check_transition, is_stale_pending
 from app.services.business_settings import get_business_settings
 from app.services.slots import build_windows_for_date
 
@@ -281,9 +281,20 @@ def transition(
     Raises: 404 `BOOKING_NOT_FOUND`; the `booking_state` errors (409
     `INVALID_TRANSITION`, `CANCELLATION_CUTOFF_PASSED`, `TOO_EARLY_TO_COMPLETE`,
     422 `REASON_REQUIRED`); 409 `BOOKING_STATE_CHANGED` when we lost a race.
+
+    An admin cancelling an expired pending booking without a reason gets
+    "not confirmed in time" recorded (P7.7).
     """
     booking = get_booking(db, actor, booking_id)
     check_transition(booking, to, actor, now, get_business_settings(db), reason)
+    if (
+        to == BookingStatus.CANCELLED
+        and not reason
+        and actor.role == UserRole.ADMIN
+        and is_stale_pending(booking, now)
+    ):
+        # Clearing an expired pending booking is routine; record why without asking.
+        reason = STALE_PENDING_REASON
 
     expected = booking.status
     values: dict = {"status": to}

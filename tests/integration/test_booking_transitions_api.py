@@ -352,3 +352,48 @@ def test_history_of_someone_elses_booking_is_404(client, setup, ali, bob):
 
 def test_history_needs_login(client):
     assert client.get(f"{BASE}/1/history").status_code == 401
+
+
+# --- stale pending bookings (P7.7) ----------------------------------------
+
+
+def test_admin_list_flags_a_pending_booking_whose_time_has_passed(
+    client, setup, ali, boss_user, frozen_clock
+):
+    stale = book(client, setup, ali, TEN)
+    upcoming = book(client, setup, ali, "2026-10-12T05:00:00Z")
+    confirmed = book(client, setup, ali, ELEVEN)
+    client.post(f"{BASE}/{confirmed}/confirm", headers=headers(boss_user, frozen_clock))
+
+    move_clock_to(frozen_clock, START + timedelta(days=1))  # the Oct 5 bookings are over
+    page = client.get(f"{BASE}/all", headers=headers(boss_user, frozen_clock)).json()
+
+    flags = {item["id"]: item["stale_pending"] for item in page["items"]}
+    assert flags == {stale: True, confirmed: False, upcoming: False}
+
+
+def test_admin_cancels_a_stale_pending_booking_and_the_reason_is_filled_in(
+    client, setup, ali, boss_user, frozen_clock
+):
+    booking_id = book(client, setup, ali, TEN)
+    move_clock_to(frozen_clock, START + timedelta(days=1))
+    boss = headers(boss_user, frozen_clock)
+
+    response = client.post(f"{BASE}/{booking_id}/cancel", headers=boss)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelled"
+    assert response.json()["cancel_reason"] == "not confirmed in time"
+    history = client.get(f"{BASE}/{booking_id}/history", headers=boss).json()
+    assert history[-1]["reason"] == "not confirmed in time"
+    assert history[-1]["actor"]["role"] == "admin"
+
+
+def test_a_stale_pending_booking_cannot_be_confirmed(client, setup, ali, boss_user, frozen_clock):
+    booking_id = book(client, setup, ali, TEN)
+    move_clock_to(frozen_clock, START + timedelta(days=1))
+
+    response = client.post(f"{BASE}/{booking_id}/confirm", headers=headers(boss_user, frozen_clock))
+
+    assert response.status_code == 409
+    assert error_code(response) == "INVALID_TRANSITION"

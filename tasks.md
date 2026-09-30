@@ -491,7 +491,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: concurrent confirm + cancel.
 
 ### P7.7 — Stale pending bookings
-- [ ] Status
+- [x] Status
 - Goal: a pending booking whose time has passed doesn't linger as "pending" forever.
 - Requirement(s) served: statuses; product thinking
 - Acceptance criteria: decision recorded (see Open questions): admin can cancel expired pendings (reason "not confirmed in time"); the admin list flags them. No background scheduler.

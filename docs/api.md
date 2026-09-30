@@ -370,6 +370,11 @@ paginated. Filters: `status`, `provider_id`, `customer_id`, and `date_from` /
 matches when it *starts* on one of those days). Customers get `403`.
 `GET /bookings` stays "my own bookings" for everyone, admins included.
 
+Each item here also has `stale_pending`: `true` for a booking still `pending`
+after its start time. It can no longer be confirmed; cancel it. With no
+`reason`, an admin's cancel of such a booking records "not confirmed in time".
+There is no background job doing this for you.
+
 ## Error envelope
 Every error has the same shape, whether we raised it, request validation
 rejected the input, the route doesn't exist, or something crashed:

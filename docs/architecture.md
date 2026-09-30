@@ -132,7 +132,7 @@ stateDiagram-v2
 |---|---|---|---|---|
 | pending | confirmed | admin | `now < start_at` | `INVALID_TRANSITION` |
 | pending | cancelled | own customer | `now < start_at` | `CANCELLATION_CUTOFF_PASSED` |
-| pending | cancelled | admin | none (clears expired pendings, P7.7) | |
+| pending | cancelled | admin | none. Clears a *stale pending* booking (start passed): flagged in the admin list, reason defaults to "not confirmed in time" (P7.7) | |
 | confirmed | cancelled | own customer | `now <= start_at - cutoff` | `CANCELLATION_CUTOFF_PASSED` |
 | confirmed | cancelled | admin | `now < start_at`, non-blank reason | `INVALID_TRANSITION` / `REASON_REQUIRED` |
 | confirmed | completed | admin | `now >= end_at` | `TOO_EARLY_TO_COMPLETE` |

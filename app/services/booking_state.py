@@ -41,6 +41,19 @@ ALLOWED: frozenset[tuple[BookingStatus, BookingStatus]] = frozenset(
 )
 
 
+STALE_PENDING_REASON = "not confirmed in time"
+
+
+def is_stale_pending(booking: "_Booking", now: datetime) -> bool:
+    """A pending booking whose start has passed without anyone confirming it.
+
+    It can no longer be confirmed and would sit as "pending" forever, so the
+    admin list flags it and an admin cancels it (P7.7). No background job
+    does that for them.
+    """
+    return booking.status == BookingStatus.PENDING and now >= booking.start_at
+
+
 class _Booking(Protocol):
     status: BookingStatus
     customer_id: int
