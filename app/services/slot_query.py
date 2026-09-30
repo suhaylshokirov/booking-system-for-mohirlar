@@ -10,6 +10,9 @@ Rules:
 * `date` is a local date in the business timezone. Busy time is every pending
   or confirmed booking of the provider that overlaps that local day; cancelled
   and completed bookings free their time.
+* `day` must lie in `[today, today + max_booking_horizon_days]`, where today is
+  the current date on the business's wall clock; otherwise 422
+  `DATE_OUT_OF_RANGE`. This is checked before anything is loaded.
 * The horizon ends `max_booking_horizon_days` after `now` (an instant, not a
   calendar date). Booking validation (P6.1) must use the same value.
 
@@ -25,7 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.core.timezones import local_day_bounds_utc
+from app.core.timezones import local_day_bounds_utc, utc_to_local
 from app.models.availability import AvailabilityException, AvailabilityRule
 from app.models.booking import Booking, BookingStatus
 from app.models.provider import Provider, ProviderService
@@ -54,7 +57,7 @@ def get_slots(
     """Free start times for `service_id` on local date `day`, grouped by provider.
 
     Raises: 404 `NOT_FOUND` (service or provider missing/inactive), 422
-    `PROVIDER_DOES_NOT_OFFER_SERVICE`.
+    `PROVIDER_DOES_NOT_OFFER_SERVICE`, 422 `DATE_OUT_OF_RANGE`.
     """
     service = db.get(Service, service_id)
     if service is None or not service.is_active:
@@ -63,6 +66,15 @@ def get_slots(
     providers = _providers(db, service_id, provider_id)
     settings = get_business_settings(db)
     tz = settings.timezone
+    today = utc_to_local(now, tz).date()
+    last_day = today + timedelta(days=settings.max_booking_horizon_days)
+    if not today <= day <= last_day:
+        raise AppError(
+            "DATE_OUT_OF_RANGE",
+            f"Pick a date from {today} to {last_day}.",
+            status_code=422,
+            details={"earliest": today.isoformat(), "latest": last_day.isoformat()},
+        )
     day_start, day_end = local_day_bounds_utc(day, tz)
     ids = [p.id for p in providers]
 

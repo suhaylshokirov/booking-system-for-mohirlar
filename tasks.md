@@ -374,7 +374,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: inactive service/provider; provider doesn't offer service.
 
 ### P5.3 — Slots endpoint
-- [ ] Status
+- [x] Status
 - Goal: public API for the booking UI.
 - Requirement(s) served: see available time slots; backend API
 - Acceptance criteria: `GET /slots?service_id=&date=YYYY-MM-DD&provider_id=` → `{date, timezone, service, providers: [{provider, slots: [{start_at, end_at}]}]}`; date outside `[today, today+horizon]` → 422 `DATE_OUT_OF_RANGE`; examples in OpenAPI.

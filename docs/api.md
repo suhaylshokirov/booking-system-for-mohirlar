@@ -256,7 +256,37 @@ booking). Note that the deletes return `200` with a body rather than `204`, so t
 warning has somewhere to go.
 
 ## Walkthrough: book an appointment with curl
-_Built up in P5.3, P6.3, P7.3; verified end to end in P10.4._
+_Built up step by step: slots (P5.3), booking (P6.3), cancelling (P7.3); verified end to end in P10.4._
+
+**Step: see free slots** (public, no login). Pick a service id from
+`GET /services`, then ask for a date. Omit `provider_id` to get every provider
+who offers it, grouped.
+
+```bash
+curl 'localhost:8000/api/v1/slots?service_id=1&date=2026-10-05'
+curl 'localhost:8000/api/v1/slots?service_id=1&date=2026-10-05&provider_id=1'
+```
+
+```json
+{
+  "date": "2026-10-05",
+  "timezone": "Asia/Tashkent",
+  "service": {"id": 1, "name": "Haircut", "duration_minutes": 30, "price": 60000},
+  "providers": [
+    {"provider": {"id": 1, "name": "Jasur"},
+     "slots": [{"start_at": "2026-10-05T04:00:00Z", "end_at": "2026-10-05T04:30:00Z"}]},
+    {"provider": {"id": 2, "name": "Aziz"}, "slots": []}
+  ]
+}
+```
+
+- `start_at`/`end_at` are UTC instants; `date` and `timezone` say which local
+  day was asked for (04:00Z is 09:00 in Tashkent). `end_at` is exclusive.
+- `date` must be from today to today + the booking horizon (business settings),
+  otherwise `422 DATE_OUT_OF_RANGE` with `details.earliest` / `details.latest`.
+- A provider with nothing free is still listed, with `"slots": []`.
+- The list is advisory. Someone else may book a slot before you do; the
+  booking call then answers `409 SLOT_TAKEN` (P6).
 
 ## Error envelope
 Every error has the same shape, whether we raised it, request validation
@@ -296,6 +326,8 @@ _One row per code, added by the task that introduces it._
 | `UNKNOWN_SERVICE` | 422 | Setting a provider's services: an id is not an existing, active service; `details.service_ids` lists them |
 | `MISALIGNED_TIME` | 422 | Availability: a start or end time is not a multiple of the slot granularity; `details` has `field` and `slot_granularity_minutes` |
 | `INVALID_TIME_RANGE` | 422 | Availability: an edit leaves `end_time` at or before `start_time`, or an exception with only one of its two times |
+| `DATE_OUT_OF_RANGE` | 422 | Slots: the date is before today or beyond the booking horizon (business timezone); `details.earliest`, `details.latest` |
+| `PROVIDER_DOES_NOT_OFFER_SERVICE` | 422 | Slots: the chosen provider does not perform that service; `details` has both ids |
 | `DATE_IN_PAST` | 422 | Availability exception: the date is before today in the business timezone; `details.today` |
 | `AVAILABILITY_EXCEPTION_EXISTS` | 409 | Availability exception: the provider already has one for that date; `details.exception_id` |
 | `AVAILABILITY_OVERLAP` | 409 | Availability: the window overlaps another rule of the provider on that weekday; `details.conflicting_rule` |

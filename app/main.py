@@ -3,7 +3,7 @@
 from fastapi import Depends, FastAPI
 
 from app.api.csrf import csrf_protect
-from app.api.v1 import auth, availability, health, providers, services, settings
+from app.api.v1 import auth, availability, health, providers, services, settings, slots
 from app.core.errors import register_error_handlers
 
 API_PREFIX = "/api/v1"
@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
     app.include_router(services.router, prefix=API_PREFIX)
     app.include_router(providers.router, prefix=API_PREFIX)
     app.include_router(availability.router, prefix=API_PREFIX)
+    app.include_router(slots.router, prefix=API_PREFIX)
     app.include_router(health.router, prefix=API_PREFIX)
     return app
 
