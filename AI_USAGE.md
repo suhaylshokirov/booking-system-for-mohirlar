@@ -377,15 +377,16 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 - **Asked:** the booking state machine, guarded transitions with history
   events, the confirm/cancel/complete endpoints and admin list, the
-  cancellation policy, the history endpoint, and the confirm-vs-cancel race
-  test. (P7.7, stale pendings, is still to do; this entry is extended then.)
+  cancellation policy, the history endpoint, the confirm-vs-cancel race test,
+  and flagging stale pending bookings.
 - **Produced:** `app/services/booking_state.py` (pure transition table and
   `check_transition`), `booking.transition` / `list_all_bookings` /
   `list_history` in `app/services/booking.py`, the transition, admin-list and
   history routes, ADR 0008, the Mermaid state diagram;
   `tests/unit/test_booking_state.py`, `tests/integration/test_transition.py`,
   `tests/integration/test_booking_transitions_api.py`,
-  `tests/concurrency/test_transition_races.py`.
+  `tests/concurrency/test_transition_races.py`; `is_stale_pending` and the
+  `stale_pending` flag on the admin list.
 - **Verified how:**
   - The state machine has a parametrised test for every (from, to) pair not in
     the table and for every role, plus the exact boundaries at the cutoff,
@@ -396,7 +397,7 @@ in [`CLAUDE.md`](CLAUDE.md).
     removed, `test_concurrent_confirm_and_cancel_exactly_one_wins` fails
     (`[200, 200]`); with it restored it passes.
   - Stress-ran the concurrency folder 15 times in a row after the fix below:
-    15 of 15 green. Full suite 606 tests, ruff check and format clean.
+    15 of 15 green. Full suite 610 tests at the end of the phase, ruff check and format clean.
 - **Not verified:** the P6.4 gap "drop both exclusion constraints and see the
   tests fail" is still not demonstrated.
 - **Changed / rejected:**
@@ -414,6 +415,10 @@ in [`CLAUDE.md`](CLAUDE.md).
     "ran it three times, not flaky" in the P6 entry was too few runs to see it.
   - The unforced confirm/cancel test first used start times outside the
     provider's working window (422); fixed by using the 04:00 to 07:00 UTC window.
+  - Stale pending: no new rule was needed for the cancel itself, because the
+    state machine already let an admin cancel any pending booking; the work was
+    the flag and the default reason. Checked that confirming a stale one is
+    refused (`INVALID_TRANSITION`).
   - Tests initially assumed a `set()` on the frozen clock that does not exist;
     they advance it by the difference instead.
 
