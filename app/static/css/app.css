@@ -1051,6 +1051,64 @@ html.has-js .apply-btn {
   color: var(--ink-on-lime);
 }
 
+/* --- Steps -------------------------------------------------------------------
+   Where you are in a short sequence (booking: choose a time, confirm). The
+   current step's number is the lime disc; steps behind you are ink, steps
+   ahead are outlined. The words always say which step it is. */
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-stretch: 78%;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+}
+
+.steps__num {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  border: 1px solid var(--rule-strong);
+  font-size: var(--text-xs);
+  letter-spacing: 0;
+}
+
+.steps__item.is-done {
+  color: var(--ink-muted);
+}
+
+.steps__item.is-done .steps__num {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+.steps__item[aria-current="step"] {
+  color: var(--ink);
+}
+
+.steps__item[aria-current="step"] .steps__num {
+  background: var(--lime);
+  border-color: var(--ink-on-lime);
+  color: var(--ink-on-lime);
+}
+
 /* --- Stat row ---------------------------------------------------------------
    Ruled cells rather than boxed tiles: a ledger, not a dashboard. The tick
    above each figure is ink; a count is information, not a commitment. */

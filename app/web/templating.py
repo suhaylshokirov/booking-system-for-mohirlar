@@ -37,6 +37,9 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 templates.env.filters["money"] = formatting.money
 templates.env.filters["duration"] = formatting.duration
+templates.env.filters["local_time"] = formatting.local_time
+templates.env.filters["local_date"] = formatting.local_date
+templates.env.filters["day_label"] = formatting.day_label
 
 FLASH_COOKIE = "flash"
 
@@ -52,6 +55,9 @@ FLASH_MESSAGES: dict[str, Notice] = {
     "signed_in": Notice("You're signed in.", "success"),
     "registered": Notice("Your account is ready, and you're signed in.", "success"),
     "signed_out": Notice("You're signed out."),
+    "booked": Notice(
+        "Booking requested. It shows as pending until the business confirms it.", "success"
+    ),
 }
 
 

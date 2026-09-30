@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "services" %}
+
+{% block title %}Book {{ service.name }} · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/booking.css">{% endblock %}
+
+{% block content %}
+<a class="back-link" href="/services/{{ service.id }}">{{ service.name }}</a>
+
+<header class="sheet-head">
+    <h1 class="sheet-title">Book {{ service.name }}</h1>
+    <p class="sheet-sub">
+        <span class="mono">{{ service.duration_minutes|duration }}</span> ·
+        <span class="mono">{{ service.price|money(business.currency) }}</span>.
+        Times are shown in <span class="mono">{{ business.timezone }}</span>.
+    </p>
+</header>
+
+{{ ui.steps(1) }}
+
+{# A plain GET form: without JS, "Show times" reloads the page for the
+   chosen person and day. With JS (initLiveFilter), any change fetches only
+   the slot grid below and swaps it in. #}
+<form class="toolbar booking-filters" method="get" action="/book/{{ service.id }}"
+      data-live-filter data-live-target="#slot-results">
+    <div class="field">
+        <span class="field__label" id="filter-person">With</span>
+        <div class="segmented" role="radiogroup" aria-labelledby="filter-person">
+            <input type="radio" id="person-any" name="provider" value="any"{% if provider_filter == "any" %} checked{% endif %}>
+            <label for="person-any">Anyone</label>
+            {% for person in staff %}
+            <input type="radio" id="person-{{ person.id }}" name="provider" value="{{ person.id }}"{% if provider_filter == person.id|string %} checked{% endif %}>
+            <label for="person-{{ person.id }}">{{ person.name }}</label>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="field">
+        <label class="field__label" for="filter-day">Day</label>
+        <input type="date" id="filter-day" name="date" value="{{ day.isoformat() }}"
+               min="{{ first_day.isoformat() }}" max="{{ last_day.isoformat() }}" required>
+    </div>
+    <button type="submit" class="btn btn--quiet apply-btn">Show times</button>
+</form>
+
+{# Choosing a tile and pressing Continue opens the confirm step; nothing is
+   booked yet. The radios are `required`, so without JS the browser still
+   refuses an empty choice. #}
+<form class="slot-form" method="get" action="/book/{{ service.id }}/confirm">
+    <div id="slot-results" data-slot-results>
+        {% include "_partials/slot_grid.html" %}
+    </div>
+</form>
+{% endblock %}

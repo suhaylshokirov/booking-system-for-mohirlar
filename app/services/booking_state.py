@@ -54,6 +54,15 @@ def is_stale_pending(booking: "_Booking", now: datetime) -> bool:
     return booking.status == BookingStatus.PENDING and now >= booking.start_at
 
 
+def cancellation_cutoff_at(start_at: datetime, cutoff_hours: int) -> datetime:
+    """The last instant a customer may cancel a *confirmed* booking (inclusive).
+
+    Shown to the customer before they book and on the booking page, so what
+    they are told is exactly what `check_transition` enforces.
+    """
+    return start_at - timedelta(hours=cutoff_hours)
+
+
 class _Booking(Protocol):
     status: BookingStatus
     customer_id: int
@@ -150,6 +159,6 @@ def check_transition(
         if started:
             raise CancellationCutoffPassed(booking.start_at)
     else:
-        cutoff_at = booking.start_at - timedelta(hours=settings.cancellation_cutoff_hours)
+        cutoff_at = cancellation_cutoff_at(booking.start_at, settings.cancellation_cutoff_hours)
         if now > cutoff_at:
             raise CancellationCutoffPassed(cutoff_at)

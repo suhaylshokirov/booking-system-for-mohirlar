@@ -1,0 +1,65 @@
+{# The free times for one day: rendered inside booking/pick.html, and on its
+   own for the live picker (the server sends only this when the request has
+   X-Requested-With). Everything that must change with the filters lives
+   here, including the hidden `provider` the Continue form carries. #}
+{% set tz = business.timezone %}
+<div class="day-head">
+    {% if prev_day %}
+    <a class="day-step" rel="prev" href="/book/{{ service.id }}?provider={{ provider_filter }}&amp;date={{ prev_day.isoformat() }}">
+        <span aria-hidden="true">←</span> {{ prev_day|day_label }}
+    </a>
+    {% endif %}
+    <h2 class="day-title">{{ day|day_label }}</h2>
+    {% if next_day %}
+    <a class="day-step day-step--next" rel="next" href="/book/{{ service.id }}?provider={{ provider_filter }}&amp;date={{ next_day.isoformat() }}">
+        {{ next_day|day_label }} <span aria-hidden="true">→</span>
+    </a>
+    {% endif %}
+</div>
+
+{# Read out after every live update, so a screen reader hears the result
+   of changing the day without re-reading the whole grid. #}
+<p class="visually-hidden" role="status">
+    {{ total_free }} free time{{ "" if total_free == 1 else "s" }} on {{ day|day_label }}.
+</p>
+
+{% if problem %}<p class="notice notice--error" role="alert">{{ problem }}</p>{% endif %}
+
+<input type="hidden" name="provider" value="{{ provider_filter }}">
+
+{% if total_free %}
+{% for group in groups %}
+<fieldset class="slot-person">
+    <legend class="slot-person__name">
+        {{ group.provider.name }}
+        <span class="slot-person__count mono">{{ group.count }} free</span>
+    </legend>
+    {% for label, choices in group.parts %}
+    <div class="slot-part">
+        <p class="label slot-part__label">{{ label }}</p>
+        <div class="slot-grid">
+            {% for choice in choices %}
+            <label class="slot">
+                <input type="radio" name="slot" value="{{ choice.value }}" required
+                       data-summary="{{ choice.start|local_time(tz) }} with {{ group.provider.name }} · {{ day|day_label }}">
+                <span>{{ choice.start|local_time(tz) }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <p class="slot-person__none">No free time this day.</p>
+    {% endfor %}
+</fieldset>
+{% endfor %}
+
+<div class="slot-bar">
+    <p class="slot-bar__summary" data-slot-summary>Pick a time above.</p>
+    <button type="submit" class="btn">Continue</button>
+</div>
+{% elif not problem %}
+<p class="empty">
+    No free times on {{ day|day_label }}.
+    {% if next_day %}<a href="/book/{{ service.id }}?provider={{ provider_filter }}&amp;date={{ next_day.isoformat() }}">Try {{ next_day|day_label }}</a>{% if provider_filter != "any" %} or <a href="/book/{{ service.id }}?provider=any&amp;date={{ day.isoformat() }}">anyone else</a>{% endif %}.{% endif %}
+</p>
+{% endif %}

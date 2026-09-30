@@ -28,5 +28,17 @@
 {% endif %}
 {% endmacro %}
 
+{# Where you are in booking. Numbered because it is a real sequence; the
+   current step is the lime one (rule 12), steps behind you are ink. #}
+{% macro steps(current) %}
+<ol class="steps" aria-label="Booking steps">
+    {% for label in ["Choose a time", "Confirm"] %}
+    <li class="steps__item{% if loop.index < current %} is-done{% endif %}"{% if loop.index == current %} aria-current="step"{% endif %}>
+        <span class="steps__num mono" aria-hidden="true">{{ loop.index }}</span>{{ label }}
+    </li>
+    {% endfor %}
+</ol>
+{% endmacro %}
+
 {# The hidden field every POST form carries (see app/api/csrf.py). #}
 {% macro csrf_field(token) %}<input type="hidden" name="csrf_token" value="{{ token }}">{% endmacro %}

@@ -237,6 +237,17 @@ normally. An inline script in `<head>` adds `html.has-js` before first paint
 controls (theme and menu toggles) only under that class, so no dead buttons
 appear when JS is off.
 
+**Booking in the browser (`app/web/booking.py`, P8.4).** Three steps over the
+same services: the picker (`GET /book/{id}`, public) shows `slot_query.get_slots`
+as radio tiles grouped by person and part of the day; the confirm step
+(`GET /book/{id}/confirm`, signed in) re-checks that the time is still free and
+shows the ticket with the cancellation deadline from
+`booking_state.cancellation_cutoff_at`; `POST /book/{id}` calls
+`booking.create_booking`. A lost race (`SLOT_TAKEN`, `CUSTOMER_OVERLAP`) or a
+broken booking rule re-renders the picker for that day with the reason, never an
+error page. The live picker asks the same URL with `X-Requested-With` and gets
+only `_partials/slot_grid.html`; responses carry `Vary: X-Requested-With`.
+
 **CSRF.** HTML forms are covered by the same app-wide `csrf_protect`
 dependency as the API; forms carry the token in a `csrf_token` hidden field.
 

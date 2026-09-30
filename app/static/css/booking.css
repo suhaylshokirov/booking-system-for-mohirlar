@@ -1,0 +1,217 @@
+/* Booking: the slot picker and the confirm step.
+   Adds components only; app.css owns every token and the .slot tile itself.
+
+   Two places spend lime here, both meaning something: the tile you chose
+   (app.css .slot) and the one button that books (.btn--commit). The rest is
+   ink on paper, so the eye goes from "your time" to "confirm" and nowhere
+   else. */
+
+.booking-filters {
+  margin-top: var(--space-7);
+}
+
+.booking-filters input[type="date"] {
+  min-width: 11rem;
+  font-family: var(--font-mono);
+}
+
+/* --- The day ------------------------------------------------------------------- */
+
+.slot-form {
+  margin-top: var(--space-2);
+}
+
+/* Yesterday · TODAY · tomorrow: the day you're looking at in the middle, in
+   display type; the neighbours are quiet links you can step to. */
+.day-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+  margin-bottom: var(--space-5);
+  border-top: 1px solid var(--rule-strong);
+  border-bottom: var(--hairline);
+}
+
+.day-title {
+  grid-column: 2;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: var(--text-lg);
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.day-step {
+  grid-column: 1;
+  justify-self: start;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.day-step--next {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.day-step:hover {
+  color: var(--ink);
+}
+
+/* --- One person's free times ----------------------------------------------------- */
+
+.slot-person {
+  margin: 0 0 var(--space-7);
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.slot-person__name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: 0;
+  margin-bottom: var(--space-4);
+  font-weight: 600;
+}
+
+.slot-person__count {
+  font-size: var(--text-2xs);
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+
+.slot-person__none {
+  font-size: var(--text-sm);
+  color: var(--ink-faint);
+}
+
+.slot-part + .slot-part {
+  margin-top: var(--space-5);
+}
+
+.slot-part__label {
+  margin-bottom: var(--space-3);
+}
+
+/* Continue sticks to the bottom of the screen while the grid scrolls, so a
+   long day never hides the way forward. With JS it also repeats the chosen
+   time, so the choice is visible without scrolling back up. */
+.slot-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-4) 0;
+  background: var(--paper);
+  border-top: 1px solid var(--rule-strong);
+}
+
+.slot-bar__summary {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.slot-bar__summary.is-chosen {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Without JS the summary can't follow the choice, so it isn't shown. */
+html:not(.has-js) .slot-bar__summary {
+  visibility: hidden;
+}
+
+/* Waiting for the next day's grid: dim, don't blank, so the page doesn't jump. */
+[data-slot-results][aria-busy="true"] {
+  opacity: 0.5;
+  transition: opacity var(--dur) var(--ease);
+}
+
+/* --- The confirm step: a ticket ------------------------------------------------------ */
+
+.ticket {
+  max-width: 34rem;
+  margin-top: var(--space-7);
+  padding: var(--space-7);
+  background: var(--sheet);
+  border: var(--hairline);
+  border-radius: var(--radius);
+}
+
+.ticket__time {
+  font-size: var(--text-2xl);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.ticket__to {
+  color: var(--ink-faint);
+}
+
+.ticket__day {
+  margin-top: var(--space-3);
+  font-weight: 600;
+}
+
+.ticket__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  margin: var(--space-6) 0 0;
+  padding-top: var(--space-6);
+  /* The tear line of a ticket stub: the when above, the what below. */
+  border-top: 2px dashed var(--rule-strong);
+}
+
+.ticket__facts dd {
+  margin: var(--space-1) 0 0;
+}
+
+.ticket__policy {
+  margin-top: var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.booking-confirm {
+  margin-top: var(--space-7);
+  max-width: 34rem;
+}
+
+@media (max-width: 560px) {
+  .day-head {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "title title"
+      "prev  next";
+  }
+
+  .day-title {
+    grid-area: title;
+  }
+
+  .day-step {
+    grid-area: prev;
+  }
+
+  .day-step--next {
+    grid-area: next;
+  }
+
+  .ticket {
+    padding: var(--space-6) var(--space-5);
+  }
+
+  .ticket__time {
+    font-size: var(--text-xl);
+  }
+}

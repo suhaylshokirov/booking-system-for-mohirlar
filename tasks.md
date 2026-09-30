@@ -531,7 +531,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: inactive service URL → 404.
 
 ### P8.4 — Booking flow with live slot picker
-- [ ] Status
+- [x] Status
 - Goal: pick provider (or any) + date → pick a slot → confirm.
 - Requirement(s) served: **See available time slots**; **User can book**
 - Acceptance criteria: `/book/{service_id}` GET form (provider segmented/select incl. "Any", date input, prev/next day links) — `initLiveFilter` port (`X-Requested-With`, server returns `_partials/slot_grid.html`, swap `innerHTML`, debounce, `AbortController`, full-submit fallback). Slots are radio tiles (neutral; selected = lime). Confirm step shows service, provider, local time + timezone, price, cancellation policy; POST creates the booking via `services/booking`; a 409 re-renders the grid with "That time was just taken — pick another" notice. Works fully without JS.
@@ -739,3 +739,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-09-30 | P4.4 | `build_windows_for_date` (pure, in `app/services/slots.py`) is written in P4.4, not P5.1. P5.1 adds `compute_slots` beside it and keeps its own tests | Deciding whether a booking still fits the hours needs exactly "rules + exception + date + tz -> UTC windows", and a second copy would break the one-place rule for the exception-replaces-rules logic |
 | 2026-09-30 | P7.3 | The admin booking list is `GET /bookings/all`, not `GET /bookings` | `GET /bookings` is already "my own bookings" for everyone (P6.3, tested and documented, including for admins, who can also book). Making it role-dependent would change the meaning of one URL by who calls it; a separate path keeps each endpoint's contract fixed |
 | 2026-09-30 | P8.2 | A 401 on a web page GET redirects to `/login?next=…` (in `app/web/errors.py`), built now rather than in P8.5; the page renderer also receives the error code, so `CSRF_FAILED` gets wording for people | Every signed-in page (P8.5, P9) needs "send them to log in and back", and the login page's `next` handling is what makes it safe; one place instead of a check per route |
+| 2026-09-30 | P8.4 | "Any" shows every person's free times, grouped by person, rather than one merged list auto-assigned to someone; after booking, the redirect goes to `/me/bookings/{id}`, which P8.5 builds | Grouping reuses `get_slots` as it is and keeps "who gets an any-booking" from becoming a new business rule under deadline; the customer still sees everything free that day. The booking page is the next task in the same phase |

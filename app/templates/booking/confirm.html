@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "services" %}
+
+{% block title %}Confirm {{ service.name }} · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/booking.css">{% endblock %}
+
+{% block content %}
+{% set tz = business.timezone %}
+{% set back = "/book/" ~ service.id ~ "?provider=" ~ provider_filter ~ "&date=" ~ day.isoformat() %}
+<a class="back-link" href="{{ back }}">Pick another time</a>
+
+<header class="sheet-head">
+    <h1 class="sheet-title">Confirm your booking</h1>
+    <p class="sheet-sub">Check the details. Nothing is booked until you press Confirm booking.</p>
+</header>
+
+{{ ui.steps(2) }}
+
+{# The ticket: the one thing on the page that matters, with the time set
+   biggest because it is what people remember. #}
+<article class="ticket" aria-labelledby="ticket-time">
+    <p class="ticket__time mono" id="ticket-time">
+        {{ start|local_time(tz) }}<span class="ticket__to">–{{ end|local_time(tz) }}</span>
+    </p>
+    <p class="ticket__day">{{ start|local_date(tz) }} <span class="faint mono">{{ tz }}</span></p>
+    <dl class="ticket__facts">
+        <div><dt class="label">Service</dt><dd>{{ service.name }}</dd></div>
+        <div><dt class="label">With</dt><dd>{{ person.name }}</dd></div>
+        <div><dt class="label">Duration</dt><dd class="mono">{{ service.duration_minutes|duration }}</dd></div>
+        <div><dt class="label">Price</dt><dd class="mono">{{ service.price|money(business.currency) }}</dd></div>
+    </dl>
+    <p class="ticket__policy">
+        It starts as a request, and {{ business.name }} confirms it. Until then you can
+        cancel any time before it starts. Once confirmed, you can cancel online until
+        <span class="mono">{{ cutoff_at|local_time(tz) }}</span> on {{ cutoff_at|local_date(tz) }}
+        ({{ business.cancellation_cutoff_hours }} hour{{ "" if business.cancellation_cutoff_hours == 1 else "s" }} before).
+    </p>
+</article>
+
+<form class="form booking-confirm" method="post" action="/book/{{ service.id }}" data-submit-once>
+    {{ ui.csrf_field(csrf_token) }}
+    <input type="hidden" name="slot" value="{{ slot }}">
+    <input type="hidden" name="provider" value="{{ provider_filter }}">
+
+    <div class="field{% if errors.notes %} field--invalid{% endif %}">
+        <label class="field__label" for="field-notes">Note for {{ person.name }} <span class="faint">(optional)</span></label>
+        <textarea id="field-notes" name="notes" maxlength="500" rows="3"
+                  {%- if errors.notes %} aria-invalid="true" aria-describedby="field-notes-error"{% endif %}>{{ notes }}</textarea>
+        {% if errors.notes %}<p class="field__error" id="field-notes-error">{{ errors.notes }}</p>{% endif %}
+    </div>
+
+    {# The one lime button in the flow: the action that commits. #}
+    <div class="actions">
+        <button type="submit" class="btn btn--commit" data-busy-label="Booking…">Confirm booking</button>
+        <a href="{{ back }}">Pick another time</a>
+    </div>
+</form>
+{% endblock %}

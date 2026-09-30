@@ -286,6 +286,94 @@
     });
   }
 
+  /* --- Live filter ----------------------------------------------------------------
+     A GET form marked [data-live-filter] (the booking page's person and day)
+     re-fetches its own URL when a control changes, and swaps the element named
+     by data-live-target with the same element from the answer:
+
+       - sends X-Requested-With, so the server returns only the fragment
+         (_partials/slot_grid.html) instead of the whole page;
+       - debounced: typing a date fires "change" on every segment;
+       - AbortController: a newer change cancels the request still in flight,
+         so an old day's grid can never land on top of a newer one;
+       - anything unexpected (network error, a 404/500 page without the
+         target) falls back to a normal submit, which is the no-JS path.
+
+     A 409 or 422 still carries the fragment (with its notice), so it is
+     swapped in like any other answer. */
+
+  function initLiveFilter() {
+    var form = document.querySelector("form[data-live-filter]");
+    if (!form || !window.fetch || !window.AbortController) return;
+    var selector = form.getAttribute("data-live-target");
+    var target = selector && document.querySelector(selector);
+    if (!target) return;
+
+    var controller = null;
+    var timer = null;
+
+    function apply() {
+      if (controller) controller.abort();
+      controller = new AbortController();
+      var params = new URLSearchParams(new FormData(form));
+      var url = form.getAttribute("action") + "?" + params.toString();
+      target.setAttribute("aria-busy", "true");
+
+      fetch(url, {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+        signal: controller.signal,
+      })
+        .then(function (response) {
+          return response.text();
+        })
+        .then(function (html) {
+          var fragment = new DOMParser().parseFromString(html, "text/html");
+          // The fragment arrives without its wrapper, so it is the <body>;
+          // a full error page would carry the site header instead.
+          if (fragment.querySelector(".site-header")) throw new Error("not a fragment");
+          target.innerHTML = fragment.body.innerHTML;
+          target.removeAttribute("aria-busy");
+          // Keep the address bar shareable and the Back button honest. Safari
+          // throws after ~100 calls in 30s; a stale URL beats a reload.
+          try {
+            history.replaceState(null, "", url);
+          } catch (e) {}
+        })
+        .catch(function (error) {
+          if (error.name === "AbortError") return;
+          form.submit();
+        });
+    }
+
+    function applySoon() {
+      clearTimeout(timer);
+      timer = setTimeout(apply, 250);
+    }
+
+    form.addEventListener("change", applySoon);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      clearTimeout(timer);
+      apply();
+    });
+  }
+
+  /* --- Slot summary -----------------------------------------------------------------
+     Echoes the chosen tile ("10:15 with Jasur · Wed 7 Oct 2026") into the
+     sticky Continue bar. Listens on the document so it keeps working after
+     the live filter replaces the grid. */
+
+  function initSlotSummary() {
+    document.addEventListener("change", function (event) {
+      var input = event.target;
+      if (!(input instanceof HTMLInputElement) || input.name !== "slot") return;
+      var summary = document.querySelector("[data-slot-summary]");
+      if (!summary || !input.checked) return;
+      summary.textContent = input.getAttribute("data-summary") || "";
+      summary.classList.add("is-chosen");
+    });
+  }
+
   function init() {
     initThemeToggle();
     initNavToggle();
@@ -293,6 +381,8 @@
     initSubmitState(); // after initConfirmDialog: see its comment
     initInlineValidation();
     initMenus();
+    initLiveFilter();
+    initSlotSummary();
   }
 
   if (document.readyState === "loading") {

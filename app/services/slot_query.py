@@ -31,6 +31,7 @@ from app.core.errors import AppError
 from app.core.timezones import local_day_bounds_utc, utc_to_local
 from app.models.availability import AvailabilityException, AvailabilityRule
 from app.models.booking import Booking, BookingStatus
+from app.models.business_settings import BusinessSettings
 from app.models.provider import Provider, ProviderService
 from app.models.service import Service
 from app.services.booking_rules import horizon_end
@@ -67,8 +68,7 @@ def get_slots(
     providers = _providers(db, service_id, provider_id)
     settings = get_business_settings(db)
     tz = settings.timezone
-    today = utc_to_local(now, tz).date()
-    last_day = today + timedelta(days=settings.max_booking_horizon_days)
+    today, last_day = bookable_dates(settings, now)
     if not today <= day <= last_day:
         raise AppError(
             "DATE_OUT_OF_RANGE",
@@ -115,6 +115,17 @@ def get_slots(
         )
         grouped.append(ProviderSlots(provider, starts))
     return SlotsResult(service, day, tz, grouped)
+
+
+def bookable_dates(settings: BusinessSettings, now: datetime) -> tuple[date, date]:
+    """The first and last local date slots may be asked for (both inclusive).
+
+    Today on the business's wall clock, through `max_booking_horizon_days`
+    later. The booking page uses it for its date picker's limits, so the
+    picker and `get_slots` cannot disagree.
+    """
+    today = utc_to_local(now, settings.timezone).date()
+    return today, today + timedelta(days=settings.max_booking_horizon_days)
 
 
 def _providers(db: Session, service_id: int, provider_id: int | None) -> list[Provider]:
