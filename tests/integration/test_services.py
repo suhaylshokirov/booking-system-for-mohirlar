@@ -28,8 +28,8 @@ def _set_granularity(db: Session, minutes: int) -> None:
 # --- create ----------------------------------------------------------------
 
 
-def test_admin_creates_a_service(client, admin, db):
-    response = client.post(SERVICES, json=VALID, headers=admin)
+def test_barber_creates_a_service(client, barber, db):
+    response = client.post(SERVICES, json=VALID, headers=barber)
 
     assert response.status_code == 201
     body = response.json()
@@ -41,18 +41,18 @@ def test_admin_creates_a_service(client, admin, db):
     assert db.get(Service, body["id"]).name == "Haircut"
 
 
-def test_create_trims_the_name_and_turns_a_blank_description_into_none(client, admin):
+def test_create_trims_the_name_and_turns_a_blank_description_into_none(client, barber):
     response = client.post(
-        SERVICES, json={**VALID, "name": "  Beard trim  ", "description": "   "}, headers=admin
+        SERVICES, json={**VALID, "name": "  Beard trim  ", "description": "   "}, headers=barber
     )
     assert response.status_code == 201
     assert response.json()["name"] == "Beard trim"
     assert response.json()["description"] is None
 
 
-def test_description_is_optional_and_a_free_service_is_allowed(client, admin):
+def test_description_is_optional_and_a_free_service_is_allowed(client, barber):
     body = {"name": "Consultation", "duration_minutes": 15, "price": 0}
-    response = client.post(SERVICES, json=body, headers=admin)
+    response = client.post(SERVICES, json=body, headers=barber)
     assert response.status_code == 201
     assert response.json()["price"] == 0
 
@@ -81,35 +81,35 @@ def test_customer_and_anonymous_cannot_create(client, customer):
         {"price": True},
     ],
 )
-def test_invalid_input_is_a_validation_error(client, admin, db, change):
-    response = client.post(SERVICES, json={**VALID, **change}, headers=admin)
+def test_invalid_input_is_a_validation_error(client, barber, db, change):
+    response = client.post(SERVICES, json={**VALID, **change}, headers=barber)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
     assert db.scalar(select(Service)) is None
 
 
 @pytest.mark.parametrize("missing", ["name", "duration_minutes", "price"])
-def test_required_fields_are_required(client, admin, missing):
+def test_required_fields_are_required(client, barber, missing):
     body = {k: v for k, v in VALID.items() if k != missing}
-    assert client.post(SERVICES, json=body, headers=admin).status_code == 422
+    assert client.post(SERVICES, json=body, headers=barber).status_code == 422
 
 
-def test_boundary_values_are_accepted(client, admin):
+def test_boundary_values_are_accepted(client, barber):
     body = {"name": "x" * 100, "description": "y" * 1000, "duration_minutes": 480, "price": 0}
-    assert client.post(SERVICES, json=body, headers=admin).status_code == 201
+    assert client.post(SERVICES, json=body, headers=barber).status_code == 201
 
 
-def test_duration_must_fit_the_slot_granularity(client, admin, db):
+def test_duration_must_fit_the_slot_granularity(client, barber, db):
     _set_granularity(db, 30)
 
-    refused = client.post(SERVICES, json={**VALID, "duration_minutes": 45}, headers=admin)
+    refused = client.post(SERVICES, json={**VALID, "duration_minutes": 45}, headers=barber)
     assert refused.status_code == 422
     assert refused.json()["error"]["code"] == "DURATION_NOT_ALIGNED"
     assert refused.json()["error"]["details"]["slot_granularity_minutes"] == 30
     assert db.scalar(select(Service)) is None
 
     assert (
-        client.post(SERVICES, json={**VALID, "duration_minutes": 60}, headers=admin).status_code
+        client.post(SERVICES, json={**VALID, "duration_minutes": 60}, headers=barber).status_code
         == 201
     )
 
@@ -152,17 +152,17 @@ def test_the_page_size_is_capped_at_100(client, db):
     assert client.get(SERVICES, params={"limit": 100}).status_code == 200
 
 
-def test_admin_can_list_inactive_services_too(client, admin, db):
+def test_barber_can_list_inactive_services_too(client, barber, db):
     _service(db, "Haircut")
     _service(db, "Old special", active=False)
 
-    body = client.get(SERVICES, params={"include_inactive": "true"}, headers=admin).json()
+    body = client.get(SERVICES, params={"include_inactive": "true"}, headers=barber).json()
 
     assert [s["name"] for s in body["items"]] == ["Haircut", "Old special"]
     assert body["total"] == 2
 
 
-def test_asking_for_inactive_services_without_being_admin_is_refused(client, customer, db):
+def test_asking_for_inactive_services_without_being_a_barber_is_refused(client, customer, db):
     _service(db, active=False)
     assert client.get(SERVICES, params={"include_inactive": "true"}).status_code == 401
     refused = client.get(SERVICES, params={"include_inactive": "true"}, headers=customer)
@@ -180,15 +180,15 @@ def test_anyone_can_read_an_active_service(client, db):
     assert response.json()["id"] == service.id
 
 
-def test_an_inactive_service_is_404_for_the_public_and_customers_but_not_admins(
-    client, admin, customer, db
+def test_an_inactive_service_is_404_for_the_public_and_customers_but_not_barbers(
+    client, barber, customer, db
 ):
     service = _service(db, active=False)
     url = f"{SERVICES}/{service.id}"
 
     assert client.get(url).status_code == 404
     assert client.get(url, headers=customer).status_code == 404
-    assert client.get(url, headers=admin).status_code == 200
+    assert client.get(url, headers=barber).status_code == 200
 
 
 def test_unknown_service_is_404_in_the_error_envelope(client):
@@ -200,10 +200,10 @@ def test_unknown_service_is_404_in_the_error_envelope(client):
 # --- update ----------------------------------------------------------------
 
 
-def test_admin_updates_only_the_fields_sent(client, admin, db):
+def test_barber_updates_only_the_fields_sent(client, barber, db):
     service = _service(db, minutes=30, price=60000)
 
-    response = client.patch(f"{SERVICES}/{service.id}", json={"price": 70000}, headers=admin)
+    response = client.patch(f"{SERVICES}/{service.id}", json={"price": 70000}, headers=barber)
 
     assert response.status_code == 200
     assert response.json()["price"] == 70000
@@ -211,40 +211,42 @@ def test_admin_updates_only_the_fields_sent(client, admin, db):
     assert response.json()["name"] == "Haircut"
 
 
-def test_description_can_be_cleared_with_null_but_other_fields_cannot(client, admin, db):
+def test_description_can_be_cleared_with_null_but_other_fields_cannot(client, barber, db):
     service = _service(db)
     service.description = "Old text"
     db.flush()
     url = f"{SERVICES}/{service.id}"
 
     assert (
-        client.patch(url, json={"description": None}, headers=admin).json()["description"] is None
+        client.patch(url, json={"description": None}, headers=barber).json()["description"] is None
     )
-    assert client.patch(url, json={"price": None}, headers=admin).status_code == 422
-    assert client.patch(url, json={}, headers=admin).status_code == 422
+    assert client.patch(url, json={"price": None}, headers=barber).status_code == 422
+    assert client.patch(url, json={}, headers=barber).status_code == 422
 
 
-def test_update_validates_like_create(client, admin, db):
+def test_update_validates_like_create(client, barber, db):
     service = _service(db)
     url = f"{SERVICES}/{service.id}"
-    assert client.patch(url, json={"price": -5}, headers=admin).status_code == 422
-    assert client.patch(url, json={"duration_minutes": 0}, headers=admin).status_code == 422
-    assert client.patch(url, json={"name": " "}, headers=admin).status_code == 422
+    assert client.patch(url, json={"price": -5}, headers=barber).status_code == 422
+    assert client.patch(url, json={"duration_minutes": 0}, headers=barber).status_code == 422
+    assert client.patch(url, json={"name": " "}, headers=barber).status_code == 422
 
 
-def test_update_keeps_the_duration_on_the_slot_grid(client, admin, db):
+def test_update_keeps_the_duration_on_the_slot_grid(client, barber, db):
     _set_granularity(db, 30)
     service = _service(db, minutes=30)
 
-    refused = client.patch(f"{SERVICES}/{service.id}", json={"duration_minutes": 45}, headers=admin)
+    refused = client.patch(
+        f"{SERVICES}/{service.id}", json={"duration_minutes": 45}, headers=barber
+    )
 
     assert refused.status_code == 422
     assert refused.json()["error"]["code"] == "DURATION_NOT_ALIGNED"
     assert db.get(Service, service.id).duration_minutes == 30
 
 
-def test_update_unknown_service_is_404(client, admin):
-    assert client.patch(f"{SERVICES}/999999", json={"price": 1}, headers=admin).status_code == 404
+def test_update_unknown_service_is_404(client, barber):
+    assert client.patch(f"{SERVICES}/999999", json={"price": 1}, headers=barber).status_code == 404
 
 
 def test_customer_and_anonymous_cannot_update(client, customer, db):
@@ -258,50 +260,50 @@ def test_customer_and_anonymous_cannot_update(client, customer, db):
 # --- deactivate / activate -------------------------------------------------
 
 
-def test_deactivating_hides_the_service_and_activating_shows_it_again(client, admin, db):
+def test_deactivating_hides_the_service_and_activating_shows_it_again(client, barber, db):
     service = _service(db)
     url = f"{SERVICES}/{service.id}"
 
-    deactivated = client.post(f"{url}/deactivate", headers=admin)
+    deactivated = client.post(f"{url}/deactivate", headers=barber)
     assert deactivated.status_code == 200
     assert deactivated.json()["is_active"] is False
     assert client.get(url).status_code == 404
     assert client.get(SERVICES).json()["items"] == []
 
-    activated = client.post(f"{url}/activate", headers=admin)
+    activated = client.post(f"{url}/activate", headers=barber)
     assert activated.json()["is_active"] is True
     assert client.get(url).status_code == 200
 
 
-def test_repeating_deactivate_or_activate_is_harmless(client, admin, db):
+def test_repeating_deactivate_or_activate_is_harmless(client, barber, db):
     service = _service(db)
     url = f"{SERVICES}/{service.id}"
-    assert client.post(f"{url}/activate", headers=admin).status_code == 200
-    assert client.post(f"{url}/deactivate", headers=admin).status_code == 200
-    assert client.post(f"{url}/deactivate", headers=admin).status_code == 200
+    assert client.post(f"{url}/activate", headers=barber).status_code == 200
+    assert client.post(f"{url}/deactivate", headers=barber).status_code == 200
+    assert client.post(f"{url}/deactivate", headers=barber).status_code == 200
 
 
-def test_activation_and_deactivation_are_admin_only_and_404_for_unknown(
-    client, admin, customer, db
+def test_activation_and_deactivation_are_barber_only_and_404_for_unknown(
+    client, barber, customer, db
 ):
     service = _service(db)
     assert client.post(f"{SERVICES}/{service.id}/deactivate", headers=customer).status_code == 403
     assert client.post(f"{SERVICES}/{service.id}/deactivate").status_code == 401
-    assert client.post(f"{SERVICES}/999999/activate", headers=admin).status_code == 404
+    assert client.post(f"{SERVICES}/999999/activate", headers=barber).status_code == 404
 
 
-def test_activating_a_service_that_no_longer_fits_the_grid_is_refused(client, admin, db):
+def test_activating_a_service_that_no_longer_fits_the_grid_is_refused(client, barber, db):
     service = _service(db, minutes=45, active=False)
     _set_granularity(db, 30)  # changed while the service was inactive
 
-    response = client.post(f"{SERVICES}/{service.id}/activate", headers=admin)
+    response = client.post(f"{SERVICES}/{service.id}/activate", headers=barber)
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "DURATION_NOT_ALIGNED"
     assert db.get(Service, service.id).is_active is False
 
 
-def test_deactivating_or_editing_a_service_keeps_its_bookings_untouched(client, admin, db):
+def test_deactivating_or_editing_a_service_keeps_its_bookings_untouched(client, barber, db):
     service = _service(db, minutes=30, price=60000)
     customer_user = User(email="ali@example.uz", password_hash="x", full_name="Ali")
     provider = Provider(name="Jasur")
@@ -323,10 +325,10 @@ def test_deactivating_or_editing_a_service_keeps_its_bookings_untouched(client, 
     url = f"{SERVICES}/{service.id}"
 
     assert (
-        client.patch(url, json={"price": 99000, "duration_minutes": 60}, headers=admin).status_code
+        client.patch(url, json={"price": 99000, "duration_minutes": 60}, headers=barber).status_code
         == 200
     )
-    assert client.post(f"{url}/deactivate", headers=admin).status_code == 200
+    assert client.post(f"{url}/deactivate", headers=barber).status_code == 200
 
     db.refresh(booking)
     assert booking.status == BookingStatus.CONFIRMED

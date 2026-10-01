@@ -2,11 +2,12 @@
 
 Idempotent: every block first looks for what it would create and skips it if
 it is already there, so running the seed twice leaves the same rows and never
-overwrites edits made in the admin UI (a changed price stays changed).
+overwrites edits made in the barber UI (a changed price stays changed).
 
 Creates business settings (Asia/Tashkent, UZS, 15-minute slots), four
 services, three barbers with different service sets and weekly hours, one
-day off, the admin (from ADMIN_EMAIL / ADMIN_PASSWORD), a demo customer, and
+day off, a login for each barber (the first is BARBER_EMAIL, all share
+BARBER_PASSWORD), a demo customer, and
 four bookings in different statuses with their history events.
 
 The bookings are inserted directly rather than through the booking service:
@@ -134,8 +135,18 @@ def seed_day_off(db: Session, provider: Provider, today: date) -> None:
         db.flush()
 
 
-def seed_user(db: Session, email: str, password: str, full_name: str, role: UserRole) -> User:
-    """Create the user if missing. An existing user is left untouched."""
+def seed_user(
+    db: Session,
+    email: str,
+    password: str,
+    full_name: str,
+    role: UserRole,
+    provider: Provider | None = None,
+) -> User:
+    """Create the user if missing. An existing user is left untouched.
+
+    A barber is given their `provider` (the database requires it).
+    """
     user = db.scalar(select(User).where(func.lower(User.email) == email.lower()))
     if user is None:
         user = User(
@@ -143,10 +154,24 @@ def seed_user(db: Session, email: str, password: str, full_name: str, role: User
             password_hash=hash_password(password),
             full_name=full_name,
             role=role,
+            provider_id=provider.id if provider else None,
         )
         db.add(user)
         db.flush()
     return user
+
+
+def seed_barbers(
+    db: Session, settings: Settings, providers: dict[str, Provider]
+) -> dict[str, User]:
+    """One login per barber. The first is BARBER_EMAIL; the rest are `name@navbat.local`."""
+    barbers = {}
+    for index, (name, provider) in enumerate(providers.items()):
+        email = settings.barber_email if index == 0 else f"{name.lower()}@navbat.local"
+        barbers[name] = seed_user(
+            db, email, settings.barber_password, name, UserRole.BARBER, provider
+        )
+    return barbers
 
 
 def _working_day(weekdays: list[int], start: date, step: int = 1) -> date:
@@ -210,7 +235,7 @@ def seed_bookings(
     db: Session,
     today: date,
     customer: User,
-    admin: User,
+    barbers: dict[str, User],
     providers: dict[str, Provider],
     services: dict[str, Service],
 ) -> None:
@@ -229,8 +254,8 @@ def seed_bookings(
         at=time(10),
         history=[
             (Status.PENDING, customer, None),
-            (Status.CONFIRMED, admin, None),
-            (Status.COMPLETED, admin, None),
+            (Status.CONFIRMED, barbers["Jasur"], None),
+            (Status.COMPLETED, barbers["Jasur"], None),
         ],
     )
     _add_booking(  # upcoming and confirmed
@@ -240,10 +265,10 @@ def seed_bookings(
         service=S["Haircut + beard"],
         day=_working_day(days["Jasur"], today + timedelta(days=1)),
         at=time(11),
-        history=[(Status.PENDING, customer, None), (Status.CONFIRMED, admin, None)],
+        history=[(Status.PENDING, customer, None), (Status.CONFIRMED, barbers["Jasur"], None)],
         notes="Please use the small clipper guard.",
     )
-    _add_booking(  # upcoming, waiting for the admin
+    _add_booking(  # upcoming, waiting for Bekzod
         db,
         customer=customer,
         provider=P["Bekzod"],
@@ -272,11 +297,11 @@ def seed(db: Session, settings: Settings, clock: Clock) -> None:
     services = seed_services(db)
     providers = seed_providers(db, services)
     seed_day_off(db, providers["Bekzod"], today)
-    admin = seed_user(db, settings.admin_email, settings.admin_password, "Admin", UserRole.ADMIN)
+    barbers = seed_barbers(db, settings, providers)
     customer = seed_user(
         db, DEMO_CUSTOMER_EMAIL, DEMO_CUSTOMER_PASSWORD, "Demo Customer", UserRole.CUSTOMER
     )
-    seed_bookings(db, today, customer, admin, providers, services)
+    seed_bookings(db, today, customer, barbers, providers, services)
 
 
 def main() -> None:

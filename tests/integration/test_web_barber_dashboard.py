@@ -1,4 +1,4 @@
-"""The admin dashboard (P9.1): access, stats, and the pending queue's actions.
+"""The barber dashboard (P9.1): access, stats, and the pending queue's actions.
 
 Frozen clock: Thursday 2026-10-01 07:00 UTC, 12:00 in Tashkent (UTC+5).
 Jasur works Thursday and Friday 09:00-12:00 local (3 h each), so this week
@@ -23,6 +23,7 @@ from app.models import (
 from app.models.user import User, UserRole
 from app.services.booking import create_booking, transition
 from app.services.dashboard import get_dashboard
+from tests.support import add_barber
 
 NOW = datetime(2026, 10, 1, 7, tzinfo=UTC)
 TOMORROW_NINE = datetime(2026, 10, 2, 4, 0, tzinfo=UTC)  # Fri 09:00 Tashkent
@@ -66,8 +67,9 @@ def aziza(db) -> User:
 
 
 @pytest.fixture
-def staff(db) -> User:
-    return _user(db, "staff@example.com", UserRole.ADMIN)
+def staff(db, jasur) -> User:
+    """Jasur's own login: the dashboard shows his bookings and hours."""
+    return add_barber(db, "staff@example.com", "Jasur", provider=jasur)
 
 
 def _sign_in(client, user: User) -> None:
@@ -100,23 +102,23 @@ def _post(client, path: str, **data):
 
 
 def test_a_visitor_is_sent_to_log_in_and_back(client):
-    response = client.get("/admin", follow_redirects=False)
+    response = client.get("/barber", follow_redirects=False)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/login?next=%2Fadmin"
+    assert response.headers["location"] == "/login?next=%2Fbarber"
 
 
 def test_a_customer_sees_a_404_not_a_403(client, aziza):
     _sign_in(client, aziza)
 
-    assert client.get("/admin").status_code == 404
+    assert client.get("/barber").status_code == 404
 
 
 def test_a_customer_cannot_confirm_a_booking(client, db, haircut, jasur, aziza):
     booking = create_booking(db, aziza, haircut.id, jasur.id, TOMORROW_NINE, None, NOW)
     _sign_in(client, aziza)
 
-    assert _post(client, f"/admin/bookings/{booking.id}/confirm").status_code == 404
+    assert _post(client, f"/barber/bookings/{booking.id}/confirm").status_code == 404
     db.refresh(booking)
     assert booking.status == BookingStatus.PENDING
 
@@ -138,7 +140,7 @@ def test_stats_count_today_pending_and_the_weeks_utilization(
     _insert(db, aziza, haircut, jasur, TOMORROW_NINE, BookingStatus.PENDING)
     _insert(db, aziza, haircut, jasur, datetime(2026, 10, 5, 4, tzinfo=UTC), BookingStatus.PENDING)
 
-    result = get_dashboard(db, NOW)
+    result = get_dashboard(db, NOW, jasur.id)
 
     assert result.today_count == 1
     assert result.pending_count == 2
@@ -147,8 +149,12 @@ def test_stats_count_today_pending_and_the_weeks_utilization(
     assert result.utilization_percent == 17  # 60 / 360 = 16.7%
 
 
-def test_utilization_is_a_dash_when_nobody_works(db):
-    result = get_dashboard(db, NOW)
+def test_utilization_is_a_dash_when_the_barber_has_no_hours(db):
+    idle = Provider(name="Idle")
+    db.add(idle)
+    db.flush()
+
+    result = get_dashboard(db, NOW, idle.id)
 
     assert result.utilization_percent is None
 
@@ -157,7 +163,7 @@ def test_the_page_shows_the_stats(client, db, haircut, jasur, aziza, staff):
     _insert(db, aziza, haircut, jasur, TOMORROW_NINE, BookingStatus.PENDING)
     _sign_in(client, staff)
 
-    html = client.get("/admin").text
+    html = client.get("/barber").text
 
     assert "Bookings today" in html
     assert "8%" in html
@@ -176,23 +182,23 @@ def test_the_queue_lists_pending_bookings_and_flags_an_expired_one(
     )
     _sign_in(client, staff)
 
-    html = client.get("/admin").text
+    html = client.get("/barber").text
 
     assert "aziza@example.com" in html
     assert html.count("Expired: never confirmed") == 1
     # An expired booking can only be cleared, so it has no Confirm button.
     assert html.count("/confirm") == 1
-    assert f"/admin/bookings/{stale.id}/cancel" in html
+    assert f"/barber/bookings/{stale.id}/cancel" in html
 
 
 def test_confirm_moves_the_booking_to_confirmed(client, db, haircut, jasur, aziza, staff):
     booking = create_booking(db, aziza, haircut.id, jasur.id, TOMORROW_NINE, None, NOW)
     _sign_in(client, staff)
 
-    response = _post(client, f"/admin/bookings/{booking.id}/confirm")
+    response = _post(client, f"/barber/bookings/{booking.id}/confirm")
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/admin"
+    assert response.headers["location"] == "/barber"
     db.refresh(booking)
     assert booking.status == BookingStatus.CONFIRMED
 
@@ -201,7 +207,7 @@ def test_cancel_records_the_reason(client, db, haircut, jasur, aziza, staff):
     booking = create_booking(db, aziza, haircut.id, jasur.id, TOMORROW_NINE, None, NOW)
     _sign_in(client, staff)
 
-    response = _post(client, f"/admin/bookings/{booking.id}/cancel", reason="  Barber is ill ")
+    response = _post(client, f"/barber/bookings/{booking.id}/cancel", reason="  Barber is ill ")
 
     assert response.status_code == 303
     db.refresh(booking)
@@ -216,7 +222,7 @@ def test_clearing_an_expired_pending_needs_no_reason(client, db, haircut, jasur,
     )
     _sign_in(client, staff)
 
-    _post(client, f"/admin/bookings/{stale.id}/cancel")
+    _post(client, f"/barber/bookings/{stale.id}/cancel")
 
     db.refresh(stale)
     assert stale.status == BookingStatus.CANCELLED
@@ -231,7 +237,7 @@ def test_a_refused_action_shows_the_reason_not_an_error_page(
     _sign_in(client, staff)
 
     # Confirmed bookings need a reason to cancel (REASON_REQUIRED, 422).
-    response = _post(client, f"/admin/bookings/{booking.id}/cancel")
+    response = _post(client, f"/barber/bookings/{booking.id}/cancel")
 
     assert response.status_code == 422
     assert "A reason is required" in response.text
@@ -242,4 +248,30 @@ def test_a_refused_action_shows_the_reason_not_an_error_page(
 def test_an_unknown_booking_is_a_404(client, staff):
     _sign_in(client, staff)
 
-    assert _post(client, "/admin/bookings/999999/confirm").status_code == 404
+    assert _post(client, "/barber/bookings/999999/confirm").status_code == 404
+
+
+def test_the_dashboard_counts_only_the_barbers_own_bookings_and_hours(db, haircut, jasur, aziza):
+    """Another barber's bookings, queue and hours are not Jasur's."""
+    other = Provider(name="Aziz")
+    db.add(other)
+    db.flush()
+    db.add(AvailabilityRule(provider_id=other.id, weekday=3, start_time=time(9), end_time=time(12)))
+    bob = _user(db, "bob@example.com")  # a customer cannot be in two chairs at once
+    _insert(db, aziza, haircut, jasur, TOMORROW_NINE, BookingStatus.PENDING)
+    _insert(db, bob, haircut, other, TOMORROW_NINE, BookingStatus.PENDING)
+    _insert(db, bob, haircut, other, datetime(2026, 10, 1, 4, tzinfo=UTC), BookingStatus.CONFIRMED)
+
+    mine = get_dashboard(db, NOW, jasur.id)
+
+    assert mine.pending_count == 1
+    assert mine.today_count == 0
+    assert [row.line.provider_name for row in mine.pending] == ["Jasur"]
+    assert mine.available_minutes == 360  # Jasur's hours only, not Aziz's too
+
+
+def test_a_deactivated_barber_has_no_available_minutes(db, jasur):
+    jasur.is_active = False
+    db.flush()
+
+    assert get_dashboard(db, NOW, jasur.id).available_minutes == 0

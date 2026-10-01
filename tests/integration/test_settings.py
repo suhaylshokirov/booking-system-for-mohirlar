@@ -54,11 +54,11 @@ def test_read_returns_seeded_values(client, db):
 # --- update ----------------------------------------------------------------
 
 
-def test_admin_can_update_some_fields_and_the_rest_are_kept(client, admin):
+def test_barber_can_update_some_fields_and_the_rest_are_kept(client, barber):
     response = client.patch(
         SETTINGS,
         json={"name": "  Fresh Cuts  ", "max_booking_horizon_days": 30, "timezone": "Europe/Paris"},
-        headers=admin,
+        headers=barber,
     )
 
     assert response.status_code == 200
@@ -87,8 +87,8 @@ def test_anonymous_cannot_update_settings(client):
 
 
 @pytest.mark.parametrize("name", ["Mars/Olympus", "Asia", "../etc/passwd", "Tashkent"])
-def test_invalid_timezone_is_422(client, admin, name):
-    response = client.patch(SETTINGS, json={"timezone": name}, headers=admin)
+def test_invalid_timezone_is_422(client, barber, name):
+    response = client.patch(SETTINGS, json={"timezone": name}, headers=barber)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "INVALID_TIMEZONE"
     assert client.get(SETTINGS).json()["timezone"] == "Asia/Tashkent"
@@ -111,8 +111,8 @@ def test_invalid_timezone_is_422(client, admin, name):
         {},
     ],
 )
-def test_out_of_range_values_are_422(client, admin, body):
-    response = client.patch(SETTINGS, json=body, headers=admin)
+def test_out_of_range_values_are_422(client, barber, body):
+    response = client.patch(SETTINGS, json=body, headers=barber)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
@@ -128,18 +128,18 @@ def test_out_of_range_values_are_422(client, admin, body):
         {"cancellation_cutoff_hours": 0},
     ],
 )
-def test_boundary_values_are_accepted(client, admin, body):
-    assert client.patch(SETTINGS, json=body, headers=admin).status_code == 200
+def test_boundary_values_are_accepted(client, barber, body):
+    assert client.patch(SETTINGS, json=body, headers=barber).status_code == 200
 
 
 # --- granularity vs. service durations -------------------------------------
 
 
-def test_granularity_change_is_refused_when_an_active_service_does_not_fit(client, admin, db):
+def test_granularity_change_is_refused_when_an_active_service_does_not_fit(client, barber, db):
     _service(db, 45, name="Haircut")  # fits 15, not 30
     _service(db, 60, name="Beard trim")  # fits both
 
-    response = client.patch(SETTINGS, json={"slot_granularity_minutes": 30}, headers=admin)
+    response = client.patch(SETTINGS, json={"slot_granularity_minutes": 30}, headers=barber)
 
     assert response.status_code == 409
     error = response.json()["error"]
@@ -149,24 +149,24 @@ def test_granularity_change_is_refused_when_an_active_service_does_not_fit(clien
     assert client.get(SETTINGS).json()["slot_granularity_minutes"] == 15  # unchanged
 
 
-def test_granularity_change_is_allowed_when_every_active_service_fits(client, admin, db):
+def test_granularity_change_is_allowed_when_every_active_service_fits(client, barber, db):
     _service(db, 30)
     _service(db, 90, name="Full grooming")
-    response = client.patch(SETTINGS, json={"slot_granularity_minutes": 30}, headers=admin)
+    response = client.patch(SETTINGS, json={"slot_granularity_minutes": 30}, headers=barber)
     assert response.status_code == 200
     assert response.json()["slot_granularity_minutes"] == 30
 
 
-def test_inactive_services_do_not_block_a_granularity_change(client, admin, db):
+def test_inactive_services_do_not_block_a_granularity_change(client, barber, db):
     _service(db, 45, active=False)
-    response = client.patch(SETTINGS, json={"slot_granularity_minutes": 30}, headers=admin)
+    response = client.patch(SETTINGS, json={"slot_granularity_minutes": 30}, headers=barber)
     assert response.status_code == 200
 
 
-def test_a_refused_change_applies_none_of_its_fields(client, admin, db):
+def test_a_refused_change_applies_none_of_its_fields(client, barber, db):
     _service(db, 45)
     response = client.patch(
-        SETTINGS, json={"slot_granularity_minutes": 30, "currency": "USD"}, headers=admin
+        SETTINGS, json={"slot_granularity_minutes": 30, "currency": "USD"}, headers=barber
     )
     assert response.status_code == 409
     assert client.get(SETTINGS).json()["currency"] == "UZS"

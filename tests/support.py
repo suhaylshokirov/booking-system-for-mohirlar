@@ -78,3 +78,35 @@ def truncate_all_tables(engine: Engine) -> None:
         )
         if tables:
             connection.execute(text(f"TRUNCATE {', '.join(tables)} RESTART IDENTITY CASCADE"))
+
+
+def add_barber(db, email: str = "boss@example.com", name: str = "Boss", provider=None):
+    """A barber user and the provider they run (made here unless one is given).
+
+    Flushed, not committed. The database refuses a barber without a provider, so
+    tests that need a barber go through here instead of building a `User` by hand.
+    """
+    from app.core.security import hash_password
+    from app.models import Provider, User, UserRole
+
+    if provider is None:
+        provider = Provider(name=name)
+        db.add(provider)
+        db.flush()
+    user = User(
+        email=email,
+        password_hash=hash_password("x"),
+        full_name=name,
+        role=UserRole.BARBER,
+        provider_id=provider.id,
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
+def bearer(user, clock) -> dict[str, str]:
+    """Bearer headers for an existing `user` (no CSRF needed)."""
+    from app.core.security import create_access_token
+
+    return {"Authorization": f"Bearer {create_access_token(user.id, clock.now())}"}

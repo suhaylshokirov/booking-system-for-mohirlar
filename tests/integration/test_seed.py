@@ -36,23 +36,31 @@ def counts(db) -> dict[str, int]:
 
 
 def test_seeding_twice_leaves_the_same_row_counts(db, frozen_clock):
-    settings = Settings(admin_email="boss@example.uz", admin_password="a-long-admin-password")
+    settings = Settings(barber_email="boss@example.uz", barber_password="a-long-barber-password")
     seed(db, settings, frozen_clock)
     first = counts(db)
 
     seed(db, settings, frozen_clock)
 
     assert counts(db) == first
-    assert first["users"] == 2 and first["bookings"] == 4 and first["services"] == 4
+    # Three barbers and the demo customer.
+    assert first["users"] == 4 and first["bookings"] == 4 and first["services"] == 4
 
 
-def test_seed_creates_the_admin_and_a_demo_customer(db, frozen_clock):
-    settings = Settings(admin_email="Boss@Example.uz", admin_password="a-long-admin-password")
+def test_seed_creates_a_login_for_each_barber_and_a_demo_customer(db, frozen_clock):
+    settings = Settings(barber_email="Boss@Example.uz", barber_password="a-long-barber-password")
     seed(db, settings, frozen_clock)
 
-    admin = db.scalar(select(User).where(User.role == UserRole.ADMIN))
-    assert admin.email == "boss@example.uz"  # stored lower-case
-    assert admin.password_hash.startswith("$argon2")  # never the plain password
+    barbers = list(db.scalars(select(User).where(User.role == UserRole.BARBER).order_by(User.id)))
+    # The first barber signs in as BARBER_EMAIL; each runs their own provider.
+    assert [b.email for b in barbers] == [
+        "boss@example.uz",
+        "bekzod@navbat.local",
+        "dilshod@navbat.local",
+    ]
+    assert barbers[0].password_hash.startswith("$argon2")  # never the plain password
+    names = {b.full_name: db.get(Provider, b.provider_id).name for b in barbers}
+    assert names == {"Jasur": "Jasur", "Bekzod": "Bekzod", "Dilshod": "Dilshod"}
     assert db.scalar(select(User).where(User.email == DEMO_CUSTOMER_EMAIL)) is not None
 
 
@@ -73,7 +81,7 @@ def test_seed_covers_every_booking_status_and_keeps_history(db, frozen_clock):
         assert events[-1].to_status == booking.status
 
 
-def test_rerunning_the_seed_does_not_overwrite_admin_edits(db, frozen_clock):
+def test_rerunning_the_seed_does_not_overwrite_barber_edits(db, frozen_clock):
     settings = Settings()
     seed(db, settings, frozen_clock)
     haircut = db.scalar(select(Service).where(Service.name == "Haircut"))

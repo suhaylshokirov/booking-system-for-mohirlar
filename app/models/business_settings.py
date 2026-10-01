@@ -2,7 +2,7 @@
 
 The single row is enforced by `CHECK (id = 1)` plus the primary key: a second
 row would need a different id, which the CHECK refuses. The booking rules
-(lead time, horizon, cancellation cutoff) live here so the admin can change
+(lead time, horizon, cancellation cutoff) live here so a barber can change
 them without a deploy.
 """
 

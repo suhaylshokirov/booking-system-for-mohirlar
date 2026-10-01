@@ -6,7 +6,7 @@
     POST /me/bookings/{id}/cancel         cancel it: `booking.transition`
 
 Everything here needs a signed-in user (a visitor is sent to log in and back).
-Only the user's own bookings appear, admins included: someone else's booking
+Only the user's own bookings appear, barbers included: someone else's booking
 is the same 404 page as one that does not exist (`get_own_booking`), so ids
 cannot be probed.
 
@@ -55,7 +55,7 @@ class TimelineEntry:
 def describe_event(event: BookingEvent, actor: User | None, viewer: User) -> TimelineEntry:
     """One history row as a sentence a customer can read.
 
-    Staff are "the business", not named: a customer has no need for an admin's
+    Staff are "the business", not named: a customer has no need for a barber's
     name. No actor means the system acted.
     """
     if actor is None:

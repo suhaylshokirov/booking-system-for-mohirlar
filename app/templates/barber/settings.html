@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
-{% set active_nav = "admin" %}
+{% set active_nav = "barber" %}
 
-{% block title %}Settings · Admin · {{ business.name }}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+{% block title %}Settings · Barber · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/barber.css">{% endblock %}
 
 {% block masthead %}
 <header class="masthead">
     <div class="container">
-        <a class="back-link" href="/admin">Admin</a>
+        <a class="back-link" href="/barber">Barber</a>
         <h1 class="sheet-title">Business settings</h1>
         <p class="sheet-sub">How {{ business.name }} works. Existing bookings are never changed by these.</p>
     </div>
@@ -16,9 +16,9 @@
 {% endblock %}
 
 {% block content %}
-{{ ui.admin_nav("settings") }}
+{{ ui.barber_nav("settings") }}
 <section class="auth">
-    <form class="form auth-form" method="post" action="/admin/settings" novalidate data-submit-once>
+    <form class="form auth-form" method="post" action="/barber/settings" novalidate data-submit-once>
         {{ ui.csrf_field(csrf_token) }}
         {{ ui.field("name", "Business name", value=values.name, error=errors.name) }}
         {{ ui.field("timezone", "Timezone", value=values.timezone, error=errors.timezone,

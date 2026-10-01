@@ -6,12 +6,12 @@ guarded UPDATE and writing the history event is `services/booking.py` (P7.2).
 
 Allowed changes (everything else is `InvalidTransition`):
 
-    pending   -> confirmed   admin, before the booking starts
-    pending   -> cancelled   its own customer before it starts, or an admin any time
-                             (an admin cancels expired pendings, P7.7)
+    pending   -> confirmed   the booking's barber, before the booking starts
+    pending   -> cancelled   its own customer before it starts, or the booking's barber
+                             any time (the barber cancels expired pendings, P7.7)
     confirmed -> cancelled   its own customer up to `start - cutoff`;
-                             an admin before it starts, with a reason
-    confirmed -> completed   admin, once `end_at` has passed
+                             the booking's barber before it starts, with a reason
+    confirmed -> completed   the booking's barber, once `end_at` has passed
     cancelled, completed     terminal
 
 Errors, all `AppError`: `InvalidTransition` (409 `INVALID_TRANSITION`),
@@ -48,7 +48,7 @@ def is_stale_pending(booking: "_Booking", now: datetime) -> bool:
     """A pending booking whose start has passed without anyone confirming it.
 
     It can no longer be confirmed and would sit as "pending" forever, so the
-    admin list flags it and an admin cancels it (P7.7). No background job
+    barber's list flags it and the barber cancels it (P7.7). No background job
     does that for them.
     """
     return booking.status == BookingStatus.PENDING and now >= booking.start_at
@@ -66,6 +66,7 @@ def cancellation_cutoff_at(start_at: datetime, cutoff_hours: int) -> datetime:
 class _Booking(Protocol):
     status: BookingStatus
     customer_id: int
+    provider_id: int
     start_at: datetime
     end_at: datetime
 
@@ -73,6 +74,7 @@ class _Booking(Protocol):
 class _Actor(Protocol):
     id: int
     role: UserRole
+    provider_id: int | None
 
 
 class _Settings(Protocol):
@@ -133,8 +135,9 @@ def check_transition(
             {"from": frm.value, "to": to.value},
         )
 
-    is_admin = actor.role == UserRole.ADMIN
-    if not is_admin and not (to == BookingStatus.CANCELLED and actor.id == booking.customer_id):
+    # "Barber" here means this booking's barber: another barber has no say in it.
+    is_barber = actor.role == UserRole.BARBER and actor.provider_id == booking.provider_id
+    if not is_barber and not (to == BookingStatus.CANCELLED and actor.id == booking.customer_id):
         raise InvalidTransition(
             "You are not allowed to do that.", {"from": frm.value, "to": to.value}
         )
@@ -147,8 +150,8 @@ def check_transition(
     elif to == BookingStatus.COMPLETED:
         if now < booking.end_at:
             raise TooEarlyToComplete(booking.end_at)
-    elif is_admin:
-        # Cancelling. Expired pendings may be cleared by an admin; a confirmed
+    elif is_barber:
+        # Cancelling. Expired pendings may be cleared by the barber; a confirmed
         # booking that has started is completed or left alone, not cancelled.
         if frm == BookingStatus.CONFIRMED:
             if started:
@@ -168,8 +171,8 @@ def can_cancel(booking: _Booking, actor: _Actor, now: datetime, settings: _Setti
     """Would `check_transition` let `actor` cancel this booking right now?
 
     For deciding whether to show a Cancel button. It asks the same function
-    that enforces the rule, so the button and the server cannot disagree. An
-    admin's reason requirement is not a "no": it is asked for at cancel time.
+    that enforces the rule, so the button and the server cannot disagree. A
+    barber's reason requirement is not a "no": it is asked for at cancel time.
     """
     try:
         check_transition(booking, BookingStatus.CANCELLED, actor, now, settings, reason="-")

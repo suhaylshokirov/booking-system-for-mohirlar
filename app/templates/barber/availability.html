@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
-{% set active_nav = "admin" %}
+{% set active_nav = "barber" %}
 
-{% block title %}Hours of {{ provider.name }} · Admin · {{ business.name }}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+{% block title %}My hours · Barber · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/barber.css">{% endblock %}
 
 {% block masthead %}
 <header class="masthead">
     <div class="container">
-        <a class="back-link" href="/admin/providers">Providers</a>
-        <h1 class="sheet-title">Hours of {{ provider.name }}</h1>
+        <a class="back-link" href="/barber">Barber</a>
+        <h1 class="sheet-title">My hours</h1>
         <p class="sheet-sub">
             Local times in <span class="mono">{{ business.timezone }}</span>, on a {{ business.slot_granularity_minutes }}-minute grid.
             Changing hours never changes existing bookings.
@@ -19,8 +19,9 @@
 {% endblock %}
 
 {% block content %}
+{{ ui.barber_nav("hours") }}
 {% set tz = business.timezone %}
-{% set action = "/admin/providers/" ~ provider.id ~ "/availability" %}
+{% set action = "/barber/hours" %}
 
 {% if problem %}
 <div class="notice-list"><p class="notice notice--error" role="alert">{{ problem }}</p></div>

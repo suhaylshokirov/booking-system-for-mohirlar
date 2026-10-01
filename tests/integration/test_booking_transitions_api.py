@@ -1,4 +1,4 @@
-"""Cancel / confirm / complete endpoints and the admin list (P7.3).
+"""Cancel / confirm / complete endpoints and the barber list (P7.3).
 
 Frozen clock: 2026-10-01 07:00 UTC. The booking is 2026-10-05 10:00-10:30
 Tashkent (05:00-05:30 UTC). The default cancellation cutoff is 2 hours, so a
@@ -11,6 +11,7 @@ import pytest
 
 from app.core.security import create_access_token, hash_password
 from app.models import AvailabilityRule, Provider, ProviderService, Service, User, UserRole
+from tests.support import add_barber
 
 TEN = "2026-10-05T05:00:00Z"
 ELEVEN = "2026-10-05T06:00:00Z"
@@ -53,8 +54,9 @@ def ali_user(db):
 
 
 @pytest.fixture
-def boss_user(db):
-    return make_user(db, "boss@example.com", UserRole.ADMIN)
+def boss_user(db, setup):
+    """The barber Jasur: the provider every booking in this file is made with."""
+    return add_barber(db, "boss@example.com", "Jasur", provider=setup[1])
 
 
 @pytest.fixture
@@ -90,7 +92,7 @@ def error_code(response) -> str:
 # --- confirm --------------------------------------------------------------
 
 
-def test_admin_confirms_a_pending_booking(client, setup, ali, boss):
+def test_barber_confirms_a_pending_booking(client, setup, ali, boss):
     booking_id = book(client, setup, ali)
 
     response = client.post(f"{BASE}/{booking_id}/confirm", headers=boss)
@@ -192,7 +194,7 @@ def test_changing_the_cutoff_setting_changes_the_deadline(
     assert late.json()["error"]["details"]["cutoff_at"].startswith("2026-10-04T05:00:00")
 
 
-def test_admin_cancelling_a_confirmed_booking_needs_a_reason(client, setup, ali, boss):
+def test_barber_cancelling_a_confirmed_booking_needs_a_reason(client, setup, ali, boss):
     booking_id = book(client, setup, ali)
     client.post(f"{BASE}/{booking_id}/confirm", headers=boss)
 
@@ -218,7 +220,7 @@ def test_a_cancelled_booking_cannot_be_cancelled_again(client, setup, ali):
 # --- complete -------------------------------------------------------------
 
 
-def test_admin_completes_only_after_the_booking_ends(client, setup, ali, boss_user, frozen_clock):
+def test_barber_completes_only_after_the_booking_ends(client, setup, ali, boss_user, frozen_clock):
     booking_id = book(client, setup, ali)
     client.post(f"{BASE}/{booking_id}/confirm", headers=headers(boss_user, frozen_clock))
 
@@ -238,30 +240,59 @@ def test_admin_completes_only_after_the_booking_ends(client, setup, ali, boss_us
 def test_anonymous_is_401_on_every_transition(client):
     for action in ("cancel", "confirm", "complete"):
         assert client.post(f"{BASE}/1/{action}").status_code == 401
-    assert client.get(f"{BASE}/all").status_code == 401
+    assert client.get(f"{BASE}/clients").status_code == 401
 
 
-# --- admin list -----------------------------------------------------------
+# --- barber list -----------------------------------------------------------
 
 
-def test_admin_list_needs_admin(client, ali):
-    response = client.get(f"{BASE}/all", headers=ali)
+def test_barber_list_needs_a_barber(client, ali):
+    response = client.get(f"{BASE}/clients", headers=ali)
     assert response.status_code == 403
     assert error_code(response) == "FORBIDDEN"
 
 
-def test_admin_list_shows_everyones_bookings_soonest_first(client, setup, ali, bob, boss):
+def test_barber_list_shows_their_clients_bookings_soonest_first(client, setup, ali, bob, boss):
     late = book(client, setup, bob, ELEVEN)
     early = book(client, setup, ali, TEN)
 
-    page = client.get(f"{BASE}/all", headers=boss).json()
+    page = client.get(f"{BASE}/clients", headers=boss).json()
 
     assert page["total"] == 2
     assert [b["id"] for b in page["items"]] == [early, late]
 
 
-def test_admin_list_filters(client, db, setup, ali_user, bob, boss, frozen_clock):
-    _, provider = setup
+@pytest.fixture
+def other_barber(db, frozen_clock):
+    """Aziz: a second barber, with his own provider and no bookings."""
+    return add_barber(db, "aziz@example.com", "Aziz")
+
+
+def test_a_barber_sees_only_bookings_made_with_them(client, setup, ali, other_barber, frozen_clock):
+    book(client, setup, ali)  # with Jasur
+
+    theirs = client.get(f"{BASE}/clients", headers=headers(other_barber, frozen_clock)).json()
+
+    assert theirs["total"] == 0
+
+
+def test_another_barber_cannot_see_or_act_on_the_booking(
+    client, setup, ali, other_barber, frozen_clock
+):
+    """Someone else's booking is a 404, like the customer rule: no probing ids."""
+    booking_id = book(client, setup, ali)
+    aziz = headers(other_barber, frozen_clock)
+
+    assert client.get(f"{BASE}/{booking_id}", headers=aziz).status_code == 404
+    assert client.get(f"{BASE}/{booking_id}/history", headers=aziz).status_code == 404
+    assert client.get(f"{BASE}/{booking_id}/ics", headers=aziz).status_code == 404
+    for action in ("confirm", "cancel", "complete"):
+        response = client.post(f"{BASE}/{booking_id}/{action}", headers=aziz)
+        assert (response.status_code, error_code(response)) == (404, "BOOKING_NOT_FOUND")
+    assert client.get(f"{BASE}/{booking_id}", headers=ali).json()["status"] == "pending"
+
+
+def test_barber_list_filters(client, db, setup, ali_user, bob, boss, frozen_clock):
     other_provider = Provider(name="Aziz")
     db.add(other_provider)
     db.flush()
@@ -272,42 +303,43 @@ def test_admin_list_filters(client, db, setup, ali_user, bob, boss, frozen_clock
     next_week = book(client, setup, ali, "2026-10-12T05:00:00Z")
 
     def ids(query: str) -> list[int]:
-        response = client.get(f"{BASE}/all?{query}", headers=boss)
+        response = client.get(f"{BASE}/clients?{query}", headers=boss)
         assert response.status_code == 200, response.text
         return [b["id"] for b in response.json()["items"]]
 
     assert ids("status=confirmed") == [second]
     assert ids(f"customer_id={ali_user.id}") == [first, next_week]
-    assert ids(f"provider_id={provider.id}") == [first, second, next_week]
-    assert ids(f"provider_id={other_provider.id}") == []
+    # There is no provider filter: a barber's list is always their own provider's, and
+    # asking for another one does not widen it.
+    assert ids(f"provider_id={other_provider.id}") == [first, second, next_week]
     # Local days: both Oct 5 bookings start that day in Tashkent, Oct 12 is a week later.
     assert ids("date_from=2026-10-05&date_to=2026-10-05") == [first, second]
     assert ids("date_from=2026-10-06") == [next_week]
     assert ids("date_to=2026-10-11") == [first, second]
 
 
-def test_admin_list_date_filter_uses_the_business_timezone(client, setup, ali, boss):
+def test_barber_list_date_filter_uses_the_business_timezone(client, setup, ali, boss):
     # 05:00 UTC is 10:00 on Oct 5 in Tashkent: it is on the 5th, not the 4th.
     booking_id = book(client, setup, ali, TEN)
 
-    on_5th = client.get(f"{BASE}/all?date_from=2026-10-05&date_to=2026-10-05", headers=boss)
-    on_4th = client.get(f"{BASE}/all?date_to=2026-10-04", headers=boss)
+    on_5th = client.get(f"{BASE}/clients?date_from=2026-10-05&date_to=2026-10-05", headers=boss)
+    on_4th = client.get(f"{BASE}/clients?date_to=2026-10-04", headers=boss)
 
     assert [b["id"] for b in on_5th.json()["items"]] == [booking_id]
     assert on_4th.json()["total"] == 0
 
 
-def test_admin_list_is_paginated(client, setup, ali, bob, boss):
+def test_barber_list_is_paginated(client, setup, ali, bob, boss):
     book(client, setup, ali, TEN)
     book(client, setup, bob, ELEVEN)
 
-    page = client.get(f"{BASE}/all?limit=1&offset=1", headers=boss).json()
+    page = client.get(f"{BASE}/clients?limit=1&offset=1", headers=boss).json()
 
     assert page["total"] == 2
     assert len(page["items"]) == 1
 
 
-def test_my_list_is_still_only_my_own_for_an_admin(client, setup, ali, boss):
+def test_my_list_is_still_only_my_own_for_a_barber(client, setup, ali, boss):
     book(client, setup, ali)
     assert client.get(BASE, headers=boss).json()["total"] == 0
 
@@ -330,12 +362,12 @@ def test_history_lists_create_confirm_cancel_in_order(client, setup, ali, boss, 
         ("confirmed", "cancelled"),
     ]
     assert events[0]["actor"] == {"id": ali_user.id, "role": "customer", "name": "ali@example.com"}
-    assert events[1]["actor"]["role"] == "admin"
+    assert events[1]["actor"]["role"] == "barber"
     assert events[2]["reason"] == "Ill"
     assert events[0]["reason"] is None
 
 
-def test_admin_can_read_any_history(client, setup, ali, boss):
+def test_barber_can_read_the_history_of_their_clients_bookings(client, setup, ali, boss):
     booking_id = book(client, setup, ali)
     assert len(client.get(f"{BASE}/{booking_id}/history", headers=boss).json()) == 1
 
@@ -357,7 +389,7 @@ def test_history_needs_login(client):
 # --- stale pending bookings (P7.7) ----------------------------------------
 
 
-def test_admin_list_flags_a_pending_booking_whose_time_has_passed(
+def test_barber_list_flags_a_pending_booking_whose_time_has_passed(
     client, setup, ali, boss_user, frozen_clock
 ):
     stale = book(client, setup, ali, TEN)
@@ -366,13 +398,13 @@ def test_admin_list_flags_a_pending_booking_whose_time_has_passed(
     client.post(f"{BASE}/{confirmed}/confirm", headers=headers(boss_user, frozen_clock))
 
     move_clock_to(frozen_clock, START + timedelta(days=1))  # the Oct 5 bookings are over
-    page = client.get(f"{BASE}/all", headers=headers(boss_user, frozen_clock)).json()
+    page = client.get(f"{BASE}/clients", headers=headers(boss_user, frozen_clock)).json()
 
     flags = {item["id"]: item["stale_pending"] for item in page["items"]}
     assert flags == {stale: True, confirmed: False, upcoming: False}
 
 
-def test_admin_cancels_a_stale_pending_booking_and_the_reason_is_filled_in(
+def test_barber_cancels_a_stale_pending_booking_and_the_reason_is_filled_in(
     client, setup, ali, boss_user, frozen_clock
 ):
     booking_id = book(client, setup, ali, TEN)
@@ -386,7 +418,7 @@ def test_admin_cancels_a_stale_pending_booking_and_the_reason_is_filled_in(
     assert response.json()["cancel_reason"] == "not confirmed in time"
     history = client.get(f"{BASE}/{booking_id}/history", headers=boss).json()
     assert history[-1]["reason"] == "not confirmed in time"
-    assert history[-1]["actor"]["role"] == "admin"
+    assert history[-1]["actor"]["role"] == "barber"
 
 
 def test_a_stale_pending_booking_cannot_be_confirmed(client, setup, ali, boss_user, frozen_clock):

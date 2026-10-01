@@ -10,7 +10,7 @@ or Cancelled). Double booking is prevented by the database itself, not just by
 application code.
 
 - **Live demo:** _TBD (P11)_
-- **Demo credentials:** _TBD (P11)_ — admin and customer
+- **Demo credentials:** _TBD (P11)_ — barber and customer
 - **CI:** [![CI](https://github.com/suhaylshokirov/booking-system-for-mohirlar/actions/workflows/ci.yml/badge.svg)](https://github.com/suhaylshokirov/booking-system-for-mohirlar/actions/workflows/ci.yml)
 
 > Status: in development. Progress is tracked task by task in [`tasks.md`](tasks.md).
@@ -24,7 +24,7 @@ _Captured in P11.3._ Planned shots, in the order a customer meets them:
 3. The slot picker with a time chosen: saffron tile, sticky Continue bar (`/book/{id}`)
 4. "That time was just taken — pick another" after losing a race
 5. The confirm ticket with the cancellation policy (`/book/{id}/confirm`)
-6. The admin dashboard
+6. The barber dashboard
 
 ## Features
 
@@ -50,9 +50,9 @@ implemented once it exists.
 - [ ] Tests (unit, integration, concurrency)
 - [ ] API documentation (Swagger + guide)
 - [ ] Docker
-- [ ] Admin dashboard
+- [ ] Barber dashboard (each barber's own bookings, hours and queue)
 - [x] Timezone support (business timezone; UTC storage; local time and offset in API and pages)
-- [ ] Cancellation policy: customers can cancel a confirmed booking until a cutoff (default 2 hours before it starts, set in business settings); admins are exempt but must give a reason
+- [ ] Cancellation policy: customers can cancel a confirmed booking until a cutoff (default 2 hours before it starts, set in business settings); the barber is exempt but must give a reason
 - [x] Calendar integration (`.ics`)
 - [x] Email notification (pluggable notifier; messages go to a transactional outbox, no SMTP yet: ADR 0009)
 
@@ -85,37 +85,39 @@ curl http://localhost:8000/api/v1/health     # {"status":"ok","database":"ok"}
 
 `python -m scripts.seed` fills the database with a demo barbershop: settings
 (Asia/Tashkent, UZS, 15-minute slots), four services, three barbers with
-different service sets and weekly hours (one has a day off next week), the
-admin, a demo customer and four bookings covering every status. Dates are
-relative to today. It is idempotent: run it as often as you like; it never
-duplicates rows and never overwrites what you changed in the admin UI. Docker
+different service sets and weekly hours (one has a day off next week), a login
+for each barber, a demo customer and four bookings covering every status. Dates
+are relative to today. It is idempotent: run it as often as you like; it never
+duplicates rows and never overwrites what you changed in the barber UI. Docker
 Compose runs it on start while `SEED_DEMO_DATA=true`.
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | `ADMIN_EMAIL` (`admin@navbat.local`) | `ADMIN_PASSWORD` (default `change-me-admin-password`) |
+| Barber (Jasur) | `BARBER_EMAIL` (`jasur@navbat.local`) | `BARBER_PASSWORD` (default `change-me-barber-password`) |
+| Barber (Bekzod, Dilshod) | `bekzod@navbat.local`, `dilshod@navbat.local` | the same `BARBER_PASSWORD` |
 | Customer | `demo@navbat.local` | `demo-customer-password` |
 
-Outside production, the sign-in page also has an **Open the admin panel (demo)** button that signs in as that admin and opens `/admin`; in production it does not exist. The demo passwords are public on purpose and are not secrets. Log in
+Outside production, the sign-in page also has an **Open the barber dashboard (demo)** button that signs in as Jasur and opens `/barber`; in production it does not exist. The demo passwords are public on purpose and are not secrets. Log in
 with either through `POST /api/v1/auth/login` (see [`docs/api.md`](docs/api.md)).
 
-### Create the first admin
+### Create a barber
 
-There is no endpoint that makes an admin (registration always creates a
-customer). Create one from the command line:
+There is no administrator: the barbers run the shop (ADR 0010). A barber is a
+login together with the provider record customers book, created from the command
+line (registration always creates a customer; there is no endpoint for this):
 
 ```bash
-python -m scripts.create_admin --email owner@example.com --password 'a long passphrase'
-# or take both from ADMIN_EMAIL / ADMIN_PASSWORD (preferred on a shared machine:
+python -m scripts.create_barber --email jasur@example.com --password 'a long passphrase' --name Jasur
+# or take email and password from BARBER_EMAIL / BARBER_PASSWORD (preferred on a shared machine:
 # command-line arguments are visible in `ps` and shell history)
-python -m scripts.create_admin
+python -m scripts.create_barber
 # inside Docker:
-docker compose exec app python -m scripts.create_admin --email ... --password ...
+docker compose exec app python -m scripts.create_barber --email ... --password ... --name ...
 ```
 
 It is safe to run again: an existing account with that email (any letter case)
-is promoted to admin, reactivated and given that password; nothing is
-duplicated. The email and password must pass the same rules as registration,
+is promoted to barber (and given a provider record if it has none),
+reactivated and given that password; nothing is duplicated. The email and password must pass the same rules as registration,
 and in production the placeholder password from `.env.example` is refused.
 
 ## Local development
@@ -178,8 +180,8 @@ which must be replaced in production.
 | `JWT_EXPIRE_MINUTES` | `720` | Lifetime of a login token. |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | `5` | Failed logins allowed per (IP, email) per window. |
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `300` | Length of that window. |
-| `ADMIN_EMAIL` | `admin@navbat.local` | Email of the first admin (`scripts/create_admin.py`, seed). |
-| `ADMIN_PASSWORD` | placeholder | **Secret.** Password of the first admin. |
+| `BARBER_EMAIL` | `jasur@navbat.local` | Email of the first barber (`scripts/create_barber.py`; the seed's first barber and the demo button). |
+| `BARBER_PASSWORD` | placeholder | **Secret.** Password of the first barber (the seed gives every demo barber this password). |
 | `SEED_DEMO_DATA` | `false` (`true` in `docker-compose.yml`) | Run the seed script on container start. Safe to leave on; see below. |
 
 ## Architecture in brief

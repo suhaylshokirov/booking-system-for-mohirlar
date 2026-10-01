@@ -5,7 +5,7 @@
 ## Context
 
 Navbat needs a browser UI for customers (pick a service, see free slots, book,
-see history) and for the admin (services, providers, availability, bookings).
+see history) and for barbers (services, profile, hours, bookings).
 The graded core is the backend: the booking rules, the double-booking
 guarantee, and the API. The UI has to be usable and pleasant, work without
 JavaScript (CLAUDE.md rule 13), and never become a second place where

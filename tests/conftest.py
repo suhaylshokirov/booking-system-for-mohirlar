@@ -23,6 +23,7 @@ from app.core.db import get_db
 from app.core.rate_limit import InMemoryLoginLimiter
 from app.core.security import create_access_token, hash_password
 from app.main import create_app
+from app.models.provider import Provider
 from app.models.user import User, UserRole
 from tests.support import build_schema, ensure_test_database_is_separate, truncate_all_tables
 
@@ -95,26 +96,45 @@ def client(db: Session, frozen_clock: FrozenClock) -> Iterator[TestClient]:
         yield test_client
 
 
-def _auth_headers(db: Session, clock: FrozenClock, role: UserRole) -> dict[str, str]:
-    """Bearer headers for a new user of `role` (Bearer needs no CSRF token)."""
+class AuthHeaders(dict):
+    """Request headers that authenticate as `user`; for a barber, also their `provider`."""
+
+    user: User
+    provider: Provider | None = None
+
+
+def _auth_headers(db: Session, clock: FrozenClock, role: UserRole) -> AuthHeaders:
+    """Bearer headers for a new user of `role` (Bearer needs no CSRF token).
+
+    A barber comes with the provider record they log in as: the database
+    requires one (`ck_users_barber_has_provider`).
+    """
+    provider = None
+    if role == UserRole.BARBER:
+        provider = Provider(name="Barber")
+        db.add(provider)
+        db.flush()
     user = User(
         email=f"{role.value}@example.com",
         password_hash=hash_password("irrelevant"),
         full_name="Test User",
         role=role,
+        provider_id=provider.id if provider else None,
     )
     db.add(user)
     db.flush()
-    return {"Authorization": f"Bearer {create_access_token(user.id, clock.now())}"}
+    headers = AuthHeaders(Authorization=f"Bearer {create_access_token(user.id, clock.now())}")
+    headers.user, headers.provider = user, provider
+    return headers
 
 
 @pytest.fixture
-def admin(db: Session, frozen_clock: FrozenClock) -> dict[str, str]:
-    """Request headers that authenticate as an administrator."""
-    return _auth_headers(db, frozen_clock, UserRole.ADMIN)
+def barber(db: Session, frozen_clock: FrozenClock) -> AuthHeaders:
+    """Request headers that authenticate as a barber; `.provider` is the one they run."""
+    return _auth_headers(db, frozen_clock, UserRole.BARBER)
 
 
 @pytest.fixture
-def customer(db: Session, frozen_clock: FrozenClock) -> dict[str, str]:
+def customer(db: Session, frozen_clock: FrozenClock) -> AuthHeaders:
     """Request headers that authenticate as a customer."""
     return _auth_headers(db, frozen_clock, UserRole.CUSTOMER)

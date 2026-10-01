@@ -18,7 +18,7 @@ is not quietly replaced by the cookie. Tokens last `JWT_EXPIRE_MINUTES`
 account locks it out immediately.
 
 ```bash
-# 1. Create an account (always a customer; admins come from the create-admin script, see the README)
+# 1. Create an account (always a customer; barbers come from the create-barber script, see the README)
 curl -X POST localhost:8000/api/v1/auth/register -H 'Content-Type: application/json' \
   -d '{"email": "aziza@example.com", "password": "a long passphrase", "full_name": "Aziza Karimova"}'
 
@@ -76,13 +76,14 @@ failure leaves the window. Details:
 **Who may call what.** Every endpoint is one of three kinds, and the status
 codes are consistent:
 
-| Kind | Anonymous | Logged-in customer | Admin |
+| Kind | Anonymous | Logged-in customer | Barber (a user who runs a provider) |
 |---|---|---|---|
 | Public | works | works | works |
 | Customer (needs an account) | `401 UNAUTHENTICATED` | works | works |
-| Admin | `401 UNAUTHENTICATED` | `403 FORBIDDEN` | works |
+| Barber | `401 UNAUTHENTICATED` | `403 FORBIDDEN` | works |
+| Own provider (hours, profile) | `401 UNAUTHENTICATED` | `403 FORBIDDEN` | works for their own provider; `403 FORBIDDEN` for another barber's |
 
-An anonymous call to an admin endpoint is a 401 (log in), not a 403. A public
+An anonymous call to a barber endpoint is a 401 (log in), not a 403. A public
 endpoint that adapts to who is looking (for example, showing "your bookings")
 treats an expired or invalid session as anonymous instead of failing. Roles are
 read from the database on every request, so promoting, demoting or deactivating
@@ -105,7 +106,7 @@ The business's timezone, currency and booking rules live in one row.
 | Endpoint | Who | Success | Notes |
 |---|---|---|---|
 | `GET /settings` | public | 200 settings | `name`, `timezone`, `currency`, `slot_granularity_minutes`, `min_lead_time_minutes`, `max_booking_horizon_days`, `cancellation_cutoff_hours`, `updated_at`. Clients need these to show dates and slots, and none is secret. A database that was migrated but never seeded gets the default row on first read. |
-| `PATCH /settings` | admin | 200 settings | Partial: send only the fields to change; an empty body or a `null` is `422 VALIDATION_ERROR`. |
+| `PATCH /settings` | barber | 200 settings | Partial: send only the fields to change; an empty body or a `null` is `422 VALIDATION_ERROR`. |
 
 Limits on `PATCH`: `timezone` must be an IANA name (`422 INVALID_TIMEZONE`);
 `slot_granularity_minutes` one of 5, 10, 15, 20, 30, 60; `min_lead_time_minutes`
@@ -120,7 +121,7 @@ are never touched by a settings change.
 
 ```bash
 curl localhost:8000/api/v1/settings
-curl -X PATCH localhost:8000/api/v1/settings -H "Authorization: Bearer $ADMIN_TOKEN" \
+curl -X PATCH localhost:8000/api/v1/settings -H "Authorization: Bearer $BARBER_TOKEN" \
   -H 'Content-Type: application/json' -d '{"max_booking_horizon_days": 30}'
 ```
 
@@ -130,12 +131,12 @@ are rejected), durations are whole minutes.
 
 | Endpoint | Who | Success | Notes |
 |---|---|---|---|
-| `GET /services` | public | 200 page | Active services, alphabetical. `include_inactive=true` is admin-only: anonymous gets `401`, a customer `403` (refused, not quietly ignored, so nobody mistakes a filtered list for a full one). |
-| `GET /services/{id}` | public | 200 service | An inactive service is `404` for everyone but admins. |
-| `POST /services` | admin | 201 service | See limits below. |
-| `PATCH /services/{id}` | admin | 200 service | Partial. `description: null` clears it; other fields cannot be null; an empty body is `422`. |
-| `POST /services/{id}/deactivate` | admin | 200 service | Hides it from customers. No hard delete exists. Repeating it is a no-op. |
-| `POST /services/{id}/activate` | admin | 200 service | `422 DURATION_NOT_ALIGNED` if the slot granularity changed while it was inactive and it no longer fits. |
+| `GET /services` | public | 200 page | Active services, alphabetical. `include_inactive=true` is barber-only: anonymous gets `401`, a customer `403` (refused, not quietly ignored, so nobody mistakes a filtered list for a full one). |
+| `GET /services/{id}` | public | 200 service | An inactive service is `404` for everyone but barbers. |
+| `POST /services` | barber | 201 service | See limits below. |
+| `PATCH /services/{id}` | barber | 200 service | Partial. `description: null` clears it; other fields cannot be null; an empty body is `422`. |
+| `POST /services/{id}/deactivate` | barber | 200 service | Hides it from customers. No hard delete exists. Repeating it is a no-op. |
+| `POST /services/{id}/activate` | barber | 200 service | `422 DURATION_NOT_ALIGNED` if the slot granularity changed while it was inactive and it no longer fits. |
 
 Limits: `name` 1–100 characters and `description` up to 1000, both trimmed (a blank
 description becomes `null`); `duration_minutes` 1–480 and a multiple of the
@@ -146,35 +147,37 @@ Editing or deactivating a service never changes existing bookings: each keeps
 the price and duration it was made with.
 
 ```bash
-curl -X POST localhost:8000/api/v1/services -H "Authorization: Bearer $ADMIN_TOKEN" \
+curl -X POST localhost:8000/api/v1/services -H "Authorization: Bearer $BARBER_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"name": "Haircut", "description": "Wash and cut.", "duration_minutes": 30, "price": 60000}'
 curl 'localhost:8000/api/v1/services?limit=10&offset=0'
 ```
 
 ## Providers
-The staff customers book with. Providers are records the admin manages; they
-have no login.
+The barbers customers book with. A provider is a barber's public record: it exists
+because a barber account was created for them (`scripts/create_barber.py`, ADR
+0010), so there is **no** `POST /providers`. Each barber manages only their own:
+`PATCH`, `deactivate`, `activate` and `PUT .../services` answer `403 FORBIDDEN` for
+another barber's provider id (or an unknown one) and for customers.
 
 | Endpoint | Who | Success | Notes |
 |---|---|---|---|
-| `GET /providers` | public | 200 page | Active providers, alphabetical, each with the services they offer. `?service_id=` keeps only providers who offer that service (an unknown or inactive service matches nobody). `include_inactive=true` is admin-only (`401` anonymous, `403` customer). |
-| `GET /providers/{id}` | public | 200 provider | Includes `services`. An inactive provider is `404` for everyone but admins. |
-| `POST /providers` | admin | 201 provider | `name` 1–100 and `bio` up to 1000 characters, trimmed (a blank bio becomes `null`). The new provider offers nothing until you `PUT` their services. |
-| `PATCH /providers/{id}` | admin | 200 provider | Partial. `bio: null` clears it; `name` cannot be null; an empty body is `422`. |
-| `POST /providers/{id}/deactivate` | admin | 200 provider | Hides them from customers. No hard delete exists. Repeating it is a no-op. |
-| `POST /providers/{id}/activate` | admin | 200 provider | |
-| `PUT /providers/{id}/services` | admin | 200 provider | Body `{"service_ids": [1, 2]}` **replaces** the whole set; `[]` means "offers nothing"; repeated ids count once. Any id that is not an existing, active service is `422 UNKNOWN_SERVICE` (`details.service_ids` lists them) and nothing is changed. |
+| `GET /providers` | public | 200 page | Active providers, alphabetical, each with the services they offer. `?service_id=` keeps only providers who offer that service (an unknown or inactive service matches nobody). `include_inactive=true` is barber-only (`401` anonymous, `403` customer). |
+| `GET /providers/{id}` | public | 200 provider | Includes `services`. An inactive provider is `404` for everyone but barbers. |
+| `PATCH /providers/{id}` | that barber | 200 provider | Partial. `bio: null` clears it; `name` cannot be null; an empty body is `422`. |
+| `POST /providers/{id}/deactivate` | that barber | 200 provider | Hides them from customers. No hard delete exists. Repeating it is a no-op. |
+| `POST /providers/{id}/activate` | that barber | 200 provider | |
+| `PUT /providers/{id}/services` | that barber | 200 provider | Body `{"service_ids": [1, 2]}` **replaces** the whole set; `[]` means "offers nothing"; repeated ids count once. Any id that is not an existing, active service is `422 UNKNOWN_SERVICE` (`details.service_ids` lists them) and nothing is changed. |
 
-Customers only ever see **active** services inside a provider; the admin also
+Customers only ever see **active** services inside a provider; the barber also
 sees inactive ones (with `is_active: false`), so a link to a retired service
 can be found and removed. Deactivating a provider or changing what they offer
 never touches bookings that already exist.
 
 ```bash
-curl -X POST localhost:8000/api/v1/providers -H "Authorization: Bearer $ADMIN_TOKEN" \
+curl -X POST localhost:8000/api/v1/providers -H "Authorization: Bearer $BARBER_TOKEN" \
   -H 'Content-Type: application/json' -d '{"name": "Jasur", "bio": "Classic cuts."}'
-curl -X PUT localhost:8000/api/v1/providers/1/services -H "Authorization: Bearer $ADMIN_TOKEN" \
+curl -X PUT localhost:8000/api/v1/providers/1/services -H "Authorization: Bearer $BARBER_TOKEN" \
   -H 'Content-Type: application/json' -d '{"service_ids": [1, 2]}'
 curl 'localhost:8000/api/v1/providers?service_id=1'
 ```
@@ -186,10 +189,10 @@ Days off and custom hours are exceptions (below); bookings that stop fitting aft
 
 | Endpoint | Who | Success | Notes |
 |---|---|---|---|
-| `GET /providers/{id}/availability/rules` | public | 200 list | Monday first, earliest window first. An inactive provider is `404` for everyone but admins. |
-| `POST /providers/{id}/availability/rules` | admin | 201 rule + `details.conflicts` | Body `{"weekday": 0, "start_time": "09:00", "end_time": "18:00"}`. |
-| `PATCH /providers/{id}/availability/rules/{rule_id}` | admin | 200 rule + `details.conflicts` | Partial; the result is validated as a whole. A rule id that belongs to another provider is `404`. |
-| `DELETE /providers/{id}/availability/rules/{rule_id}` | admin | 200 `{id, details}` | A hard delete (nothing references a rule). Bookings are never touched; `details.conflicts` lists the ones that no longer fit. |
+| `GET /providers/{id}/availability/rules` | public | 200 list | Monday first, earliest window first. An inactive provider is `404` for everyone but barbers. |
+| `POST /providers/{id}/availability/rules` | that barber | 201 rule + `details.conflicts` | Body `{"weekday": 0, "start_time": "09:00", "end_time": "18:00"}`. |
+| `PATCH /providers/{id}/availability/rules/{rule_id}` | that barber | 200 rule + `details.conflicts` | Partial; the result is validated as a whole. A rule id that belongs to another provider is `404`. |
+| `DELETE /providers/{id}/availability/rules/{rule_id}` | that barber | 200 `{id, details}` | A hard delete (nothing references a rule). Bookings are never touched; `details.conflicts` lists the ones that no longer fit. |
 
 Rules: `start_time`/`end_time` are whole minutes with no offset, `end_time` is
 later than `start_time` (a window cannot cross midnight, and `24:00` does not
@@ -200,7 +203,7 @@ starts), so a lunch break is two rules.
 
 ```bash
 curl -X POST localhost:8000/api/v1/providers/1/availability/rules \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $BARBER_TOKEN" -H 'Content-Type: application/json' \
   -d '{"weekday": 0, "start_time": "09:00", "end_time": "13:00"}'
 curl localhost:8000/api/v1/providers/1/availability/rules
 ```
@@ -212,10 +215,10 @@ only that window (the weekly rules for the date are ignored, not merged).
 
 | Endpoint | Who | Success | Notes |
 |---|---|---|---|
-| `GET /providers/{id}/availability/exceptions` | admin | 200 list | Earliest date first, past dates included. Admin-only: a `reason` such as "sick leave" is not for customers, who only see the resulting slots. |
-| `POST /providers/{id}/availability/exceptions` | admin | 201 exception + `details.conflicts` | Day off: `{"date": "2026-10-12", "reason": "Public holiday"}`. Custom hours: add `start_time` and `end_time`. |
-| `PATCH /providers/{id}/availability/exceptions/{exception_id}` | admin | 200 exception + `details.conflicts` | Partial, validated as a whole. Here `null` means something: `{"start_time": null, "end_time": null}` turns the date into a day off; `reason: null` clears it. `date` cannot be null. |
-| `DELETE /providers/{id}/availability/exceptions/{exception_id}` | admin | 200 `{id, details}` | The weekly rules apply to that date again. Allowed for past dates too. |
+| `GET /providers/{id}/availability/exceptions` | that barber | 200 list | Earliest date first, past dates included. Barber-only: a `reason` such as "sick leave" is not for customers, who only see the resulting slots. |
+| `POST /providers/{id}/availability/exceptions` | that barber | 201 exception + `details.conflicts` | Day off: `{"date": "2026-10-12", "reason": "Public holiday"}`. Custom hours: add `start_time` and `end_time`. |
+| `PATCH /providers/{id}/availability/exceptions/{exception_id}` | that barber | 200 exception + `details.conflicts` | Partial, validated as a whole. Here `null` means something: `{"start_time": null, "end_time": null}` turns the date into a day off; `reason: null` clears it. `date` cannot be null. |
+| `DELETE /providers/{id}/availability/exceptions/{exception_id}` | that barber | 200 `{id, details}` | The weekly rules apply to that date again. Allowed for past dates too. |
 
 Rules: one exception per provider per date (`409 AVAILABILITY_EXCEPTION_EXISTS`);
 the date must be **today or later in the business timezone** (`422 DATE_IN_PAST`,
@@ -227,17 +230,17 @@ times are `null`. An exception on a date that already has bookings is allowed an
 
 ```bash
 curl -X POST localhost:8000/api/v1/providers/1/availability/exceptions \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $BARBER_TOKEN" -H 'Content-Type: application/json' \
   -d '{"date": "2026-10-13", "start_time": "12:00", "end_time": "16:00"}'
 ```
 
 ### Conflicts: what no longer fits
 _P4.4._ Editing availability **never modifies, cancels or moves a booking**. Instead
-the admin is told which future bookings now fall outside the provider's hours.
+the barber is told which future bookings now fall outside the provider's hours.
 
 | Endpoint | Who | Success | Notes |
 |---|---|---|---|
-| `GET /providers/{id}/availability/conflicts` | admin | 200 list | Pending and confirmed bookings that have not started yet and are not fully inside a working window of their **local** date (the exception for that date if there is one, else the weekly rules). Earliest first. |
+| `GET /providers/{id}/availability/conflicts` | that barber | 200 list | Pending and confirmed bookings that have not started yet and are not fully inside a working window of their **local** date (the exception for that date if there is one, else the weekly rules). Earliest first. |
 
 Every rule or exception write (`POST`, `PATCH`, `DELETE`) also returns the same
 list as `details.conflicts`. It is a **warning, not an error**: the status is
@@ -327,15 +330,15 @@ curl -X POST localhost:8000/api/v1/bookings \
 `GET /bookings?scope=upcoming|past&status=pending&limit=20&offset=0` lists
 your own bookings (paginated). `upcoming` means not over yet, soonest first;
 `past` is latest first. `GET /bookings/{id}` reads one; someone else's booking
-is `404 BOOKING_NOT_FOUND`, exactly like one that does not exist. Admins can
-read any booking by id.
+is `404 BOOKING_NOT_FOUND`, exactly like one that does not exist. A barber can
+also read the bookings made with them (and no other barber's: those are `404`).
 
 **Step: confirm or cancel.** Status changes are separate calls:
 
 ```bash
-# admin confirms
-curl -X POST localhost:8000/api/v1/bookings/7/confirm -H "Authorization: Bearer $ADMIN_TOKEN"
-# the customer (or an admin) cancels; the body is optional
+# barber confirms
+curl -X POST localhost:8000/api/v1/bookings/7/confirm -H "Authorization: Bearer $BARBER_TOKEN"
+# the customer (or the booking's barber) cancels; the body is optional
 curl -X POST localhost:8000/api/v1/bookings/7/cancel \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"reason": "Feeling unwell."}'
@@ -346,18 +349,18 @@ Each returns the updated booking. Who may do what, and when (full table in
 
 | Call | Who | Errors |
 |---|---|---|
-| `POST /bookings/{id}/confirm` | admin, before it starts | `403 FORBIDDEN` (customer), `409 INVALID_TRANSITION` |
-| `POST /bookings/{id}/cancel` | its customer, or an admin | `409 CANCELLATION_CUTOFF_PASSED` (`details.cutoff_at`), `422 REASON_REQUIRED` (admin, confirmed booking), `409 INVALID_TRANSITION` |
-| `POST /bookings/{id}/complete` | admin, after it ends | `403 FORBIDDEN`, `409 TOO_EARLY_TO_COMPLETE` |
+| `POST /bookings/{id}/confirm` | the booking's barber, before it starts | `403 FORBIDDEN` (customer), `404 BOOKING_NOT_FOUND` (another barber's), `409 INVALID_TRANSITION` |
+| `POST /bookings/{id}/cancel` | its customer, or the booking's barber | `409 CANCELLATION_CUTOFF_PASSED` (`details.cutoff_at`), `422 REASON_REQUIRED` (barber, confirmed booking), `409 INVALID_TRANSITION` |
+| `POST /bookings/{id}/complete` | the booking's barber, after it ends | `403 FORBIDDEN`, `404 BOOKING_NOT_FOUND` (another barber's), `409 TOO_EARLY_TO_COMPLETE` |
 
 - Cancellation policy: a customer may cancel a *confirmed* booking until
   `cancellation_cutoff_hours` before it starts (`GET /settings`, so a client can
   say so up front); a *pending* one until it starts. After that,
-  `409 CANCELLATION_CUTOFF_PASSED` with `details.cutoff_at`. Admins are exempt
+  `409 CANCELLATION_CUTOFF_PASSED` with `details.cutoff_at`. Barbers are exempt
   but must give a reason. Changing the setting applies to existing bookings too.
 - Someone else's booking is `404 BOOKING_NOT_FOUND` on every call.
 - `409 BOOKING_STATE_CHANGED` means another request changed it at the same
-  moment (say, the admin confirmed while the customer cancelled). Reload and
+  moment (say, the barber confirmed while the customer cancelled). Reload and
   look again; exactly one of the two wins (ADR 0008).
 - Cancelling frees the time straight away for other customers.
 
@@ -367,12 +370,12 @@ first (not paginated; a booking has a handful):
 ```json
 [
   {"from_status": null, "to_status": "pending", "actor": {"id": 3, "role": "customer", "name": "Ali"}, "reason": null, "created_at": "2026-10-01T07:00:00Z"},
-  {"from_status": "pending", "to_status": "confirmed", "actor": {"id": 1, "role": "admin", "name": "Owner"}, "reason": null, "created_at": "2026-10-01T09:12:00Z"}
+  {"from_status": "pending", "to_status": "confirmed", "actor": {"id": 1, "role": "barber", "name": "Owner"}, "reason": null, "created_at": "2026-10-01T09:12:00Z"}
 ]
 ```
 
 `actor` is `null` when the system acted. Same visibility as the booking: someone
-else's is `404 BOOKING_NOT_FOUND`; admins can read any.
+else's is `404 BOOKING_NOT_FOUND`; barbers can read any.
 
 **Calendar: `GET /bookings/{id}/ics`** downloads the booking as an RFC 5545
 file (`Content-Type: text/calendar`, `Content-Disposition: attachment;
@@ -409,15 +412,17 @@ visibility as the booking: someone else's is `404 BOOKING_NOT_FOUND`, no token
 is `401`. In the browser the booking page (`/me/bookings/{id}`) has an "Add to
 calendar" link to the same file.
 
-**Admin: `GET /bookings/all`** lists everyone's bookings, soonest start first,
-paginated. Filters: `status`, `provider_id`, `customer_id`, and `date_from` /
-`date_to` (calendar days on the business's clock, both inclusive; a booking
-matches when it *starts* on one of those days). Customers get `403`.
-`GET /bookings` stays "my own bookings" for everyone, admins included.
+**Barber: `GET /bookings/clients`** lists the bookings made with you, soonest
+start first, paginated: your clients' requests and appointments. Another
+barber's bookings never appear (there is no provider filter). Filters: `status`,
+`customer_id`, and `date_from` / `date_to` (calendar days on the business's
+clock, both inclusive; a booking matches when it *starts* on one of those
+days). Customers get `403`. `GET /bookings` stays "my own bookings as a
+customer" for everyone, barbers included.
 
 Each item here also has `stale_pending`: `true` for a booking still `pending`
 after its start time. It can no longer be confirmed; cancel it. With no
-`reason`, an admin's cancel of such a booking records "not confirmed in time".
+`reason`, a barber's cancel of such a booking records "not confirmed in time".
 There is no background job doing this for you.
 
 ## Error envelope
@@ -467,13 +472,13 @@ _One row per code, added by the task that introduces it._
 | `BEYOND_HORIZON` | 422 | Booking: the start is at or past the booking horizon; `details.before` |
 | `OUTSIDE_AVAILABILITY` | 422 | Booking: the provider is not working for the whole service at that time (weekly rules and exceptions applied) |
 | `NOT_ALIGNED` | 422 | Booking: the start is not on the slot grid measured from the window start |
-| `BOOKING_NOT_FOUND` | 404 | No such booking, or it belongs to someone else (admins see any) |
+| `BOOKING_NOT_FOUND` | 404 | No such booking, or it belongs to someone else (a barber sees the ones made with them) |
 | `SLOT_TAKEN` | 409 | Booking: the provider already has a pending or confirmed booking overlapping that time |
 | `CUSTOMER_OVERLAP` | 409 | Booking: you already have a pending or confirmed booking overlapping that time |
 | `DATE_IN_PAST` | 422 | Availability exception: the date is before today in the business timezone; `details.today` |
 | `AVAILABILITY_EXCEPTION_EXISTS` | 409 | Availability exception: the provider already has one for that date; `details.exception_id` |
 | `AVAILABILITY_OVERLAP` | 409 | Availability: the window overlaps another rule of the provider on that weekday; `details.conflicting_rule` |
-| `FORBIDDEN` | 403 | Logged in, but the endpoint needs the admin role (or a generic framework 403) |
+| `FORBIDDEN` | 403 | Logged in, but the endpoint needs the barber role, or it is another barber's profile or hours (or a generic framework 403) |
 | `NOT_FOUND` | 404 | No such route (or, for our own endpoints, no such resource) |
 | `METHOD_NOT_ALLOWED` | 405 | Route exists but not for this HTTP method; `Allow` header lists the valid ones |
 | `CONFLICT` | 409 | Generic framework 409 |

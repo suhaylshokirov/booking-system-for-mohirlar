@@ -14,6 +14,7 @@ from app.api.cookies import ACCESS_COOKIE, CSRF_COOKIE
 from app.core.security import create_access_token, hash_password
 from app.models import AvailabilityRule, Provider, ProviderService, Service, User, UserRole
 from app.services.business_settings import get_business_settings
+from tests.support import add_barber
 
 BOOKINGS = "/api/v1/bookings"
 
@@ -96,11 +97,11 @@ def test_every_booking_endpoint_includes_the_local_fields(
 ):
     created = book(client, setup, ali, frozen_clock, "2026-10-05T07:00:00Z")
     headers = bearer(ali, frozen_clock)
-    staff = bearer(make_user(db, "staff@example.com", UserRole.ADMIN), frozen_clock)
+    staff = bearer(add_barber(db, "staff@example.com", provider=setup[1]), frozen_clock)
 
     read = client.get(f"{BOOKINGS}/{created['id']}", headers=headers).json()
     listed = client.get(BOOKINGS, headers=headers).json()["items"][0]
-    everyone = client.get(f"{BOOKINGS}/all", headers=staff).json()["items"][0]
+    everyone = client.get(f"{BOOKINGS}/clients", headers=staff).json()["items"][0]
     confirmed = client.post(f"{BOOKINGS}/{created['id']}/confirm", headers=staff).json()
     cancelled = client.post(f"{BOOKINGS}/{created['id']}/cancel", headers=headers).json()
 

@@ -37,7 +37,7 @@ class BookingCreate(BaseModel):
 
 
 class CancelRequest(BaseModel):
-    """Optional for a customer or for cancelling a pending booking; an admin
+    """Optional for a customer or for cancelling a pending booking; a barber
     cancelling a confirmed booking must give one (`REASON_REQUIRED`)."""
 
     reason: Annotated[str, StringConstraints(max_length=500)] | None = None
@@ -108,7 +108,7 @@ class BookingEventResponse(BaseModel):
     created_at: dt.datetime
 
 
-class AdminBookingResponse(BookingResponse):
+class ClientBookingResponse(BookingResponse):
     stale_pending: bool = Field(
         description="Still `pending` although its start has passed. Cancel it "
         "(`POST /bookings/{id}/cancel`); it can no longer be confirmed."

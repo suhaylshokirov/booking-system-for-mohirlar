@@ -18,7 +18,7 @@ worker reading the outbox.
 
 Who is told: the customer, on create (request received), confirm and cancel.
 There is no business email in the settings, so the business is not notified;
-the admin sees new bookings on the dashboard.
+the barber sees new requests on their dashboard.
 """
 
 import enum

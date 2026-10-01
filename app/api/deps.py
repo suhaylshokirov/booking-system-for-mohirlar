@@ -4,11 +4,13 @@ A caller proves who they are with a Bearer token (API clients, Swagger) or the
 HttpOnly cookie set at login (the browser). If both are sent, the Bearer
 header wins and is not silently replaced by the cookie when it is bad.
 
-Three levels, used as `CurrentUser`, `OptionalUser` and `AdminUser`:
+Four levels, used as `CurrentUser`, `OptionalUser`, `BarberUser` and `OwnProvider`:
 - `get_current_user`: must be logged in, else 401.
 - `get_optional_user`: logged in or anonymous, never fails because of the
   credentials (for public pages that only *adapt* to a logged-in user).
-- `require_admin`: logged in *and* an admin, else 401 / 403.
+- `require_barber`: logged in *and* a barber, else 401 / 403.
+- `require_own_provider`: a barber acting on the `{provider_id}` in the path, which
+  must be their own provider, else 403.
 """
 
 from functools import lru_cache
@@ -74,35 +76,55 @@ def get_optional_user(
         raise
 
 
-def require_admin(user: Annotated[User, Depends(get_current_user)]) -> User:
-    """The authenticated user, who must be an admin.
+def require_barber(user: Annotated[User, Depends(get_current_user)]) -> User:
+    """The authenticated user, who must be a barber.
 
     The role is read from the database on this request (not from the token), so
-    promoting or demoting someone applies at once.
+    a change of role applies at once.
 
     Raises:
         AppError: the 401s of `get_current_user`; 403 `FORBIDDEN` for a
             logged-in customer.
     """
-    if user.role != UserRole.ADMIN:
-        raise AppError("FORBIDDEN", "This action needs an administrator.", status_code=403)
+    if user.role != UserRole.BARBER:
+        raise AppError("FORBIDDEN", "This action is for barbers.", status_code=403)
     return user
 
 
-def is_admin(user: User | None) -> bool:
-    """For public endpoints that show admins more (inactive items) than others."""
-    return user is not None and user.role == UserRole.ADMIN
+def require_own_provider(
+    provider_id: int, barber: Annotated[User, Depends(require_barber)]
+) -> User:
+    """A barber working on their own provider record (`provider_id` in the path).
+
+    Hours and the profile belong to one barber; another barber's are not theirs
+    to change. Customers and other barbers can still *read* the public provider
+    pages, so this is a 403, not the 404 used for private bookings.
+
+    Raises:
+        AppError: the errors of `require_barber`; 403 `FORBIDDEN` for another
+            barber's provider id (whether or not that provider exists).
+    """
+    if barber.provider_id != provider_id:
+        raise AppError(
+            "FORBIDDEN", "You can only manage your own profile and hours.", status_code=403
+        )
+    return barber
+
+
+def is_barber(user: User | None) -> bool:
+    """For public endpoints that show barbers more (inactive items) than others."""
+    return user is not None and user.role == UserRole.BARBER
 
 
 def include_inactive_allowed(
     user: Annotated[User | None, Depends(get_optional_user)],
     include_inactive: Annotated[
-        bool, Query(description="Admin only: also list deactivated items.")
+        bool, Query(description="Barbers only: also list deactivated items.")
     ] = False,
 ) -> bool:
     """Whether this list request may include deactivated items.
 
-    Asking for them without being an admin is refused rather than quietly
+    Asking for them without being a barber is refused rather than quietly
     ignored, so a client never mistakes a filtered list for a complete one.
 
     Raises:
@@ -113,8 +135,8 @@ def include_inactive_allowed(
         return False
     if user is None:
         raise AppError("UNAUTHENTICATED", "Log in to continue.", status_code=401)
-    if not is_admin(user):
-        raise AppError("FORBIDDEN", "This action needs an administrator.", status_code=403)
+    if not is_barber(user):
+        raise AppError("FORBIDDEN", "This action is for barbers.", status_code=403)
     return True
 
 
@@ -134,6 +156,7 @@ def business_timezone(db: DbSession) -> str:
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
-AdminUser = Annotated[User, Depends(require_admin)]
+BarberUser = Annotated[User, Depends(require_barber)]
+OwnProvider = Annotated[User, Depends(require_own_provider)]
 IncludeInactive = Annotated[bool, Depends(include_inactive_allowed)]
 BusinessTimezone = Annotated[str, Depends(business_timezone)]

@@ -72,18 +72,19 @@
 </div>
 {% endmacro %}
 
-{# The admin area's sections; each admin page passes its own key. #}
-{% macro admin_nav(current) %}
-<nav class="segmented admin-nav" aria-label="Admin sections">
-    <a href="/admin"{% if current == "today" %} aria-current="page"{% endif %}>Today</a>
-    <a href="/admin/bookings"{% if current == "bookings" %} aria-current="page"{% endif %}>Bookings</a>
-    <a href="/admin/services"{% if current == "services" %} aria-current="page"{% endif %}>Services</a>
-    <a href="/admin/providers"{% if current == "providers" %} aria-current="page"{% endif %}>Providers</a>
-    <a href="/admin/settings"{% if current == "settings" %} aria-current="page"{% endif %}>Settings</a>
+{# The barber area's sections; each barber page passes its own key. #}
+{% macro barber_nav(current) %}
+<nav class="segmented barber-nav" aria-label="Barber sections">
+    <a href="/barber"{% if current == "today" %} aria-current="page"{% endif %}>Today</a>
+    <a href="/barber/bookings"{% if current == "bookings" %} aria-current="page"{% endif %}>Bookings</a>
+    <a href="/barber/hours"{% if current == "hours" %} aria-current="page"{% endif %}>My hours</a>
+    <a href="/barber/services"{% if current == "services" %} aria-current="page"{% endif %}>Services</a>
+    <a href="/barber/profile"{% if current == "profile" %} aria-current="page"{% endif %}>My profile</a>
+    <a href="/barber/settings"{% if current == "settings" %} aria-current="page"{% endif %}>Settings</a>
 </nav>
 {% endmacro %}
 
-{# The buttons an admin may press on a booking, by status. They mirror
+{# The buttons a barber may press on a booking, by status. They mirror
    `booking_state` but the server still decides. `next` is the page to come
    back to. A confirmed booking needs a reason to cancel (the field is
    required); a pending one takes an optional reason. #}
@@ -91,19 +92,19 @@
 {% set live = booking.status.value in ("pending", "confirmed") %}
 <div class="row-actions">
     {% if booking.status.value == "pending" and not is_stale %}
-    <form method="post" action="/admin/bookings/{{ booking.id }}/confirm" data-submit-once>
+    <form method="post" action="/barber/bookings/{{ booking.id }}/confirm" data-submit-once>
         {{ csrf_field(csrf_token) }}<input type="hidden" name="next" value="{{ next }}">
         <button type="submit" class="btn btn--commit btn--small" data-busy-label="Confirming…">Confirm</button>
     </form>
     {% endif %}
     {% if booking.status.value == "confirmed" and can_complete %}
-    <form method="post" action="/admin/bookings/{{ booking.id }}/complete" data-submit-once>
+    <form method="post" action="/barber/bookings/{{ booking.id }}/complete" data-submit-once>
         {{ csrf_field(csrf_token) }}<input type="hidden" name="next" value="{{ next }}">
         <button type="submit" class="btn btn--commit btn--small" data-busy-label="Saving…">Mark completed</button>
     </form>
     {% endif %}
     {% if live %}
-    <form method="post" action="/admin/bookings/{{ booking.id }}/cancel" data-submit-once
+    <form method="post" action="/barber/bookings/{{ booking.id }}/cancel" data-submit-once
           data-confirm="Cancel this booking?"
           data-confirm-body="{{ booking.start_at|local_date(tz) }} at {{ booking.start_at|local_time(tz) }}. The customer sees it as cancelled."
           data-confirm-yes="Yes, cancel it" data-confirm-no="No, keep it">

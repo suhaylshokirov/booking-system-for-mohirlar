@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models import AvailabilityRule, Provider
 from app.models.business_settings import BusinessSettings
 from app.services import availability
+from tests.support import add_barber, bearer
 
 MONDAY = {"weekday": 0, "start_time": "09:00", "end_time": "18:00"}
 
@@ -42,9 +43,9 @@ def _rules(db: Session, provider: Provider) -> list[AvailabilityRule]:
 # --- create and list ---------------------------------------------------------
 
 
-def test_admin_creates_a_rule(client, admin, db):
-    provider = _provider(db)
-    response = client.post(_url(provider), json=MONDAY, headers=admin)
+def test_barber_creates_a_rule(client, barber, db):
+    provider = barber.provider
+    response = client.post(_url(provider), json=MONDAY, headers=barber)
 
     assert response.status_code == 201
     body = response.json()
@@ -75,21 +76,22 @@ def test_list_only_shows_that_providers_rules(client, db):
     assert client.get(_url(aziz)).json() == []
 
 
-def test_inactive_provider_rules_are_hidden_from_the_public_but_not_admins(client, admin, db):
+def test_inactive_provider_rules_are_hidden_from_the_public_but_not_barbers(client, barber, db):
     provider = _provider(db, active=False)
     _rule(db, provider)
 
     assert client.get(_url(provider)).status_code == 404
-    assert len(client.get(_url(provider), headers=admin).json()) == 1
+    assert len(client.get(_url(provider), headers=barber).json()) == 1
 
 
-def test_unknown_provider_is_404_everywhere(client, admin):
+def test_unknown_provider_is_404_to_read_and_403_to_write(client, barber):
     url = "/api/v1/providers/999/availability/rules"
     assert client.get(url).status_code == 404
-    assert client.post(url, json=MONDAY, headers=admin).status_code == 404
+    # Writing needs the provider to be the barber's own, so an unknown id is "not yours".
+    assert client.post(url, json=MONDAY, headers=barber).status_code == 403
 
 
-def test_only_admins_can_write(client, customer, db):
+def test_only_barbers_can_write(client, customer, db):
     provider = _provider(db)
     rule = _rule(db, provider)
     for method, url, body in [
@@ -105,12 +107,12 @@ def test_only_admins_can_write(client, customer, db):
 # --- overlap -----------------------------------------------------------------
 
 
-def test_overlapping_rule_is_409_and_names_the_other_rule(client, admin, db):
-    provider = _provider(db)
+def test_overlapping_rule_is_409_and_names_the_other_rule(client, barber, db):
+    provider = barber.provider
     existing = _rule(db, provider, start=(9, 0), end=(12, 0))
 
     response = client.post(
-        _url(provider), json={**MONDAY, "start_time": "11:00", "end_time": "14:00"}, headers=admin
+        _url(provider), json={**MONDAY, "start_time": "11:00", "end_time": "14:00"}, headers=barber
     )
 
     assert response.status_code == 409
@@ -125,38 +127,43 @@ def test_overlapping_rule_is_409_and_names_the_other_rule(client, admin, db):
     [("09:00", "12:00"), ("10:00", "11:00"), ("08:00", "13:00"), ("08:00", "09:15")],
     ids=["identical", "inside", "around", "one-slot-into-the-start"],
 )
-def test_every_shape_of_overlap_is_refused(client, admin, db, start, end):
-    provider = _provider(db)
+def test_every_shape_of_overlap_is_refused(client, barber, db, start, end):
+    provider = barber.provider
     _rule(db, provider, start=(9, 0), end=(12, 0))
     body = {**MONDAY, "start_time": start, "end_time": end}
-    assert client.post(_url(provider), json=body, headers=admin).status_code == 409
+    assert client.post(_url(provider), json=body, headers=barber).status_code == 409
 
 
-def test_adjacent_rules_are_allowed(client, admin, db):
-    provider = _provider(db)
+def test_adjacent_rules_are_allowed(client, barber, db):
+    provider = barber.provider
     _rule(db, provider, start=(9, 0), end=(12, 0))
 
     for window in [("12:00", "18:00"), ("08:00", "09:00")]:
         body = {**MONDAY, "start_time": window[0], "end_time": window[1]}
-        assert client.post(_url(provider), json=body, headers=admin).status_code == 201
+        assert client.post(_url(provider), json=body, headers=barber).status_code == 201
 
 
-def test_same_hours_on_another_weekday_or_provider_do_not_overlap(client, admin, db):
-    jasur, aziz = _provider(db), _provider(db, "Aziz")
+def test_same_hours_on_another_weekday_or_provider_do_not_overlap(client, barber, db, frozen_clock):
+    jasur = barber.provider
+    aziz_user = add_barber(db, "aziz@example.com", "Aziz")
+    aziz = db.get(Provider, aziz_user.provider_id)
     _rule(db, jasur)
 
-    assert client.post(_url(jasur), json={**MONDAY, "weekday": 1}, headers=admin).status_code == 201
-    assert client.post(_url(aziz), json=MONDAY, headers=admin).status_code == 201
+    assert (
+        client.post(_url(jasur), json={**MONDAY, "weekday": 1}, headers=barber).status_code == 201
+    )
+    aziz_headers = bearer(aziz_user, frozen_clock)
+    assert client.post(_url(aziz), json=MONDAY, headers=aziz_headers).status_code == 201
 
 
-def test_database_exclusion_constraint_is_the_backstop(client, admin, db, monkeypatch):
+def test_database_exclusion_constraint_is_the_backstop(client, barber, db, monkeypatch):
     """If the friendly pre-check misses (a race), the constraint still says no, as a 409."""
-    provider = _provider(db)
+    provider = barber.provider
     _rule(db, provider, start=(9, 0), end=(12, 0))
     monkeypatch.setattr(availability, "_find_overlap", lambda *args, **kwargs: None)
 
     response = client.post(
-        _url(provider), json={**MONDAY, "start_time": "10:00", "end_time": "11:00"}, headers=admin
+        _url(provider), json={**MONDAY, "start_time": "10:00", "end_time": "11:00"}, headers=barber
     )
 
     assert response.status_code == 409
@@ -168,10 +175,10 @@ def test_database_exclusion_constraint_is_the_backstop(client, admin, db, monkey
 
 
 @pytest.mark.parametrize("start,end", [("09:10", "18:00"), ("09:00", "17:50"), ("09:07", "18:00")])
-def test_misaligned_times_are_422_with_the_granularity(client, admin, db, start, end):
-    provider = _provider(db)  # default granularity: 15 minutes
+def test_misaligned_times_are_422_with_the_granularity(client, barber, db, start, end):
+    provider = barber.provider  # default granularity: 15 minutes
     response = client.post(
-        _url(provider), json={**MONDAY, "start_time": start, "end_time": end}, headers=admin
+        _url(provider), json={**MONDAY, "start_time": start, "end_time": end}, headers=barber
     )
 
     assert response.status_code == 422
@@ -181,15 +188,17 @@ def test_misaligned_times_are_422_with_the_granularity(client, admin, db, start,
     assert _rules(db, provider) == []
 
 
-def test_alignment_follows_the_configured_granularity(client, admin, db):
-    provider = _provider(db)
+def test_alignment_follows_the_configured_granularity(client, barber, db):
+    provider = barber.provider
     db.execute(
         BusinessSettings.__table__.insert().values(id=1, name="Navbat", slot_granularity_minutes=30)
     )
     body = {**MONDAY, "start_time": "09:15"}
-    assert client.post(_url(provider), json=body, headers=admin).status_code == 422
+    assert client.post(_url(provider), json=body, headers=barber).status_code == 422
     assert (
-        client.post(_url(provider), json={**body, "start_time": "09:30"}, headers=admin).status_code
+        client.post(
+            _url(provider), json={**body, "start_time": "09:30"}, headers=barber
+        ).status_code
         == 201
     )
 
@@ -209,9 +218,9 @@ def test_alignment_follows_the_configured_granularity(client, admin, db):
         {},
     ],
 )
-def test_malformed_input_is_a_validation_error(client, admin, db, body):
-    provider = _provider(db)
-    response = client.post(_url(provider), json=body, headers=admin)
+def test_malformed_input_is_a_validation_error(client, barber, db, body):
+    provider = barber.provider
+    response = client.post(_url(provider), json=body, headers=barber)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
     assert _rules(db, provider) == []
@@ -220,12 +229,12 @@ def test_malformed_input_is_a_validation_error(client, admin, db, body):
 # --- update ------------------------------------------------------------------
 
 
-def test_admin_changes_a_rule(client, admin, db):
-    provider = _provider(db)
+def test_barber_changes_a_rule(client, barber, db):
+    provider = barber.provider
     rule = _rule(db, provider)
 
     response = client.patch(
-        _url(provider, f"/{rule.id}"), json={"end_time": "19:00"}, headers=admin
+        _url(provider, f"/{rule.id}"), json={"end_time": "19:00"}, headers=barber
     )
 
     assert response.status_code == 200
@@ -233,22 +242,22 @@ def test_admin_changes_a_rule(client, admin, db):
     assert response.json()["start_time"] == "09:00:00"
 
 
-def test_a_rule_can_grow_over_its_own_old_hours(client, admin, db):
+def test_a_rule_can_grow_over_its_own_old_hours(client, barber, db):
     """Editing must not count the rule as overlapping itself."""
-    provider = _provider(db)
+    provider = barber.provider
     rule = _rule(db, provider, start=(9, 0), end=(12, 0))
     response = client.patch(
-        _url(provider, f"/{rule.id}"), json={"end_time": "13:00"}, headers=admin
+        _url(provider, f"/{rule.id}"), json={"end_time": "13:00"}, headers=barber
     )
     assert response.status_code == 200
 
 
-def test_moving_a_rule_onto_another_is_refused_and_leaves_it_unchanged(client, admin, db):
-    provider = _provider(db)
+def test_moving_a_rule_onto_another_is_refused_and_leaves_it_unchanged(client, barber, db):
+    provider = barber.provider
     _rule(db, provider, weekday=0, start=(9, 0), end=(12, 0))
     other_day = _rule(db, provider, weekday=1, start=(10, 0), end=(11, 0))
 
-    response = client.patch(_url(provider, f"/{other_day.id}"), json={"weekday": 0}, headers=admin)
+    response = client.patch(_url(provider, f"/{other_day.id}"), json={"weekday": 0}, headers=barber)
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "AVAILABILITY_OVERLAP"
@@ -256,52 +265,67 @@ def test_moving_a_rule_onto_another_is_refused_and_leaves_it_unchanged(client, a
     assert other_day.weekday == 1
 
 
-def test_update_that_leaves_end_before_start_is_422(client, admin, db):
-    provider = _provider(db)
+def test_update_that_leaves_end_before_start_is_422(client, barber, db):
+    provider = barber.provider
     rule = _rule(db, provider, start=(9, 0), end=(18, 0))
 
     response = client.patch(
-        _url(provider, f"/{rule.id}"), json={"end_time": "08:00"}, headers=admin
+        _url(provider, f"/{rule.id}"), json={"end_time": "08:00"}, headers=barber
     )
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "INVALID_TIME_RANGE"
 
 
-def test_update_misaligned_and_empty_bodies_are_422(client, admin, db):
-    provider = _provider(db)
+def test_update_misaligned_and_empty_bodies_are_422(client, barber, db):
+    provider = barber.provider
     rule = _rule(db, provider)
     url = _url(provider, f"/{rule.id}")
 
-    misaligned = client.patch(url, json={"start_time": "09:10"}, headers=admin)
+    misaligned = client.patch(url, json={"start_time": "09:10"}, headers=barber)
     assert misaligned.json()["error"]["code"] == "MISALIGNED_TIME"
     for body in ({}, {"weekday": None}):
-        assert client.patch(url, json=body, headers=admin).status_code == 422
+        assert client.patch(url, json=body, headers=barber).status_code == 422
 
 
-def test_another_providers_rule_id_is_404(client, admin, db):
-    jasur, aziz = _provider(db), _provider(db, "Aziz")
-    rule = _rule(db, jasur)
+def test_another_providers_rule_id_is_404(client, barber, db):
+    mine, aziz = barber.provider, _provider(db, "Aziz")
+    rule = _rule(db, aziz)
 
     assert (
         client.patch(
-            _url(aziz, f"/{rule.id}"), json={"end_time": "17:00"}, headers=admin
+            _url(mine, f"/{rule.id}"), json={"end_time": "17:00"}, headers=barber
         ).status_code
         == 404
     )
-    assert client.delete(_url(aziz, f"/{rule.id}"), headers=admin).status_code == 404
-    assert len(_rules(db, jasur)) == 1
+    assert client.delete(_url(mine, f"/{rule.id}"), headers=barber).status_code == 404
+    assert len(_rules(db, aziz)) == 1
+
+
+def test_a_barber_cannot_change_another_barbers_hours(client, barber, db):
+    """Own hours only: the other barber's provider id is a 403, for every write."""
+    aziz = _provider(db, "Aziz")
+    rule = _rule(db, aziz)
+
+    assert client.post(_url(aziz), json=MONDAY, headers=barber).status_code == 403
+    assert (
+        client.patch(_url(aziz, f"/{rule.id}"), json={"end_time": "17:00"}, headers=barber)
+    ).status_code == 403
+    assert client.delete(_url(aziz, f"/{rule.id}"), headers=barber).status_code == 403
+    body = client.post(_url(aziz), json=MONDAY, headers=barber).json()
+    assert body["error"]["code"] == "FORBIDDEN"
+    assert len(_rules(db, aziz)) == 1
 
 
 # --- delete ------------------------------------------------------------------
 
 
-def test_admin_deletes_a_rule(client, admin, db):
-    provider = _provider(db)
+def test_barber_deletes_a_rule(client, barber, db):
+    provider = barber.provider
     rule = _rule(db, provider)
 
-    response = client.delete(_url(provider, f"/{rule.id}"), headers=admin)
+    response = client.delete(_url(provider, f"/{rule.id}"), headers=barber)
 
     assert response.status_code == 200
     assert _rules(db, provider) == []
-    assert client.delete(_url(provider, f"/{rule.id}"), headers=admin).status_code == 404
+    assert client.delete(_url(provider, f"/{rule.id}"), headers=barber).status_code == 404

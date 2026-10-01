@@ -1,18 +1,21 @@
-"""A provider's working hours in the admin area: weekly rules and one-off exceptions.
+"""A barber's own working hours: weekly rules and one-off exceptions.
 
-    GET  /admin/providers/{id}/availability                      the editor
-    POST /admin/providers/{id}/availability/rules                add a weekly window
-    POST /admin/providers/{id}/availability/rules/{rid}/delete   remove it
-    POST /admin/providers/{id}/availability/exceptions           close a date / give it custom hours
-    POST /admin/providers/{id}/availability/exceptions/{eid}/delete
+    GET  /barber/hours                           the editor
+    POST /barber/hours/rules                     add a weekly window
+    POST /barber/hours/rules/{rid}/delete        remove it
+    POST /barber/hours/exceptions                close a date / give it custom hours
+    POST /barber/hours/exceptions/{eid}/delete
 
-Admin only (`WebAdmin`). Same schemas and `services/availability` functions as
+Barber only (`WebBarber`), and only their own hours: the provider comes from the
+signed-in barber (`user.provider_id`), never from the address, so there is no way
+to open or change another barber's hours from here. Same schemas and
+`services/availability` functions as
 the JSON API, so the rules (slot grid, no overlap on a weekday, no exception in
 the past) exist once. A refused write (422 or 409) shows the editor again with
 the service's message and what was typed kept.
 
 Editing hours never touches bookings. Every time the editor is drawn it lists
-the future bookings that no longer fit (`find_conflicts`), so the admin sees
+the future bookings that no longer fit (`find_conflicts`), so the barber sees
 the damage of a change, and of an earlier one, and can contact those customers
 or cancel the bookings from the bookings list.
 """
@@ -32,7 +35,7 @@ from app.schemas.availability import ExceptionCreate, RuleCreate
 from app.services import availability, provider_catalog
 from app.services.booking import describe_bookings
 from app.services.business_settings import get_business_settings
-from app.web.deps import WebAdmin
+from app.web.deps import WebBarber
 from app.web.templating import render, set_flash
 
 router = APIRouter(include_in_schema=False)
@@ -86,39 +89,32 @@ def _render_editor(
         "exception_values": exception_values or {},
         "step": settings.slot_granularity_minutes * 60,
     }
-    return render(request, "admin/availability.html", context, status_code=status_code)
+    return render(request, "barber/availability.html", context, status_code=status_code)
 
 
-def _done(provider_id: int, flash: str) -> Response:
-    response = RedirectResponse(f"/admin/providers/{provider_id}/availability", status_code=303)
+def _done(flash: str) -> Response:
+    response = RedirectResponse("/barber/hours", status_code=303)
     set_flash(response, flash)
     return response
 
 
-@router.get(
-    "/admin/providers/{provider_id}/availability",
-    response_class=HTMLResponse,
-    name="admin_availability",
-)
-def editor(
-    request: Request, provider_id: int, db: DbSession, clock: ClockDep, admin: WebAdmin
-) -> HTMLResponse:
-    """Raises: 404 `NOT_FOUND`."""
-    return _render_editor(request, db, clock.now(), provider_id)
+@router.get("/barber/hours", response_class=HTMLResponse, name="barber_availability")
+def editor(request: Request, db: DbSession, clock: ClockDep, barber: WebBarber) -> HTMLResponse:
+    return _render_editor(request, db, clock.now(), barber.provider_id)
 
 
-@router.post("/admin/providers/{provider_id}/availability/rules", name="admin_rule_create")
+@router.post("/barber/hours/rules", name="barber_rule_create")
 def add_rule(
     request: Request,
-    provider_id: int,
     db: DbSession,
     clock: ClockDep,
-    admin: WebAdmin,
+    barber: WebBarber,
     weekday: Annotated[str, Form()] = "",
     start_time: Annotated[str, Form()] = "",
     end_time: Annotated[str, Form()] = "",
 ) -> Response:
-    """Raises: 404 `NOT_FOUND`; a refused window is shown again (422, or 409 for an overlap)."""
+    """Raises: nothing; a refused window is shown again (422, or 409 for an overlap)."""
+    provider_id = barber.provider_id
     values = {"weekday": weekday, "start_time": start_time, "end_time": end_time}
 
     def again(problem: str, status_code: int) -> Response:
@@ -142,27 +138,22 @@ def add_rule(
         if error.status_code not in (409, 422):
             raise
         return again(error.message, error.status_code)
-    return _done(provider_id, "rule_added")
+    return _done("rule_added")
 
 
-@router.post(
-    "/admin/providers/{provider_id}/availability/rules/{rule_id}/delete", name="admin_rule_delete"
-)
-def remove_rule(provider_id: int, rule_id: int, db: DbSession, admin: WebAdmin) -> Response:
-    """Raises: 404 `NOT_FOUND`."""
-    availability.delete_rule(db, provider_id, rule_id)
-    return _done(provider_id, "rule_removed")
+@router.post("/barber/hours/rules/{rule_id}/delete", name="barber_rule_delete")
+def remove_rule(rule_id: int, db: DbSession, barber: WebBarber) -> Response:
+    """Raises: 404 `NOT_FOUND` (no such rule among the barber's own)."""
+    availability.delete_rule(db, barber.provider_id, rule_id)
+    return _done("rule_removed")
 
 
-@router.post(
-    "/admin/providers/{provider_id}/availability/exceptions", name="admin_exception_create"
-)
+@router.post("/barber/hours/exceptions", name="barber_exception_create")
 def add_exception(
     request: Request,
-    provider_id: int,
     db: DbSession,
     clock: ClockDep,
-    admin: WebAdmin,
+    barber: WebBarber,
     date: Annotated[str, Form()] = "",
     start_time: Annotated[str, Form()] = "",
     end_time: Annotated[str, Form()] = "",
@@ -170,9 +161,10 @@ def add_exception(
 ) -> Response:
     """No times means a day off.
 
-    Raises: 404 `NOT_FOUND`; a refused exception is shown again (422, or 409 when the
+    Raises: nothing; a refused exception is shown again (422, or 409 when the
     date already has one).
     """
+    provider_id = barber.provider_id
     values = {"date": date, "start_time": start_time, "end_time": end_time, "reason": reason}
 
     def again(problem: str, status_code: int) -> Response:
@@ -202,16 +194,11 @@ def add_exception(
         if error.status_code not in (409, 422):
             raise
         return again(error.message, error.status_code)
-    return _done(provider_id, "exception_added")
+    return _done("exception_added")
 
 
-@router.post(
-    "/admin/providers/{provider_id}/availability/exceptions/{exception_id}/delete",
-    name="admin_exception_delete",
-)
-def remove_exception(
-    provider_id: int, exception_id: int, db: DbSession, admin: WebAdmin
-) -> Response:
-    """Raises: 404 `NOT_FOUND`."""
-    availability.delete_exception(db, provider_id, exception_id)
-    return _done(provider_id, "exception_removed")
+@router.post("/barber/hours/exceptions/{exception_id}/delete", name="barber_exception_delete")
+def remove_exception(exception_id: int, db: DbSession, barber: WebBarber) -> Response:
+    """Raises: 404 `NOT_FOUND` (no such exception among the barber's own)."""
+    availability.delete_exception(db, barber.provider_id, exception_id)
+    return _done("exception_removed")

@@ -18,16 +18,6 @@ def _blank_to_none(value: str | None) -> str | None:
     return value or None
 
 
-class ProviderCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=100)
-    bio: str | None = Field(default=None, max_length=1000)
-
-    # Whitespace is trimmed before the length checks, so a name of only spaces is refused.
-    model_config = ConfigDict(str_strip_whitespace=True, json_schema_extra={"examples": [_EXAMPLE]})
-
-    _blank_bio = field_validator("bio")(_blank_to_none)
-
-
 class ProviderUpdate(BaseModel):
     """A partial update: send only the fields to change.
 

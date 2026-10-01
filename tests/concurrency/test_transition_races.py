@@ -1,6 +1,6 @@
 """Race conditions on booking status changes, with real commits and threads (P7.6).
 
-Admin confirm and customer cancel start from the same `pending` booking. The
+Barber confirm and customer cancel start from the same `pending` booking. The
 guarded `UPDATE ... WHERE status = :expected` (ADR 0008) must let exactly one
 win. A barrier placed *after* each request's rules check forces both to have
 read `pending` before either writes, so only the guard can stop the second one.
@@ -22,10 +22,15 @@ START = "2026-10-05T05:00:00Z"
 BASE = "/api/v1/bookings"
 
 
-def make_admin(committing_db, clock) -> dict[str, str]:
+def make_barber(committing_db, clock, provider_id: int) -> dict[str, str]:
+    """The barber who runs `provider_id`: only they may act on its bookings."""
     with committing_db() as db:
         user = User(
-            email="boss@example.com", password_hash="x", full_name="Boss", role=UserRole.ADMIN
+            email="boss@example.com",
+            password_hash="x",
+            full_name="Boss",
+            role=UserRole.BARBER,
+            provider_id=provider_id,
         )
         db.add(user)
         db.commit()
@@ -76,7 +81,7 @@ def test_concurrent_confirm_and_cancel_exactly_one_wins(
     app, world, committing_db, frozen_clock, monkeypatch
 ):
     customer = world["customer"](1)
-    admin = make_admin(committing_db, frozen_clock)
+    barber = make_barber(committing_db, frozen_clock, world["provider_ids"][0])
     booking_id = create_pending(app, world, customer)
 
     # Both requests finish the rules check on `pending` before either writes.
@@ -92,7 +97,7 @@ def test_concurrent_confirm_and_cancel_exactly_one_wins(
     confirm, cancel = fire_together(
         app,
         [
-            (f"{BASE}/{booking_id}/confirm", admin, None),
+            (f"{BASE}/{booking_id}/confirm", barber, None),
             (f"{BASE}/{booking_id}/cancel", customer, {"reason": "Changed my mind"}),
         ],
     )
@@ -115,7 +120,7 @@ def test_unforced_confirm_and_cancel_never_leave_history_and_status_disagreeing(
 ):
     """No forced interleaving: either order is legal (confirm then cancel is allowed),
     but whatever happens, the last event must be the booking's status."""
-    admin = make_admin(committing_db, frozen_clock)
+    barber = make_barber(committing_db, frozen_clock, world["provider_ids"][0])
     for n in range(6):
         customer = world["customer"](n + 10)
         # One booking per round, on its own 30-minute slot, for a different customer.
@@ -125,7 +130,7 @@ def test_unforced_confirm_and_cancel_never_leave_history_and_status_disagreeing(
         confirm, cancel = fire_together(
             app,
             [
-                (f"{BASE}/{booking_id}/confirm", admin, None),
+                (f"{BASE}/{booking_id}/confirm", barber, None),
                 (f"{BASE}/{booking_id}/cancel", customer, None),
             ],
         )

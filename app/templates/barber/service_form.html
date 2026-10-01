@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
-{% set active_nav = "admin" %}
+{% set active_nav = "barber" %}
 
-{% block title %}{{ "Edit " ~ service.name if service else "New service" }} · Admin · {{ business.name }}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+{% block title %}{{ "Edit " ~ service.name if service else "New service" }} · Barber · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/barber.css">{% endblock %}
 
 {% block masthead %}
 <header class="masthead masthead--compact">
     <div class="container">
-        <a class="back-link" href="/admin/services">Services</a>
+        <a class="back-link" href="/barber/services">Services</a>
         <h1 class="sheet-title">{{ "Edit " ~ service.name if service else "New service" }}</h1>
     </div>
 </header>
@@ -16,7 +16,7 @@
 
 {% block content %}
 <section class="auth">
-    {% set action = "/admin/services/" ~ service.id if service else "/admin/services" %}
+    {% set action = "/barber/services/" ~ service.id if service else "/barber/services" %}
     <form class="form auth-form" method="post" action="{{ action }}" novalidate data-submit-once>
         {{ ui.csrf_field(csrf_token) }}
         {{ ui.field("name", "Name", value=values.name, error=errors.name, autofocus=true) }}

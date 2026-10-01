@@ -1,5 +1,5 @@
-{# The admin bookings table and its pager: the part the live filter swaps
-   (app/web/admin_bookings.py). Also included by the full page. #}
+{# The barber bookings table and its pager: the part the live filter swaps
+   (app/web/barber_bookings.py). Also included by the full page. #}
 {% import "_macros.html" as ui %}
 {% set tz = business.timezone %}
 <p class="section-note" role="status">{{ total }} booking{{ "" if total == 1 else "s" }}</p>
@@ -12,10 +12,10 @@
         {% set booking = row.line.booking %}
         <tr>
             <td>
-                <a href="/admin/bookings/{{ booking.id }}">{{ booking.start_at|local_date(tz) }}</a><br>
+                <a href="/barber/bookings/{{ booking.id }}">{{ booking.start_at|local_date(tz) }}</a><br>
                 <span class="mono">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span> {{ ui.zone(booking.start_at, tz) }}
             </td>
-            <td>{{ row.line.service_name }} with {{ row.line.provider_name }}<br>
+            <td>{{ row.line.service_name }}<br>
                 <span class="mono faint">{{ booking.price_amount|money(business.currency) }}</span></td>
             <td>{{ row.customer.full_name }}<br><span class="faint">{{ row.customer.email }}</span></td>
             <td>{{ ui.status_chip(booking.status) }}
@@ -26,7 +26,7 @@
         </tbody>
     </table>
 </div>
-{{ ui.pagination(pager, "/admin/bookings", keep) }}
+{{ ui.pagination(pager, "/barber/bookings", keep) }}
 {% else %}
 <p class="empty">No bookings match these filters.</p>
 {% endif %}

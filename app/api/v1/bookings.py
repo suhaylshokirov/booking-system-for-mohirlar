@@ -1,21 +1,21 @@
-"""/bookings: a customer books, looks at and cancels their own; an admin runs them all."""
+"""/bookings: a customer books and cancels their own; a barber runs those made with them."""
 
 import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.api.deps import AdminUser, BusinessTimezone, CurrentUser
+from app.api.deps import BarberUser, BusinessTimezone, CurrentUser
 from app.core.clock import Clock, get_clock
 from app.core.db import DbSession
 from app.core.pagination import PageParamsDep
 from app.models.booking import BookingStatus
 from app.schemas.booking import (
-    AdminBookingResponse,
     BookingCreate,
     BookingEventResponse,
     BookingResponse,
     CancelRequest,
+    ClientBookingResponse,
     EventActor,
 )
 from app.schemas.errors import ErrorResponse
@@ -84,7 +84,7 @@ def list_bookings(
         BookingStatus | None, Query(alias="status", description="Only this status.")
     ] = None,
 ) -> Page[BookingResponse]:
-    """Your own bookings only, including an admin's own."""
+    """Your own bookings only, as a customer (a barber's clients are at `/bookings/clients`)."""
     items, total = booking_service.list_my_bookings(
         db, user, params, clock.now(), scope, booking_status
     )
@@ -97,24 +97,23 @@ def list_bookings(
 
 
 @router.get(
-    "/all",
-    response_model=Page[AdminBookingResponse],
-    summary="List every booking (admin)",
+    "/clients",
+    response_model=Page[ClientBookingResponse],
+    summary="List the bookings made with me (barber)",
     responses={
         **_UNAUTHENTICATED,
-        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not an administrator."},
+        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not a barber."},
     },
 )
-def list_all_bookings(
+def list_client_bookings(
     db: DbSession,
-    admin: AdminUser,
+    barber: BarberUser,
     clock: ClockDep,
     tz: BusinessTimezone,
     params: PageParamsDep,
     booking_status: Annotated[
         BookingStatus | None, Query(alias="status", description="Only this status.")
     ] = None,
-    provider_id: Annotated[int | None, Query(description="Only this provider.")] = None,
     customer_id: Annotated[int | None, Query(description="Only this customer.")] = None,
     date_from: Annotated[
         dt.date | None, Query(description="First day (business-local, inclusive) it starts on.")
@@ -122,16 +121,17 @@ def list_all_bookings(
     date_to: Annotated[
         dt.date | None, Query(description="Last day (business-local, inclusive) it starts on.")
     ] = None,
-) -> Page[AdminBookingResponse]:
-    """All customers' bookings, soonest start first. `stale_pending` marks pending
+) -> Page[ClientBookingResponse]:
+    """Bookings made with you, soonest start first: your clients' requests and
+    appointments. Other barbers' bookings never appear. `stale_pending` marks pending
     bookings whose time has passed."""
     now = clock.now()
-    items, total = booking_service.list_all_bookings(
-        db, params, booking_status, provider_id, customer_id, date_from, date_to
+    items, total = booking_service.list_provider_bookings(
+        db, params, barber.provider_id, booking_status, customer_id, date_from, date_to
     )
-    return Page[AdminBookingResponse](
+    return Page[ClientBookingResponse](
         items=[
-            AdminBookingResponse.from_booking(item, tz, stale_pending=is_stale_pending(item, now))
+            ClientBookingResponse.from_booking(item, tz, stale_pending=is_stale_pending(item, now))
             for item in items
         ],
         total=total,
@@ -149,7 +149,7 @@ def list_all_bookings(
         404: {
             "model": ErrorResponse,
             "description": "`BOOKING_NOT_FOUND`: no such booking, or it is someone else's "
-            "(404, not 403, so ids cannot be probed). Admins can read any booking.",
+            "(404, not 403, so ids cannot be probed). A barber can read the ones made with them.",
         },
     },
 )
@@ -231,7 +231,7 @@ _TRANSITION_ERRORS = {
     summary="Cancel a booking",
     responses={
         **_TRANSITION_ERRORS,
-        422: {"model": ErrorResponse, "description": "`REASON_REQUIRED` (admin, confirmed)."},
+        422: {"model": ErrorResponse, "description": "`REASON_REQUIRED` (barber, confirmed)."},
     },
 )
 def cancel_booking(
@@ -242,7 +242,9 @@ def cancel_booking(
     tz: BusinessTimezone,
     body: CancelRequest | None = None,
 ) -> BookingResponse:
-    """Customers cancel their own; admins any. Cancelling frees the time at once."""
+    """Customers cancel their own; a barber cancels those made with them.
+
+    Cancelling frees the time at once."""
     reason = body.reason if body else None
     booking = booking_service.transition(
         db, user, booking_id, BookingStatus.CANCELLED, clock.now(), reason
@@ -253,17 +255,17 @@ def cancel_booking(
 @router.post(
     "/{booking_id}/confirm",
     response_model=BookingResponse,
-    summary="Confirm a pending booking (admin)",
+    summary="Confirm a pending booking (barber)",
     responses={
         **_TRANSITION_ERRORS,
-        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not an administrator."},
+        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not a barber."},
     },
 )
 def confirm_booking(
-    booking_id: int, db: DbSession, admin: AdminUser, clock: ClockDep, tz: BusinessTimezone
+    booking_id: int, db: DbSession, barber: BarberUser, clock: ClockDep, tz: BusinessTimezone
 ) -> BookingResponse:
     booking = booking_service.transition(
-        db, admin, booking_id, BookingStatus.CONFIRMED, clock.now()
+        db, barber, booking_id, BookingStatus.CONFIRMED, clock.now()
     )
     return BookingResponse.from_booking(booking, tz)
 
@@ -271,16 +273,16 @@ def confirm_booking(
 @router.post(
     "/{booking_id}/complete",
     response_model=BookingResponse,
-    summary="Mark a confirmed booking completed (admin)",
+    summary="Mark a confirmed booking completed (barber)",
     responses={
         **_TRANSITION_ERRORS,
-        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not an administrator."},
+        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not a barber."},
     },
 )
 def complete_booking(
-    booking_id: int, db: DbSession, admin: AdminUser, clock: ClockDep, tz: BusinessTimezone
+    booking_id: int, db: DbSession, barber: BarberUser, clock: ClockDep, tz: BusinessTimezone
 ) -> BookingResponse:
     booking = booking_service.transition(
-        db, admin, booking_id, BookingStatus.COMPLETED, clock.now()
+        db, barber, booking_id, BookingStatus.COMPLETED, clock.now()
     )
     return BookingResponse.from_booking(booking, tz)

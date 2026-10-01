@@ -135,25 +135,27 @@ applies an allowed change with a guarded UPDATE and writes the history event.
 ```mermaid
 stateDiagram-v2
     [*] --> pending: customer books
-    pending --> confirmed: admin, before start
-    pending --> cancelled: customer before start / admin any time
-    confirmed --> cancelled: customer until start - cutoff / admin before start + reason
-    confirmed --> completed: admin, after end_at
+    pending --> confirmed: barber, before start
+    pending --> cancelled: customer before start / barber any time
+    confirmed --> cancelled: customer until start - cutoff / barber before start + reason
+    confirmed --> completed: barber, after end_at
     cancelled --> [*]
     completed --> [*]
 ```
 
 | From | To | Who | Condition | Error otherwise |
 |---|---|---|---|---|
-| pending | confirmed | admin | `now < start_at` | `INVALID_TRANSITION` |
+| pending | confirmed | the booking's barber | `now < start_at` | `INVALID_TRANSITION` |
 | pending | cancelled | own customer | `now < start_at` | `CANCELLATION_CUTOFF_PASSED` |
-| pending | cancelled | admin | none. Clears a *stale pending* booking (start passed): flagged in the admin list, reason defaults to "not confirmed in time" (P7.7) | |
+| pending | cancelled | the booking's barber | none. Clears a *stale pending* booking (start passed): flagged in the barber's list, reason defaults to "not confirmed in time" (P7.7) | |
 | confirmed | cancelled | own customer | `now <= start_at - cutoff` | `CANCELLATION_CUTOFF_PASSED` |
-| confirmed | cancelled | admin | `now < start_at`, non-blank reason | `INVALID_TRANSITION` / `REASON_REQUIRED` |
-| confirmed | completed | admin | `now >= end_at` | `TOO_EARLY_TO_COMPLETE` |
+| confirmed | cancelled | the booking's barber | `now < start_at`, non-blank reason | `INVALID_TRANSITION` / `REASON_REQUIRED` |
+| confirmed | completed | the booking's barber | `now >= end_at` | `TOO_EARLY_TO_COMPLETE` |
 
-Every other (from, to) pair, and any role not listed, is `INVALID_TRANSITION`
-(409). The cutoff comes from `business_settings.cancellation_cutoff_hours`.
+"The booking's barber" is the barber whose provider the booking is with
+(`actor.provider_id == booking.provider_id`); another barber is not allowed any
+of these. Every other (from, to) pair, and any role not listed, is
+`INVALID_TRANSITION` (409). The cutoff comes from `business_settings.cancellation_cutoff_hours`.
 
 **Applying a transition (`booking.transition`, P7.2).** Load the booking as the
 actor (404 if not theirs), `check_transition`, then
@@ -269,7 +271,7 @@ signed-in user's own bookings in Upcoming / Past tabs
 queries for the whole page); `/me/bookings/{id}` shows the ticket, a
 plain-language history from `booking.list_history`, and Cancel. Ownership is
 `booking.get_own_booking`: someone else's booking, or a missing one, is the
-same 404 page, admins included. The Cancel button is drawn only when
+same 404 page, barbers included. The Cancel button is drawn only when
 `booking_state.can_cancel` says the server would accept it; that function calls
 `check_transition`, so the button and the rule cannot drift apart. Past the
 cutoff the page shows the deadline instead. `POST /me/bookings/{id}/cancel`
@@ -294,22 +296,26 @@ Mono for times and prices. Every colour token is written once as
 `light-dark(light, dark)` in `app.css`; the theme toggle only sets
 `color-scheme`.
 
-## Admin dashboard numbers
+## Barber dashboard numbers
 
-`services/dashboard.py` computes what `/admin` shows, on the business's local
+`services/dashboard.py` computes what `/barber` shows for the signed-in barber's
+own provider (never the whole shop), on the business's local
 calendar (Monday to Sunday weeks):
 
-- **Bookings today**: bookings starting today that are not cancelled.
-- **Waiting to be confirmed**: every pending booking. One whose start has passed
+- **Bookings today**: the barber's bookings starting today that are not cancelled.
+- **Waiting to be confirmed**: every pending booking of the barber's. One whose start has passed
   is flagged expired (`is_stale_pending`); it can only be cleared.
 - **Utilization** = booked minutes ÷ available minutes for this week. Available =
-  the working windows of every active provider (weekly rules, with exceptions and
+  the barber's own working windows, zero while they are hidden (weekly rules, with exceptions and
   days off replacing them, via `slots.build_windows_for_date`). Booked = the
   duration snapshots of non-cancelled bookings starting this week. No availability
   shows a dash; the figure is capped at 100%.
 
-The admin pages answer a customer with the 404 page, not a 403, so the area does
-not advertise itself (`web/deps.require_admin_page`).
+The barber pages answer a customer with the 404 page, not a 403, so the area does
+not advertise itself (`web/deps.require_barber_page`). Their addresses carry no
+provider id (`/barber/hours`, `/barber/profile`): the provider is the signed-in
+barber's own, so there is nothing to tamper with. The JSON API takes the id in the
+path and checks it against the caller (`require_own_provider`, 403).
 
 ## Calendar file and notifications
 

@@ -99,3 +99,34 @@ def test_real_migrations_upgrade_downgrade_upgrade(engine, blank_schema_then_reb
         command.upgrade(alembic_config(connection), "head")
     with engine.connect() as connection:
         assert _tables(connection) == set(Base.metadata.tables)
+
+
+def test_migration_0005_turns_an_existing_admin_into_a_barber_with_a_provider(
+    engine, blank_schema_then_rebuilt
+):
+    """Data that already exists must satisfy the new rule (a barber has a provider)."""
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0004")
+        connection.execute(
+            text(
+                "INSERT INTO users (email, password_hash, full_name, role) VALUES "
+                "('boss@example.com', 'x', 'The Boss', 'admin'), "
+                "('ali@example.com', 'x', 'Ali', 'customer')"
+            )
+        )
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0005")
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT u.role::text, u.full_name, p.name FROM users u "
+                "LEFT JOIN providers p ON p.id = u.provider_id ORDER BY u.id"
+            )
+        ).all()
+    assert rows == [("barber", "The Boss", "The Boss"), ("customer", "Ali", None)]
+
+    # And back: the role returns to its old name (the providers stay).
+    with engine.begin() as connection:
+        command.downgrade(alembic_config(connection), "0004")
+        roles = connection.execute(text("SELECT role::text FROM users ORDER BY id")).scalars().all()
+    assert roles == ["admin", "customer"]

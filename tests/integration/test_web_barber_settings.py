@@ -7,7 +7,8 @@ from app.core.security import create_access_token
 from app.models import Service
 from app.models.user import User, UserRole
 from app.services.business_settings import get_business_settings
-from tests.integration.test_web_admin_dashboard import NOW
+from tests.integration.test_web_barber_dashboard import NOW
+from tests.support import add_barber
 
 CSRF = "test-csrf-token"
 
@@ -21,7 +22,7 @@ def _user(db, role) -> User:
 
 @pytest.fixture
 def staff(db) -> User:
-    return _user(db, UserRole.ADMIN)
+    return add_barber(db, "staff@example.com")
 
 
 def _sign_in(client, user) -> None:
@@ -43,15 +44,15 @@ def _form(**overrides):
 
 def _save(client, **overrides):
     return client.post(
-        "/admin/settings", data={"csrf_token": CSRF, **_form(**overrides)}, follow_redirects=False
+        "/barber/settings", data={"csrf_token": CSRF, **_form(**overrides)}, follow_redirects=False
     )
 
 
 def test_a_customer_gets_404_and_a_visitor_a_login_redirect(client, db):
-    assert client.get("/admin/settings", follow_redirects=False).status_code == 303
+    assert client.get("/barber/settings", follow_redirects=False).status_code == 303
     _sign_in(client, _user(db, UserRole.CUSTOMER))
 
-    assert client.get("/admin/settings").status_code == 404
+    assert client.get("/barber/settings").status_code == 404
     assert _save(client).status_code == 404
 
 
@@ -61,7 +62,7 @@ def test_the_form_shows_the_current_values_including_zero(client, db, staff):
     db.flush()
     _sign_in(client, staff)
 
-    html = client.get("/admin/settings").text
+    html = client.get("/barber/settings").text
 
     assert 'value="Asia/Tashkent"' in html
     assert 'name="min_lead_time_minutes" type="number" value="0"' in html

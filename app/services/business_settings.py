@@ -25,7 +25,7 @@ def get_business_settings(db: Session, *, for_update: bool = False) -> BusinessS
 
     A freshly migrated database has no row (only the seed script adds one), so
     creating it here keeps a new deployment working before anyone has visited
-    the admin. `ON CONFLICT DO NOTHING` makes two simultaneous first requests
+    the site. `ON CONFLICT DO NOTHING` makes two simultaneous first requests
     safe: one inserts, the other's insert is a no-op, both then read the row.
 
     `for_update` locks the row until the transaction ends, so two changes to the

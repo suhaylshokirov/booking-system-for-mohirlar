@@ -60,7 +60,7 @@ FLASH_MESSAGES: dict[str, Notice] = {
     "cancelled": Notice("Booking cancelled. That time is free again.", "success"),
     "booking_confirmed": Notice("Booking confirmed.", "success"),
     "booking_completed": Notice("Booking marked as completed.", "success"),
-    "booking_cancelled_admin": Notice("Booking cancelled. That time is free again.", "success"),
+    "booking_cancelled_barber": Notice("Booking cancelled. That time is free again.", "success"),
     "service_saved": Notice("Service saved.", "success"),
     "service_activated": Notice("Service is active again.", "success"),
     "service_deactivated": Notice("Service deactivated. Existing bookings are kept.", "success"),

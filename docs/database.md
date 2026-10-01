@@ -26,7 +26,8 @@ erDiagram
         string email "unique on lower(email)"
         string password_hash
         string full_name
-        enum role "customer | admin"
+        enum role "customer | barber"
+        int provider_id FK "set for barbers only, unique"
         bool is_active
     }
     business_settings {
@@ -156,7 +157,12 @@ below are the real ones; CHECKs and unique indexes are declared on the models in
 `app/models/`, exclusion constraints in the migrations.
 
 ### `users`
-People who log in. `role` is the native enum `user_role` (`customer`, `admin`).
+People who log in. `role` is the native enum `user_role` (`customer`, `barber`).
+A barber runs exactly one provider: `provider_id` references `providers`, is unique
+(`uq_users_provider_id`, one login per provider) and is set **if and only if** the
+role is `barber` (`ck_users_barber_has_provider`, `(role = 'barber') = (provider_id
+IS NOT NULL)`), so the database refuses a barber with no provider and a customer
+with one. There is no administrator role (ADR 0010).
 `is_active = false` deactivates an account without deleting the bookings that
 reference it. Uniqueness of email is `uq_users_email_lower`, a unique index on
 `lower(email)`, so `Ali@x.uz` and `ali@x.uz` are the same address.
@@ -177,8 +183,9 @@ blank and are capped at 100 characters, descriptions at 1000. Deactivated, not
 deleted; bookings copy price and duration (see Snapshot fields).
 
 ### `providers`
-Staff who perform services. Managed by the admin; they have no login. Soft
-deactivation via `is_active`.
+The barbers customers book. A provider row is created together with its barber's
+user (`scripts/create_barber.py`) and managed by that barber alone. Soft
+deactivation via `is_active`: a barber can hide themselves from customers.
 
 ### `provider_services`
 Which provider offers which service. Composite primary key
@@ -210,7 +217,7 @@ entirely (never merged): a day-off row closes the provider, a custom-hours row i
 that date's only window. Exceptions live at most as far back as their date;
 "past" is judged against *today in the business timezone*, so the API refuses to
 create or edit a row once its local date has ended, but rows are kept for the
-admin's history until deleted. The API also pre-checks the unique constraint for a
+barber's history until deleted. The API also pre-checks the unique constraint for a
 friendly `409` and maps the constraint's violation to the same error as the
 backstop. Existing bookings are never modified by an exception.
 
@@ -229,7 +236,7 @@ double booking are added in P1.4.
 
 Indexes: `ix_bookings_customer_start (customer_id, start_at)` serves "my
 bookings"; `ix_bookings_provider_start (provider_id, start_at)` serves a
-provider's day and the slot query; `ix_bookings_status` serves the admin filter.
+provider's day and the slot query; `ix_bookings_status` serves the barber's filter.
 
 ### `booking_events`
 The audit trail behind booking history: one row per status change, written in
@@ -275,7 +282,9 @@ Every constraint and index, with the reason it exists. Names are the real ones
 | all `fk_*` | all | `ON DELETE RESTRICT`: referenced rows are deactivated, never deleted |
 | `ix_bookings_customer_start` | `bookings` | "My bookings", ordered by time |
 | `ix_bookings_provider_start` | `bookings` | A provider's day, and the slot query |
-| `ix_bookings_status` | `bookings` | Admin filter by status |
+| `ix_bookings_status` | `bookings` | Barber filter by status |
+| `ck_users_barber_has_provider` | `users` | A barber has a provider, and nobody else does |
+| `uq_users_provider_id` | `users` | A provider has at most one login |
 | `ix_booking_events_booking_created` | `booking_events` | A booking's history in order |
 | `ck_outbox_messages_known_event` | `outbox_messages` | Only the three events the app sends |
 | `ix_outbox_messages_unsent` (partial, `sent_at IS NULL`) | `outbox_messages` | A worker's "oldest unsent first" |
@@ -322,7 +331,7 @@ range type, so both times are attached to a dummy date to make a `tsrange`.
 ## Snapshot fields
 
 `bookings.price_amount` and `bookings.duration_minutes` are copied from the
-service when the booking is made. If the admin later raises a price or shortens
+service when the booking is made. If a barber later raises a price or shortens
 a service, existing bookings keep the price and length the customer agreed to,
 and their `[start_at, end_at)` ranges stay valid for the overlap constraints.
 `service_id` says *what* was booked; the snapshot says *on what terms*. See

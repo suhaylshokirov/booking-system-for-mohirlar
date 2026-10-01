@@ -37,14 +37,14 @@
         <button type="submit" class="btn btn--block" data-busy-label="Signing in…">Sign in</button>
     </form>
 
-    {% if demo_admin %}
+    {% if demo_barber %}
     {# Only outside production (app/web/auth.py). Its own form: one click signs
-       in as the demo admin and opens the admin panel. #}
-    <form class="form auth-form demo-admin" method="post" action="/login/demo-admin" data-submit-once>
+       in as the demo barber and opens the barber dashboard. #}
+    <form class="form auth-form demo-barber" method="post" action="/login/demo-barber" data-submit-once>
         {{ ui.csrf_field(csrf_token) }}
-        <button type="submit" class="btn btn--quiet btn--block" data-busy-label="Opening…">Open the admin panel (demo)</button>
+        <button type="submit" class="btn btn--quiet btn--block" data-busy-label="Opening…">Open the barber dashboard (demo)</button>
         <p class="field__hint">
-            Demo admin: <span class="mono">{{ demo_admin.email }}</span> / <span class="mono">{{ demo_admin.password }}</span>
+            Demo barber: <span class="mono">{{ demo_barber.email }}</span> / <span class="mono">{{ demo_barber.password }}</span>
         </p>
     </form>
     {% endif %}

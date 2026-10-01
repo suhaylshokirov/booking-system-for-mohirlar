@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
-{% set active_nav = "admin" %}
+{% set active_nav = "barber" %}
 
-{% block title %}Booking {{ "%04d"|format(line.booking.id) }} · Admin · {{ business.name }}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+{% block title %}Booking {{ "%04d"|format(line.booking.id) }} · Barber · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/barber.css">{% endblock %}
 
 {% block masthead %}
 <header class="masthead">
     <div class="container">
-        <a class="back-link" href="/admin/bookings">Bookings</a>
+        <a class="back-link" href="/barber/bookings">Bookings</a>
         <h1 class="sheet-title">{{ line.service_name }} · No. <span class="mono">{{ "%04d"|format(line.booking.id) }}</span></h1>
         <p class="sheet-sub">{{ customer.full_name }}, {{ line.booking.start_at|local_date(business.timezone) }}.</p>
     </div>
@@ -32,7 +32,6 @@
     <div class="section-head"><h2 id="who-title">Details</h2></div>
     <dl class="facts">
         <div><dt class="label">Service</dt><dd>{{ line.service_name }}</dd></div>
-        <div><dt class="label">Provider</dt><dd>{{ line.provider_name }}</dd></div>
         <div><dt class="label">Customer</dt><dd>{{ customer.full_name }} <span class="faint">{{ customer.email }}</span></dd></div>
         {% if booking.notes %}<div><dt class="label">Customer's note</dt><dd>{{ booking.notes }}</dd></div>{% endif %}
         {% if booking.cancel_reason %}<div><dt class="label">Cancellation reason</dt><dd>{{ booking.cancel_reason }}</dd></div>{% endif %}

@@ -1,4 +1,6 @@
-"""The numbers on the admin dashboard: today, the pending queue, this week's utilization.
+"""The numbers on a barber's dashboard: today, the pending queue, this week's utilization.
+
+Everything is about one barber's own provider record: their bookings and their hours.
 
 Business rules:
 
@@ -11,8 +13,8 @@ Business rules:
   passed is flagged `is_stale` (`booking_state.is_stale_pending`): it can no
   longer be confirmed, only cleared.
 * *Utilization* = booked minutes ÷ available minutes for this local week.
-  Available minutes are the working windows (`slots.build_windows_for_date`,
-  so exceptions and days off count) of every **active** provider. Booked
+  Available minutes are the barber's working windows (`slots.build_windows_for_date`,
+  so exceptions and days off count), and zero while they are inactive. Booked
   minutes are the duration snapshots of the non-cancelled bookings that start
   this week. It is `None` (shown as a dash) when nothing is available, and
   capped at 100% in case hours were cut after bookings were made.
@@ -58,7 +60,7 @@ class Dashboard:
     pending: list[PendingRow]
 
 
-def get_dashboard(db: Session, now: datetime) -> Dashboard:
+def get_dashboard(db: Session, now: datetime, provider_id: int) -> Dashboard:
     settings = get_business_settings(db)
     tz = settings.timezone
     today = utc_to_local(now, tz).date()
@@ -67,28 +69,29 @@ def get_dashboard(db: Session, now: datetime) -> Dashboard:
     week_start = local_day_bounds_utc(monday, tz)[0]
     week_end = local_day_bounds_utc(monday + timedelta(days=6), tz)[1]
 
+    mine = Booking.provider_id == provider_id
     not_cancelled = Booking.status != BookingStatus.CANCELLED
     today_count = db.scalar(
         select(func.count(Booking.id)).where(
-            not_cancelled, Booking.start_at >= day_start, Booking.start_at < day_end
+            mine, not_cancelled, Booking.start_at >= day_start, Booking.start_at < day_end
         )
     )
     pending_count = db.scalar(
-        select(func.count(Booking.id)).where(Booking.status == BookingStatus.PENDING)
+        select(func.count(Booking.id)).where(mine, Booking.status == BookingStatus.PENDING)
     )
     booked = db.scalar(
         select(func.coalesce(func.sum(Booking.duration_minutes), 0)).where(
-            not_cancelled, Booking.start_at >= week_start, Booking.start_at < week_end
+            mine, not_cancelled, Booking.start_at >= week_start, Booking.start_at < week_end
         )
     )
 
-    available = _available_minutes(db, monday, tz)
+    available = _available_minutes(db, provider_id, monday, tz)
     utilization = None if available == 0 else min(100, round(100 * booked / available))
 
     bookings = list(
         db.scalars(
             select(Booking)
-            .where(Booking.status == BookingStatus.PENDING)
+            .where(mine, Booking.status == BookingStatus.PENDING)
             .order_by(Booking.start_at, Booking.id)
             .limit(PENDING_SHOWN)
         )
@@ -109,9 +112,11 @@ def get_dashboard(db: Session, now: datetime) -> Dashboard:
     return Dashboard(today_count, pending_count, booked, available, utilization, pending)
 
 
-def _available_minutes(db: Session, monday: date, tz: str) -> int:
-    """Working minutes of every active provider from `monday` through Sunday."""
-    providers = list(db.scalars(select(Provider.id).where(Provider.is_active)))
+def _available_minutes(db: Session, provider_id: int, monday: date, tz: str) -> int:
+    """Working minutes of this provider (if active) from `monday` through Sunday."""
+    providers = list(
+        db.scalars(select(Provider.id).where(Provider.id == provider_id, Provider.is_active))
+    )
     days = [monday + timedelta(days=i) for i in range(7)]
     rules = defaultdict(list)
     for rule in db.scalars(

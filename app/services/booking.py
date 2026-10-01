@@ -228,17 +228,20 @@ def list_my_bookings(
     return paginate(db, query, params)
 
 
-def list_all_bookings(
+def list_provider_bookings(
     db: Session,
     params: PageParams,
+    provider_id: int,
     status: BookingStatus | None = None,
-    provider_id: int | None = None,
     customer_id: int | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
     customer_email: str | None = None,
 ) -> tuple[list[Booking], int]:
-    """One page of every booking (the caller has checked the user is an admin), and the total.
+    """One page of the bookings made with `provider_id` (the barber's own), and the total.
+
+    A barber's clients: the caller passes the barber's own provider id, so
+    another barber's bookings never appear.
 
     `customer_email` matches part of the customer's email, ignoring case
     (`%` and `_` in it are ordinary characters, not wildcards).
@@ -247,13 +250,11 @@ def list_all_bookings(
     inclusive: a booking matches if it *starts* on one of those local days. They
     become UTC instants here so the DST-correct conversion stays in
     `core/timezones`. Soonest start first (ties by id), which is the order an
-    admin runs the day in.
+    barber runs the day in.
     """
-    query = select(Booking)
+    query = select(Booking).where(Booking.provider_id == provider_id)
     if status is not None:
         query = query.where(Booking.status == status)
-    if provider_id is not None:
-        query = query.where(Booking.provider_id == provider_id)
     if customer_id is not None:
         query = query.where(Booking.customer_id == customer_id)
     if customer_email:
@@ -269,24 +270,31 @@ def list_all_bookings(
     return paginate(db, query.order_by(Booking.start_at, Booking.id), params)
 
 
+def _may_see(user: User, booking: Booking) -> bool:
+    """Its customer, or the barber it was made with. Nobody else (not even another barber)."""
+    if booking.customer_id == user.id:
+        return True
+    return user.role == UserRole.BARBER and booking.provider_id == user.provider_id
+
+
 def get_booking(db: Session, user: User, booking_id: int) -> Booking:
-    """A booking the user may see: their own, or any for an admin.
+    """A booking the user may see: their own, or one made with them if they are a barber.
 
     Raises: 404 `BOOKING_NOT_FOUND`, the same for "does not exist" and "belongs
     to someone else", so ids cannot be probed (404, not 403).
     """
     booking = db.get(Booking, booking_id)
-    if booking is None or (user.role != UserRole.ADMIN and booking.customer_id != user.id):
+    if booking is None or not _may_see(user, booking):
         raise AppError("BOOKING_NOT_FOUND", "Booking not found.", status_code=404)
     return booking
 
 
 def get_own_booking(db: Session, user: User, booking_id: int) -> Booking:
-    """A booking that belongs to `user`, even for an admin (the customer's own pages).
+    """A booking that belongs to `user` as its customer (the customer's own pages).
 
-    `get_booking` lets an admin read anyone's; "My bookings" must not, or an
-    admin opening someone else's link would get a page whose Cancel button is
-    not theirs to press.
+    `get_booking` also lets a barber read the bookings made with them; "My
+    bookings" must not, or a barber opening a client's link would get a page
+    whose Cancel button is not theirs to press.
 
     Raises: 404 `BOOKING_NOT_FOUND`, the same as `get_booking`.
     """
@@ -321,7 +329,7 @@ def transition(
     `INVALID_TRANSITION`, `CANCELLATION_CUTOFF_PASSED`, `TOO_EARLY_TO_COMPLETE`,
     422 `REASON_REQUIRED`); 409 `BOOKING_STATE_CHANGED` when we lost a race.
 
-    An admin cancelling an expired pending booking without a reason gets
+    A barber cancelling an expired pending booking without a reason gets
     "not confirmed in time" recorded (P7.7).
     """
     booking = get_booking(db, actor, booking_id)
@@ -329,7 +337,8 @@ def transition(
     if (
         to == BookingStatus.CANCELLED
         and not reason
-        and actor.role == UserRole.ADMIN
+        and actor.role == UserRole.BARBER
+        and actor.provider_id == booking.provider_id
         and is_stale_pending(booking, now)
     ):
         # Clearing an expired pending booking is routine; record why without asking.
@@ -421,6 +430,6 @@ def describe_bookings(db: Session, bookings: list[Booking]) -> list[BookingLine]
 
 
 def customers_of(db: Session, bookings: list[Booking]) -> dict[int, User]:
-    """The customers of `bookings` by id, in one query (for admin lists)."""
+    """The customers of `bookings` by id, in one query (for the barber's lists)."""
     ids = {booking.customer_id for booking in bookings}
     return {user.id: user for user in db.scalars(select(User).where(User.id.in_(ids)))}

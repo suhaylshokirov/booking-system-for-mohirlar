@@ -23,6 +23,7 @@ from app.models import (
 from app.models.user import User, UserRole
 from app.services import notifications
 from app.services.booking import create_booking, transition
+from tests.support import add_barber
 
 NOW = datetime(2026, 10, 1, 7, tzinfo=UTC)
 NINE = datetime(2026, 10, 2, 4, 0, tzinfo=UTC)  # 09:00 Tashkent
@@ -55,8 +56,9 @@ def aziza(db) -> User:
 
 
 @pytest.fixture
-def staff(db) -> User:
-    return _user(db, "staff@example.com", UserRole.ADMIN)
+def staff(db, jasur) -> User:
+    """Jasur's own login: the barber who confirms and cancels his bookings."""
+    return add_barber(db, "staff@example.com", "Jasur", provider=jasur)
 
 
 def _book(db, customer, jasur, start=NINE):

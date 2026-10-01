@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
-{% set active_nav = "admin" %}
+{% set active_nav = "barber" %}
 
-{% block title %}Services · Admin · {{ business.name }}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+{% block title %}Services · Barber · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/barber.css">{% endblock %}
 
 {% block masthead %}
 <header class="masthead">
     <div class="container">
-        <a class="back-link" href="/admin">Admin</a>
+        <a class="back-link" href="/barber">Barber</a>
         <h1 class="sheet-title">Services</h1>
         <p class="sheet-sub">What customers can book. A deactivated service disappears for customers; its bookings stay.</p>
     </div>
@@ -16,11 +16,11 @@
 {% endblock %}
 
 {% block content %}
-{{ ui.admin_nav("services") }}
+{{ ui.barber_nav("services") }}
 <section class="section" aria-labelledby="services-title">
     <div class="section-head">
         <h2 id="services-title">All services</h2>
-        <a class="btn btn--small" href="/admin/services/new">Add a service</a>
+        <a class="btn btn--small" href="/barber/services/new">Add a service</a>
     </div>
     {% if services %}
     <div class="table-wrap">
@@ -35,9 +35,9 @@
                 <td>{{ "Active" if service.is_active else "Inactive" }}</td>
                 <td>
                     <div class="row-actions">
-                        <a class="btn btn--quiet btn--small" href="/admin/services/{{ service.id }}/edit">Edit</a>
+                        <a class="btn btn--quiet btn--small" href="/barber/services/{{ service.id }}/edit">Edit</a>
                         {% if service.is_active %}
-                        <form method="post" action="/admin/services/{{ service.id }}/deactivate" data-submit-once
+                        <form method="post" action="/barber/services/{{ service.id }}/deactivate" data-submit-once
                               data-confirm="Deactivate {{ service.name }}?"
                               data-confirm-body="Customers will no longer see it. Existing bookings are kept."
                               data-confirm-yes="Yes, deactivate" data-confirm-no="No, keep it">
@@ -45,7 +45,7 @@
                             <button type="submit" class="btn btn--danger btn--small">Deactivate</button>
                         </form>
                         {% else %}
-                        <form method="post" action="/admin/services/{{ service.id }}/activate" data-submit-once>
+                        <form method="post" action="/barber/services/{{ service.id }}/activate" data-submit-once>
                             {{ ui.csrf_field(csrf_token) }}
                             <button type="submit" class="btn btn--small">Activate</button>
                         </form>
@@ -58,7 +58,7 @@
         </table>
     </div>
     {% else %}
-    <p class="empty">No services yet. <a href="/admin/services/new">Add the first one</a>.</p>
+    <p class="empty">No services yet. <a href="/barber/services/new">Add the first one</a>.</p>
     {% endif %}
 </section>
 {% endblock %}

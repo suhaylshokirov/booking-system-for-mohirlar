@@ -5,7 +5,7 @@ Rules:
   slots could not line up with it.
 * Services are deactivated, never deleted (bookings reference them and copy the
   price and duration, so editing or deactivating one never changes a booking).
-* Inactive services are invisible to everyone except admins: a missing
+* Inactive services are invisible to everyone except barbers: a missing
   service and an inactive one look the same to a customer (404).
 
 Every write that depends on the granularity reads the settings row with a lock,

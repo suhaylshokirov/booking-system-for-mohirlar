@@ -2,7 +2,7 @@
 
 Rules:
 * Providers are deactivated, never deleted (bookings reference them). An
-  inactive provider is invisible to everyone except admins: a customer gets the
+  inactive provider is invisible to everyone except barbers: a customer gets the
   same 404 as for a provider that never existed.
 * A provider's offered services are replaced as a whole set, and only *active*
   services can be offered.
@@ -87,14 +87,6 @@ def get_provider(db: Session, provider_id: int, *, include_inactive: bool) -> Pr
     return _views(db, [provider], include_inactive=include_inactive)[0]
 
 
-def create_provider(db: Session, data: dict[str, Any]) -> ProviderView:
-    """A new provider offers nothing until `replace_offered_services` says so."""
-    provider = Provider(**data)
-    db.add(provider)
-    db.flush()
-    return ProviderView(provider, [])
-
-
 def update_provider(db: Session, provider_id: int, changes: dict[str, Any]) -> ProviderView:
     """Raises: 404 `NOT_FOUND`."""
     view = get_provider(db, provider_id, include_inactive=True)
@@ -119,7 +111,7 @@ def replace_offered_services(db: Session, provider_id: int, service_ids: list[in
     """Make `service_ids` exactly the set this provider offers.
 
     Repeated ids count once; an empty list means "offers nothing". The provider
-    row is locked first, so two admins replacing the set at once run one after
+    row is locked first, so two requests replacing the set at once run one after
     the other instead of interleaving into a mix of both.
 
     Raises:

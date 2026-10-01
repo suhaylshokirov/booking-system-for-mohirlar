@@ -49,9 +49,9 @@ def test_register_normalises_the_email_and_trims_the_name(client):
     assert response.json()["email"] == "aziza@example.com"
 
 
-def test_register_cannot_create_an_admin(client):
+def test_register_cannot_create_a_barber(client):
     # An extra `role` field is simply not part of the request model.
-    response = _register(client, role="admin")
+    response = _register(client, role="barber")
     assert response.status_code == 201
     assert response.json()["role"] == "customer"
 

@@ -56,7 +56,7 @@ class Booking(TimestampMixin, Base):
             name="cancellation_fields_only_when_cancelled",
         ),
         # "My bookings" and "provider's day" are the two hot queries, plus the
-        # admin filter by status.
+        # barber filter by status.
         Index("ix_bookings_customer_start", "customer_id", "start_at"),
         Index("ix_bookings_provider_start", "provider_id", "start_at"),
         Index("ix_bookings_status", "status"),

@@ -4,7 +4,7 @@
 
 ## Context
 
-An admin confirms a booking at the same moment the customer cancels it. Both
+A barber confirms a booking at the same moment the customer cancels it. Both
 requests read `pending`, both pass the state machine, both write. Without
 protection the last write wins silently, and the history claims two changes
 that contradict each other.

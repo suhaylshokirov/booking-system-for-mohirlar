@@ -1,4 +1,4 @@
-/* Admin pages. Tokens and shared components live in app.css. */
+/* Barber pages. Tokens and shared components live in app.css. */
 
 .row-actions {
   display: flex;
@@ -22,7 +22,7 @@
   font-weight: 600;
   color: var(--danger);
 }
-.admin-nav { margin-bottom: var(--space-5); }
+.barber-nav { margin-bottom: var(--space-5); }
 
 fieldset.field {
   border: 0;

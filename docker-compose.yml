@@ -34,8 +34,8 @@ services:
       # Inside the compose network the database host is the service name.
       DATABASE_URL: postgresql+psycopg://navbat:navbat@db:5432/navbat
       JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@navbat.local}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-admin-password}
+      BARBER_EMAIL: ${BARBER_EMAIL:-jasur@navbat.local}
+      BARBER_PASSWORD: ${BARBER_PASSWORD:-change-me-barber-password}
       # Fill a fresh database with the demo barbershop (safe to leave on: the
       # seed never duplicates or overwrites). Set to false for an empty shop.
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}

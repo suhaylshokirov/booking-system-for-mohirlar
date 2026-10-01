@@ -10,10 +10,11 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.errors import AppError
-from app.models import Booking, BookingEvent, BookingStatus, Provider, Service, User, UserRole
+from app.models import Booking, BookingEvent, BookingStatus, Provider, Service, User
 from app.services import booking as booking_service
 from app.services.booking import transition
 from tests.integration.test_create_booking import book, make_provider, make_user
+from tests.support import add_barber
 
 NOW = datetime(2026, 10, 1, 7, tzinfo=UTC)
 TEN = datetime(2026, 10, 5, 5, 0, tzinfo=UTC)
@@ -38,11 +39,9 @@ def ali(db: Session) -> User:
 
 
 @pytest.fixture
-def admin_user(db: Session) -> User:
-    user = make_user(db, "boss@example.com")
-    user.role = UserRole.ADMIN
-    db.flush()
-    return user
+def barber_user(db: Session, provider: Provider) -> User:
+    """The barber who runs `provider`: the only one who may confirm its bookings."""
+    return add_barber(db, "boss@example.com", provider=provider)
 
 
 @pytest.fixture
@@ -60,13 +59,13 @@ def events(db: Session, booking: Booking) -> list[BookingEvent]:
     )
 
 
-def test_confirm_updates_status_and_writes_an_event(db, admin_user, pending):
-    booking = transition(db, admin_user, pending.id, BookingStatus.CONFIRMED, NOW)
+def test_confirm_updates_status_and_writes_an_event(db, barber_user, pending):
+    booking = transition(db, barber_user, pending.id, BookingStatus.CONFIRMED, NOW)
 
     assert booking.status == BookingStatus.CONFIRMED
     last = events(db, booking)[-1]
     assert (last.from_status, last.to_status) == (BookingStatus.PENDING, BookingStatus.CONFIRMED)
-    assert last.actor_id == admin_user.id
+    assert last.actor_id == barber_user.id
 
 
 def test_cancel_records_who_and_why(db, ali, pending):
@@ -78,7 +77,7 @@ def test_cancel_records_who_and_why(db, ali, pending):
     assert events(db, booking)[-1].reason == "changed my mind"
 
 
-def test_stale_expected_status_is_409_and_writes_no_event(db, admin_user, pending, monkeypatch):
+def test_stale_expected_status_is_409_and_writes_no_event(db, barber_user, pending, monkeypatch):
     real_check = booking_service.check_transition
 
     def check_then_lose_the_race(*args, **kwargs):
@@ -92,7 +91,7 @@ def test_stale_expected_status_is_409_and_writes_no_event(db, admin_user, pendin
     before = len(events(db, pending))
 
     with pytest.raises(AppError) as exc:
-        transition(db, admin_user, pending.id, BookingStatus.CONFIRMED, NOW)
+        transition(db, barber_user, pending.id, BookingStatus.CONFIRMED, NOW)
 
     assert exc.value.status_code == 409
     assert exc.value.code == "BOOKING_STATE_CHANGED"
@@ -101,9 +100,9 @@ def test_stale_expected_status_is_409_and_writes_no_event(db, admin_user, pendin
     assert pending.status == BookingStatus.CANCELLED
 
 
-def test_illegal_transition_changes_nothing(db, admin_user, pending):
+def test_illegal_transition_changes_nothing(db, barber_user, pending):
     with pytest.raises(AppError) as exc:
-        transition(db, admin_user, pending.id, BookingStatus.COMPLETED, NOW)
+        transition(db, barber_user, pending.id, BookingStatus.COMPLETED, NOW)
 
     assert exc.value.code == "INVALID_TRANSITION"
     db.refresh(pending)

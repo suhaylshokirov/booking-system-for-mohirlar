@@ -6,13 +6,13 @@ from fastapi.staticfiles import StaticFiles
 from app.api.csrf import csrf_protect
 from app.api.v1 import auth, availability, bookings, health, providers, services, settings, slots
 from app.core.errors import register_error_handlers
-from app.web import admin as web_admin
-from app.web import admin_availability as web_admin_availability
-from app.web import admin_bookings as web_admin_bookings
-from app.web import admin_providers as web_admin_providers
-from app.web import admin_services as web_admin_services
-from app.web import admin_settings as web_admin_settings
 from app.web import auth as web_auth
+from app.web import barber as web_barber
+from app.web import barber_availability as web_barber_availability
+from app.web import barber_bookings as web_barber_bookings
+from app.web import barber_profile as web_barber_profile
+from app.web import barber_services as web_barber_services
+from app.web import barber_settings as web_barber_settings
 from app.web import booking as web_booking
 from app.web import catalog
 from app.web import my_bookings as web_my_bookings
@@ -69,12 +69,12 @@ def create_app() -> FastAPI:
     app.include_router(web_auth.router, dependencies=web)
     app.include_router(web_booking.router, dependencies=web)
     app.include_router(web_my_bookings.router, dependencies=web)
-    app.include_router(web_admin.router, dependencies=web)
-    app.include_router(web_admin_services.router, dependencies=web)
-    app.include_router(web_admin_providers.router, dependencies=web)
-    app.include_router(web_admin_bookings.router, dependencies=web)
-    app.include_router(web_admin_settings.router, dependencies=web)
-    app.include_router(web_admin_availability.router, dependencies=web)
+    app.include_router(web_barber.router, dependencies=web)
+    app.include_router(web_barber_services.router, dependencies=web)
+    app.include_router(web_barber_profile.router, dependencies=web)
+    app.include_router(web_barber_bookings.router, dependencies=web)
+    app.include_router(web_barber_settings.router, dependencies=web)
+    app.include_router(web_barber_availability.router, dependencies=web)
     return app
 
 

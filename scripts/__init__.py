@@ -1,1 +1,1 @@
-"""Operational CLI scripts: seed data, create the first admin."""
+"""Operational CLI scripts: seed data, create a barber."""

@@ -70,7 +70,7 @@
             <div class="nav-links" id="nav-links">
                 <a href="/"{% if active_nav == "services" %} aria-current="page"{% endif %}>Services</a>
                 {% if current_user %}<a href="/me/bookings"{% if active_nav == "bookings" %} aria-current="page"{% endif %}>My bookings</a>{% endif %}
-                {% if current_user and current_user.role.value == "admin" %}<a href="/admin"{% if active_nav == "admin" %} aria-current="page"{% endif %}>Admin</a>{% endif %}
+                {% if current_user and current_user.role.value == "barber" %}<a href="/barber"{% if active_nav == "barber" %} aria-current="page"{% endif %}>Barber</a>{% endif %}
             </div>
             {# The account area stays in the header row at every width: the
                hamburger never hides who you are or how to sign in. Left out

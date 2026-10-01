@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set active_nav = "barber" %}
+
+{% block title %}My profile · Barber · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/barber.css">{% endblock %}
+
+{% block masthead %}
+<header class="masthead masthead--compact">
+    <div class="container">
+        <a class="back-link" href="/barber">Barber</a>
+        <h1 class="sheet-title">My profile</h1>
+        <p class="sheet-sub">What customers see when they pick you, and which services they can book with you.</p>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+{{ ui.barber_nav("profile") }}
+<section class="auth">
+    <form class="form auth-form" method="post" action="/barber/profile" novalidate data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        {{ ui.field("name", "Name", value=values.name, error=errors.name, autofocus=true) }}
+        {{ ui.textarea("bio", "Bio", value=values.bio, error=errors.bio, hint="Optional. Shown to customers.") }}
+
+        <fieldset class="field{% if errors.service_ids %} field--invalid{% endif %}">
+            <legend class="field__label">Services I offer</legend>
+            {% for service in choices %}
+            <label class="check">
+                <input type="checkbox" name="service_ids" value="{{ service.id }}"{% if service.id in values.service_ids %} checked{% endif %}>
+                {{ service.name }}
+            </label>
+            {% else %}
+            <p class="field__hint">No active services yet. <a href="/barber/services/new">Add one</a> first.</p>
+            {% endfor %}
+            {% if errors.service_ids %}<p class="field__error">{{ errors.service_ids }}</p>{% endif %}
+        </fieldset>
+
+        <button type="submit" class="btn btn--block" data-busy-label="Saving…">Save profile</button>
+    </form>
+
+    <div class="form auth-form">
+        <h2 class="panel__title">Visible to customers</h2>
+        {% if provider.is_active %}
+        <p class="muted">Customers can book you. Hiding yourself removes you from the booking pages; your existing bookings stay.</p>
+        <form method="post" action="/barber/profile/deactivate" data-submit-once>
+            {{ ui.csrf_field(csrf_token) }}
+            <button type="submit" class="btn btn--quiet btn--block" data-busy-label="Hiding…">Hide me from customers</button>
+        </form>
+        {% else %}
+        <p class="muted">You are hidden: customers cannot book you. Your existing bookings stay.</p>
+        <form method="post" action="/barber/profile/activate" data-submit-once>
+            {{ ui.csrf_field(csrf_token) }}
+            <button type="submit" class="btn btn--commit btn--block" data-busy-label="Showing…">Show me to customers</button>
+        </form>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

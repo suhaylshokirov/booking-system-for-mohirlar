@@ -42,7 +42,7 @@ Two rules about time decide whether bookings behave correctly:
   hour, and comparing across zones needs conversion in every query.
 - **Shift a gap time by the gap length (02:30 -> 03:30), which is what
   `zoneinfo` does by default.** A window ending at 02:30 would then run half an
-  hour past the time the admin wrote. Snapping to the jump never extends a
+  hour past the time the barber wrote. Snapping to the jump never extends a
   window.
 - **Store availability as UTC.** "Open 09:00" would drift by an hour twice a
   year in any zone that observes DST.

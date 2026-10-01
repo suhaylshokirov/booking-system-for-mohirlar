@@ -27,6 +27,7 @@ from app.models.user import User, UserRole
 from app.services.booking import create_booking, transition
 from app.web.formatting import NBSP
 from app.web.templating import FLASH_COOKIE
+from tests.support import add_barber
 
 NOW = datetime(2026, 10, 1, 7, tzinfo=UTC)
 NINE = datetime(2026, 10, 2, 4, 0, tzinfo=UTC)  # 09:00 Tashkent
@@ -73,8 +74,9 @@ def bob(db) -> User:
 
 
 @pytest.fixture
-def staff(db) -> User:
-    return _user(db, "staff@example.com", UserRole.ADMIN)
+def staff(db, jasur) -> User:
+    """Jasur's own login: the barber who confirms the bookings made with him."""
+    return add_barber(db, "staff@example.com", "Jasur", provider=jasur)
 
 
 def _sign_in(client, user: User, at: datetime = NOW) -> None:
@@ -260,7 +262,7 @@ def test_a_missing_booking_looks_the_same_as_someone_else_s(client, db, haircut,
     assert other.text == missing.text
 
 
-def test_an_admin_does_not_get_a_customer_page_for_someone_else_s_booking(
+def test_a_barber_does_not_get_a_customer_page_for_someone_else_s_booking(
     client, db, haircut, jasur, bob, staff
 ):
     theirs = _book(db, bob, haircut, jasur)

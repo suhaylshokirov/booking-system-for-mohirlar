@@ -10,7 +10,7 @@ DST policy, for the two kinds of local time that daylight saving breaks:
   happens): the time is moved *forward* to the first instant that exists, the
   moment the clocks jump (03:00). Shifting by the gap length instead (02:30 ->
   03:30) would let a window that ends at 02:30 run half an hour past what the
-  admin wrote.
+  barber wrote.
 - **Overlap** (fall back, e.g. 02:30 on 2026-10-25 happens twice): the *first*
   occurrence wins (`fold=0`, still summer time).
 

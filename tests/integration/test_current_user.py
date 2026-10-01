@@ -1,6 +1,6 @@
-"""get_current_user, get_optional_user and require_admin (P2.3).
+"""get_current_user, get_optional_user and require_barber (P2.3).
 
-No admin-only or optional-auth endpoints exist yet, so these tests mount tiny
+No barber-only or optional-auth endpoints exist yet, so these tests mount tiny
 probe routes on a throwaway app. That exercises the real dependencies through
 real HTTP requests, cookies and headers.
 """
@@ -13,11 +13,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.api.deps import ACCESS_COOKIE, AdminUser, CurrentUser, OptionalUser
+from app.api.deps import ACCESS_COOKIE, BarberUser, CurrentUser, OptionalUser
 from app.core.clock import FrozenClock, get_clock
 from app.core.db import get_db
 from app.core.errors import register_error_handlers
 from app.core.security import create_access_token, hash_password
+from app.models.provider import Provider
 from app.models.user import User, UserRole
 
 
@@ -35,8 +36,8 @@ def client(db: Session, frozen_clock: FrozenClock) -> Iterator[TestClient]:
     def optional(user: OptionalUser) -> dict:
         return {"id": user.id if user else None}
 
-    @app.get("/admin-only")
-    def admin_only(user: AdminUser) -> dict:
+    @app.get("/barber-only")
+    def barber_only(user: BarberUser) -> dict:
         return {"id": user.id}
 
     app.dependency_overrides[get_db] = lambda: db
@@ -45,7 +46,16 @@ def client(db: Session, frozen_clock: FrozenClock) -> Iterator[TestClient]:
         yield test_client
 
 
+def _provider(db: Session) -> Provider:
+    provider = Provider(name="Barber")
+    db.add(provider)
+    db.flush()
+    return provider
+
+
 def _user(db: Session, role: UserRole = UserRole.CUSTOMER, **fields) -> User:
+    if role == UserRole.BARBER and "provider_id" not in fields:
+        fields["provider_id"] = _provider(db).id  # a barber always runs a provider
     user = User(
         email=fields.pop("email", f"{role.value}@example.com"),
         password_hash=hash_password("irrelevant"),
@@ -118,26 +128,26 @@ def test_token_for_a_user_that_no_longer_exists_is_401(client, db, frozen_clock)
     assert response.json()["error"]["code"] == "INVALID_TOKEN"
 
 
-# --- require_admin ---------------------------------------------------------
+# --- require_barber ---------------------------------------------------------
 
 
-def test_admin_passes(client, db, frozen_clock):
-    admin = _user(db, UserRole.ADMIN)
-    response = client.get("/admin-only", headers=_bearer(admin, frozen_clock))
+def test_barber_passes(client, db, frozen_clock):
+    barber = _user(db, UserRole.BARBER)
+    response = client.get("/barber-only", headers=_bearer(barber, frozen_clock))
     assert response.status_code == 200
-    assert response.json() == {"id": admin.id}
+    assert response.json() == {"id": barber.id}
 
 
-def test_customer_on_an_admin_route_is_403(client, db, frozen_clock):
+def test_customer_on_a_barber_route_is_403(client, db, frozen_clock):
     customer = _user(db)
-    response = client.get("/admin-only", headers=_bearer(customer, frozen_clock))
+    response = client.get("/barber-only", headers=_bearer(customer, frozen_clock))
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "FORBIDDEN"
 
 
-def test_anonymous_on_an_admin_route_is_401_not_403(client):
+def test_anonymous_on_a_barber_route_is_401_not_403(client):
     """403 would tell a stranger the route exists and needs a role; 401 asks them to log in."""
-    response = client.get("/admin-only")
+    response = client.get("/barber-only")
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "UNAUTHENTICATED"
 
@@ -146,24 +156,24 @@ def test_role_changes_apply_to_tokens_already_issued(client, db, frozen_clock):
     """The role comes from the database, not the token."""
     user = _user(db)
     headers = _bearer(user, frozen_clock)
-    assert client.get("/admin-only", headers=headers).status_code == 403
+    assert client.get("/barber-only", headers=headers).status_code == 403
 
-    user.role = UserRole.ADMIN
+    user.role, user.provider_id = UserRole.BARBER, _provider(db).id
     db.flush()
-    assert client.get("/admin-only", headers=headers).status_code == 200
+    assert client.get("/barber-only", headers=headers).status_code == 200
 
-    user.role = UserRole.CUSTOMER
+    user.role, user.provider_id = UserRole.CUSTOMER, None
     db.flush()
-    assert client.get("/admin-only", headers=headers).status_code == 403
+    assert client.get("/barber-only", headers=headers).status_code == 403
 
 
-def test_deactivated_admin_is_locked_out(client, db, frozen_clock):
-    admin = _user(db, UserRole.ADMIN)
-    headers = _bearer(admin, frozen_clock)
-    admin.is_active = False
+def test_deactivated_barber_is_locked_out(client, db, frozen_clock):
+    barber = _user(db, UserRole.BARBER)
+    headers = _bearer(barber, frozen_clock)
+    barber.is_active = False
     db.flush()
 
-    response = client.get("/admin-only", headers=headers)
+    response = client.get("/barber-only", headers=headers)
     assert (response.status_code, response.json()["error"]["code"]) == (401, "ACCOUNT_INACTIVE")
 
 

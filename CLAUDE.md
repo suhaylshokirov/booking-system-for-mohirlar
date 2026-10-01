@@ -9,8 +9,9 @@ Read this file fully before touching code. `tasks.md` is the work queue.
 
 **Navbat** (Uzbek: "turn / queue") is an appointment booking system for a small
 service business such as a barbershop or clinic. A customer picks a service,
-sees free time slots, and books one; the business owner (admin) manages
-services, providers (staff), availability, and bookings.
+sees free time slots, and books one; the barbers themselves run the shop: each
+manages their own bookings, hours and profile, and any barber manages the shared
+services and settings. There is no administrator (ADR 0010, 2026-10-01).
 
 It is **Task 3 of the Mohirlar internship assignment**. It will be graded on:
 database design, business logic and validation, race conditions and edge
@@ -57,7 +58,7 @@ written in the commit body.
 | Migrate | `alembic upgrade head` |
 | New migration | `alembic revision --autogenerate -m "..."` — then **read and edit it**; autogenerate misses exclusion constraints |
 | Seed demo data | `python -m scripts.seed` |
-| Create the first admin | `python -m scripts.create_admin --email ... --password ...` (or `ADMIN_EMAIL`/`ADMIN_PASSWORD`) |
+| Create a barber | `python -m scripts.create_barber --email ... --password ... --name ...` (or `BARBER_EMAIL`/`BARBER_PASSWORD`) |
 | Tests (all) | `pytest` |
 | Tests (one layer) | `pytest tests/unit` · `pytest tests/integration` · `pytest tests/concurrency` |
 | Lint + format | `ruff check . && ruff format .` |
@@ -82,7 +83,7 @@ check `tasks.md`.
 | `tests/unit/` | Pure logic: slot algorithm, state machine, validators, time conversion |
 | `tests/integration/` | API + real Postgres |
 | `tests/concurrency/` | Race-condition tests with real commits and threads |
-| `scripts/` | `seed.py`, `create_admin.py` |
+| `scripts/` | `seed.py`, `create_barber.py` |
 | `docs/` | `architecture.md`, `database.md`, `edge-cases.md`, `api.md`, `decisions/` (ADRs), `submission.md` |
 | `AI_USAGE.md` | Running log of how AI was used and verified (required by the submission form) |
 
@@ -175,10 +176,11 @@ Deliberately not built (Theoria features that serve no requirement here):
 - AI assistant / chat widget
 - i18n and the language switcher (the UI is English only)
 - Poster galleries, image uploads
-- Charts (the admin dashboard uses a plain `.stats` row)
+- Charts (the barber dashboard uses a plain `.stats` row)
 - Email-code (passwordless) login
 - The Θ brand mark — Navbat gets its own mark
-- Provider login accounts (providers are records managed by the admin)
+- A separate administrator role. (Provider logins were out of scope until 2026-10-01;
+  barbers are now the staff, see ADR 0010.)
 - Payments, multiple businesses/locations, recurring bookings
 
 ## 9. Reporting to the owner

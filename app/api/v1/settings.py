@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.deps import AdminUser
+from app.api.deps import BarberUser
 from app.core.db import DbSession
 from app.schemas.business_settings import SettingsResponse, SettingsUpdate
 from app.schemas.errors import ErrorResponse
@@ -20,10 +20,10 @@ def read_settings(db: DbSession) -> SettingsResponse:
 @router.patch(
     "",
     response_model=SettingsResponse,
-    summary="Change business settings (admin)",
+    summary="Change business settings (barber)",
     responses={
         401: {"model": ErrorResponse, "description": "Not logged in."},
-        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not an administrator."},
+        403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not a barber."},
         409: {
             "model": ErrorResponse,
             "description": (
@@ -38,7 +38,7 @@ def read_settings(db: DbSession) -> SettingsResponse:
         },
     },
 )
-def update_settings(body: SettingsUpdate, db: DbSession, admin: AdminUser) -> SettingsResponse:
+def update_settings(body: SettingsUpdate, db: DbSession, barber: BarberUser) -> SettingsResponse:
     """Send only the fields to change. Existing bookings are never touched: they are
     stored as UTC instants and keep their price and duration."""
     changes = body.model_dump(exclude_unset=True)

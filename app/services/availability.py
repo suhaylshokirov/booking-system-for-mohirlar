@@ -198,7 +198,7 @@ def _validate(db: Session, rule: AvailabilityRule, *, ignore: int) -> None:
 def create_rule(db: Session, provider_id: int, data: dict[str, Any]) -> AvailabilityRule:
     """Add a weekly window to a provider.
 
-    The provider row is locked first so two admins adding rules at once run one
+    The provider row is locked first so two requests adding rules at once run one
     after the other, and the second sees the first in its overlap check.
 
     Raises:

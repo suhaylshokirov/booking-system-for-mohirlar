@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import AdminUser, OptionalUser, is_admin
+from app.api.deps import OptionalUser, OwnProvider, is_barber
 from app.core.clock import Clock, get_clock
 from app.core.db import DbSession
 from app.schemas.availability import (
@@ -48,9 +48,12 @@ def _exception_write(db: Session, row, clock: Clock) -> ExceptionWriteResponse:
     )
 
 
-_ADMIN_ERRORS = {
+_BARBER_ERRORS = {
     401: {"model": ErrorResponse, "description": "Not logged in."},
-    403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not an administrator."},
+    403: {
+        "model": ErrorResponse,
+        "description": "`FORBIDDEN`: not a barber, or not your own hours.",
+    },
 }
 _NOT_FOUND = {
     404: {"model": ErrorResponse, "description": "`NOT_FOUND`: no such provider or rule."}
@@ -77,8 +80,8 @@ _RULE_ERRORS = {
 )
 def list_rules(provider_id: int, db: DbSession, user: OptionalUser) -> list[RuleResponse]:
     """Local times in the business timezone (see `GET /settings`), Monday first.
-    An inactive provider is `404` for everyone but admins."""
-    rules = availability.list_rules(db, provider_id, include_inactive=is_admin(user))
+    An inactive provider is `404` for everyone but barbers."""
+    rules = availability.list_rules(db, provider_id, include_inactive=is_barber(user))
     return [RuleResponse.model_validate(rule) for rule in rules]
 
 
@@ -86,11 +89,11 @@ def list_rules(provider_id: int, db: DbSession, user: OptionalUser) -> list[Rule
     "/rules",
     response_model=RuleWriteResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Add a weekly working window (admin)",
-    responses={**_ADMIN_ERRORS, **_NOT_FOUND, **_RULE_ERRORS},
+    summary="Add a weekly working window (barber)",
+    responses={**_BARBER_ERRORS, **_NOT_FOUND, **_RULE_ERRORS},
 )
 def create_rule(
-    provider_id: int, body: RuleCreate, db: DbSession, admin: AdminUser, clock: ClockDep
+    provider_id: int, body: RuleCreate, db: DbSession, barber: OwnProvider, clock: ClockDep
 ) -> RuleWriteResponse:
     """Windows that touch (12:00 ends, 12:00 starts) are allowed; windows that overlap are not."""
     rule = availability.create_rule(db, provider_id, body.model_dump())
@@ -100,15 +103,15 @@ def create_rule(
 @router.patch(
     "/rules/{rule_id}",
     response_model=RuleWriteResponse,
-    summary="Change a weekly working window (admin)",
-    responses={**_ADMIN_ERRORS, **_NOT_FOUND, **_RULE_ERRORS},
+    summary="Change a weekly working window (barber)",
+    responses={**_BARBER_ERRORS, **_NOT_FOUND, **_RULE_ERRORS},
 )
 def update_rule(
     provider_id: int,
     rule_id: int,
     body: RuleUpdate,
     db: DbSession,
-    admin: AdminUser,
+    barber: OwnProvider,
     clock: ClockDep,
 ) -> RuleWriteResponse:
     rule = availability.update_rule(db, provider_id, rule_id, body.changes())
@@ -118,11 +121,11 @@ def update_rule(
 @router.delete(
     "/rules/{rule_id}",
     response_model=DeleteResponse,
-    summary="Remove a weekly working window (admin)",
-    responses={**_ADMIN_ERRORS, **_NOT_FOUND},
+    summary="Remove a weekly working window (barber)",
+    responses={**_BARBER_ERRORS, **_NOT_FOUND},
 )
 def delete_rule(
-    provider_id: int, rule_id: int, db: DbSession, admin: AdminUser, clock: ClockDep
+    provider_id: int, rule_id: int, db: DbSession, barber: OwnProvider, clock: ClockDep
 ) -> DeleteResponse:
     """Existing bookings are never removed; `details.conflicts` lists the ones that no
     longer fit."""
@@ -147,11 +150,13 @@ _EXCEPTION_ERRORS = {
 @router.get(
     "/exceptions",
     response_model=list[ExceptionResponse],
-    summary="A provider's days off and custom-hours dates (admin)",
-    responses={**_ADMIN_ERRORS, **_NOT_FOUND},
+    summary="A barber's days off and custom-hours dates",
+    responses={**_BARBER_ERRORS, **_NOT_FOUND},
 )
-def list_exceptions(provider_id: int, db: DbSession, admin: AdminUser) -> list[ExceptionResponse]:
-    """Earliest date first, past dates included. Admin-only because a reason
+def list_exceptions(
+    provider_id: int, db: DbSession, barber: OwnProvider
+) -> list[ExceptionResponse]:
+    """Earliest date first, past dates included. Barber-only because a reason
     ("sick leave") is not for customers; they only see the resulting slots."""
     rows = availability.list_exceptions(db, provider_id)
     return [ExceptionResponse.model_validate(row) for row in rows]
@@ -161,14 +166,14 @@ def list_exceptions(provider_id: int, db: DbSession, admin: AdminUser) -> list[E
     "/exceptions",
     response_model=ExceptionWriteResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Close a date or give it custom hours (admin)",
-    responses={**_ADMIN_ERRORS, **_NOT_FOUND, **_EXCEPTION_ERRORS},
+    summary="Close a date or give it custom hours (barber)",
+    responses={**_BARBER_ERRORS, **_NOT_FOUND, **_EXCEPTION_ERRORS},
 )
 def create_exception(
     provider_id: int,
     body: ExceptionCreate,
     db: DbSession,
-    admin: AdminUser,
+    barber: OwnProvider,
     clock: ClockDep,
 ) -> ExceptionWriteResponse:
     """The exception **replaces** the weekly rules for that date. Send no times for a
@@ -181,15 +186,15 @@ def create_exception(
 @router.patch(
     "/exceptions/{exception_id}",
     response_model=ExceptionWriteResponse,
-    summary="Change an exception (admin)",
-    responses={**_ADMIN_ERRORS, **_NOT_FOUND, **_EXCEPTION_ERRORS},
+    summary="Change an exception (barber)",
+    responses={**_BARBER_ERRORS, **_NOT_FOUND, **_EXCEPTION_ERRORS},
 )
 def update_exception(
     provider_id: int,
     exception_id: int,
     body: ExceptionUpdate,
     db: DbSession,
-    admin: AdminUser,
+    barber: OwnProvider,
     clock: ClockDep,
 ) -> ExceptionWriteResponse:
     """`null` times make it a day off. An exception in the past cannot be edited."""
@@ -200,11 +205,11 @@ def update_exception(
 @router.delete(
     "/exceptions/{exception_id}",
     response_model=DeleteResponse,
-    summary="Remove an exception (admin)",
-    responses={**_ADMIN_ERRORS, **_NOT_FOUND},
+    summary="Remove an exception (barber)",
+    responses={**_BARBER_ERRORS, **_NOT_FOUND},
 )
 def delete_exception(
-    provider_id: int, exception_id: int, db: DbSession, admin: AdminUser, clock: ClockDep
+    provider_id: int, exception_id: int, db: DbSession, barber: OwnProvider, clock: ClockDep
 ) -> DeleteResponse:
     """The weekly rules apply to that date again; `details.conflicts` lists bookings
     that still do not fit them."""
@@ -215,13 +220,13 @@ def delete_exception(
 @router.get(
     "/conflicts",
     response_model=list[ConflictResponse],
-    summary="Future bookings that no longer fit the provider's hours (admin)",
-    responses={**_ADMIN_ERRORS, **_NOT_FOUND},
+    summary="Future bookings that no longer fit the provider's hours (barber)",
+    responses={**_BARBER_ERRORS, **_NOT_FOUND},
 )
 def list_conflicts(
-    provider_id: int, db: DbSession, admin: AdminUser, clock: ClockDep
+    provider_id: int, db: DbSession, barber: OwnProvider, clock: ClockDep
 ) -> list[ConflictResponse]:
     """Pending and confirmed bookings that have not started, earliest first, that
     are not fully inside the provider's working hours (weekly rules, or the
-    exception for their date). Nothing is changed: the admin decides what to do."""
+    exception for their date). Nothing is changed: the barber decides what to do."""
     return _conflicts(db, provider_id, clock).conflicts

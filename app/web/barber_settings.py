@@ -1,9 +1,9 @@
-"""The business settings in the admin area: name, timezone, currency and booking rules.
+"""The business settings in the barber area: name, timezone, currency and booking rules.
 
-    GET  /admin/settings     the form, filled with the current values
-    POST /admin/settings     save them all
+    GET  /barber/settings     the form, filled with the current values
+    POST /barber/settings     save them all
 
-Admin only (`WebAdmin`). Validation is `SettingsUpdate`, the API's schema, and
+Barber only (`WebBarber`). Validation is `SettingsUpdate`, the API's schema, and
 the save is `business_settings.update_business_settings`, so a rule exists once.
 A problem re-renders the form (422, or 409 for a granularity that active
 services do not fit) with a message beside the field and what was typed kept.
@@ -24,7 +24,7 @@ from app.core.db import DbSession
 from app.core.errors import AppError
 from app.schemas.business_settings import SettingsUpdate
 from app.services.business_settings import get_business_settings, update_business_settings
-from app.web.deps import WebAdmin
+from app.web.deps import WebBarber
 from app.web.forms import field_errors, whole_number
 from app.web.templating import render, set_flash
 
@@ -59,20 +59,20 @@ def _form(request: Request, db: DbSession, values: dict[str, Any], errors=None, 
         "errors": errors or {},
         "granularities": GRANULARITIES,
     }
-    return render(request, "admin/settings.html", context, status_code=status_code)
+    return render(request, "barber/settings.html", context, status_code=status_code)
 
 
-@router.get("/admin/settings", response_class=HTMLResponse, name="admin_settings")
-def settings_form(request: Request, db: DbSession, admin: WebAdmin) -> HTMLResponse:
+@router.get("/barber/settings", response_class=HTMLResponse, name="barber_settings")
+def settings_form(request: Request, db: DbSession, barber: WebBarber) -> HTMLResponse:
     current = get_business_settings(db)
     return _form(request, db, {field: getattr(current, field) for field in _FIELDS})
 
 
-@router.post("/admin/settings", name="admin_settings_save")
+@router.post("/barber/settings", name="barber_settings_save")
 def settings_save(
     request: Request,
     db: DbSession,
-    admin: WebAdmin,
+    barber: WebBarber,
     name: Annotated[str, Form()] = "",
     timezone: Annotated[str, Form()] = "",
     currency: Annotated[str, Form()] = "",
@@ -110,6 +110,6 @@ def settings_save(
             message = f"{error.message} Affected: {names}."
             return _form(request, db, values, {"slot_granularity_minutes": message}, 409)
         raise
-    response = RedirectResponse("/admin/settings", status_code=303)
+    response = RedirectResponse("/barber/settings", status_code=303)
     set_flash(response, "settings_saved")
     return response

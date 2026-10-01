@@ -1,16 +1,17 @@
-"""Every booking, for the admin: a filterable list, one booking's detail, and the actions.
+"""The barber's clients' bookings: a filterable list, one booking's detail, and the actions.
 
-    GET  /admin/bookings                   table with filters and pages
-    GET  /admin/bookings/{id}              the booking and its full history
-    POST /admin/bookings/{id}/confirm      pending -> confirmed
-    POST /admin/bookings/{id}/complete     confirmed -> completed (once it has ended)
-    POST /admin/bookings/{id}/cancel       cancel; `reason` (required for a confirmed one)
+    GET  /barber/bookings                   table with filters and pages
+    GET  /barber/bookings/{id}              the booking and its full history
+    POST /barber/bookings/{id}/confirm      pending -> confirmed
+    POST /barber/bookings/{id}/complete     confirmed -> completed (once it has ended)
+    POST /barber/bookings/{id}/cancel       cancel; `reason` (required for a confirmed one)
 
-Admin only (`WebAdmin`). Every action is `booking.transition`, the same code the
-JSON API uses, so who may do what and when lives in `booking_state` only; the
-buttons shown are a convenience and the server still decides. A refused action
-(409, or 422 for a missing reason) shows the booking's page again with the
-reason, never an error page.
+Barber only (`WebBarber`), and only bookings made with that barber: another barber's
+booking is the same 404 as one that does not exist. Every action is
+`booking.transition`, the same code the JSON API uses, so who may do what and when
+lives in `booking_state` only; the buttons shown are a convenience and the server
+still decides. A refused action (409, or 422 for a missing reason) shows the
+booking's page again with the reason, never an error page.
 
 The filters are a GET form, so a filtered list is a shareable address and works
 without JavaScript. With JavaScript (`initLiveFilter`) a change fetches just the
@@ -18,7 +19,7 @@ table (`X-Requested-With`) and swaps it in. A filter value that makes no sense
 (a date that is not a date, an unknown status) is ignored rather than refused:
 the list simply is not narrowed by it.
 
-Actions carry a hidden `next` (the page they were pressed on) so the admin lands
+Actions carry a hidden `next` (the page they were pressed on) so the barber lands
 back there; `safe_next_path` keeps it on this site.
 """
 
@@ -38,9 +39,8 @@ from app.models.user import User
 from app.services import booking as booking_service
 from app.services.booking_state import is_stale_pending
 from app.services.business_settings import get_business_settings
-from app.services.provider_catalog import list_providers
-from app.web.admin import ALL_PROVIDERS, _render_dashboard
-from app.web.deps import WebAdmin
+from app.web.barber import _render_dashboard
+from app.web.deps import WebBarber
 from app.web.paging import MAX_PAGE, make_pager, page_params
 from app.web.redirects import safe_next_path
 from app.web.templating import render, set_flash
@@ -51,7 +51,7 @@ ClockDep = Annotated[Clock, Depends(get_clock)]
 
 BOOKINGS_PER_PAGE = 20
 
-_BOOKINGS_LIST = "/admin/bookings"
+_BOOKINGS_LIST = "/barber/bookings"
 
 
 def _as_status(text: str) -> BookingStatus | None:
@@ -80,14 +80,13 @@ class Row:
     can_complete: bool
 
 
-@router.get("/admin/bookings", response_class=HTMLResponse, name="admin_bookings")
+@router.get("/barber/bookings", response_class=HTMLResponse, name="barber_bookings")
 def bookings_list(
     request: Request,
     db: DbSession,
     clock: ClockDep,
-    admin: WebAdmin,
+    barber: WebBarber,
     status: str = "",
-    provider: str = "",
     date_from: str = "",
     date_to: str = "",
     customer: str = "",
@@ -96,11 +95,11 @@ def bookings_list(
     """Raises: 404 for a page past the last. A fragment (the table only) for `X-Requested-With`."""
     now = clock.now()
     customer = customer.strip()
-    items, total = booking_service.list_all_bookings(
+    items, total = booking_service.list_provider_bookings(
         db,
         page_params(page, BOOKINGS_PER_PAGE),
+        barber.provider_id,
         _as_status(status),
-        _as_id(provider),
         None,
         _as_date(date_from),
         _as_date(date_to),
@@ -118,7 +117,6 @@ def bookings_list(
     ]
     filters = {
         "status": status,
-        "provider": provider,
         "date_from": date_from,
         "date_to": date_to,
         "customer": customer,
@@ -132,16 +130,12 @@ def bookings_list(
         "filters": filters,
         "keep": kept + "&" if kept else "",
         "statuses": list(BookingStatus),
-        "providers": [
-            view.provider
-            for view in list_providers(db, ALL_PROVIDERS, include_inactive=True, service_id=None)[0]
-        ],
         "next": request.url.path + (f"?{request.url.query}" if request.url.query else ""),
     }
     template = (
-        "_partials/admin_bookings_table.html"
+        "_partials/barber_bookings_table.html"
         if request.headers.get("x-requested-with")
-        else "admin/bookings.html"
+        else "barber/bookings.html"
     )
     return render(request, template, context)
 
@@ -165,14 +159,14 @@ def _describe(event: BookingEvent, actor: User | None) -> HistoryEntry:
 def _render_detail(
     request: Request,
     db: DbSession,
-    admin: User,
+    barber: User,
     now: datetime,
     booking_id: int,
     *,
     problem: str | None = None,
     status_code: int = 200,
 ) -> HTMLResponse:
-    booking = booking_service.get_booking(db, admin, booking_id)
+    booking = booking_service.get_booking(db, barber, booking_id)
     (line,) = booking_service.describe_bookings(db, [booking])
     context = {
         "business": get_business_settings(db),
@@ -182,27 +176,27 @@ def _render_detail(
         "can_complete": now >= booking.end_at,
         "history": [
             _describe(event, actor)
-            for event, actor in booking_service.list_history(db, admin, booking.id)
+            for event, actor in booking_service.list_history(db, barber, booking.id)
         ],
         "problem": problem,
         "next": f"{_BOOKINGS_LIST}/{booking.id}",
     }
-    return render(request, "admin/booking_detail.html", context, status_code=status_code)
+    return render(request, "barber/booking_detail.html", context, status_code=status_code)
 
 
-@router.get("/admin/bookings/{booking_id}", response_class=HTMLResponse, name="admin_booking")
+@router.get("/barber/bookings/{booking_id}", response_class=HTMLResponse, name="barber_booking")
 def booking_detail(
-    request: Request, booking_id: int, db: DbSession, clock: ClockDep, admin: WebAdmin
+    request: Request, booking_id: int, db: DbSession, clock: ClockDep, barber: WebBarber
 ) -> HTMLResponse:
     """Raises: 404 `BOOKING_NOT_FOUND`."""
-    return _render_detail(request, db, admin, clock.now(), booking_id)
+    return _render_detail(request, db, barber, clock.now(), booking_id)
 
 
 def _act(
     request: Request,
     db: DbSession,
     clock: Clock,
-    admin: User,
+    barber: User,
     booking_id: int,
     to: BookingStatus,
     flash: str,
@@ -210,22 +204,22 @@ def _act(
     reason: str | None = None,
 ) -> Response:
     now = clock.now()
-    # Where the admin was: the dashboard shows the refusal itself, every other
+    # Where the barber was: the dashboard shows the refusal itself, every other
     # page sends them to the booking, where the reason reads best.
-    next_path = safe_next_path(next_path) if next_path else "/admin"
+    next_path = safe_next_path(next_path) if next_path else "/barber"
     try:
-        booking_service.transition(db, admin, booking_id, to, now, reason)
+        booking_service.transition(db, barber, booking_id, to, now, reason)
     except AppError as error:
         if error.status_code not in (409, 422):
             raise
-        if next_path == "/admin":
+        if next_path == "/barber":
             return _render_dashboard(
-                request, db, now, problem=error.message, status_code=error.status_code
+                request, db, barber, now, problem=error.message, status_code=error.status_code
             )
         return _render_detail(
             request,
             db,
-            admin,
+            barber,
             now,
             booking_id,
             problem=error.message,
@@ -236,43 +230,43 @@ def _act(
     return response
 
 
-@router.post("/admin/bookings/{booking_id}/confirm", name="admin_booking_confirm")
+@router.post("/barber/bookings/{booking_id}/confirm", name="barber_booking_confirm")
 def confirm(
     request: Request,
     booking_id: int,
     db: DbSession,
     clock: ClockDep,
-    admin: WebAdmin,
+    barber: WebBarber,
     next: Annotated[str, Form()] = "",
 ) -> Response:
     """Raises: 404 `BOOKING_NOT_FOUND`; refusals are shown as a notice (409)."""
     return _act(
-        request, db, clock, admin, booking_id, BookingStatus.CONFIRMED, "booking_confirmed", next
+        request, db, clock, barber, booking_id, BookingStatus.CONFIRMED, "booking_confirmed", next
     )
 
 
-@router.post("/admin/bookings/{booking_id}/complete", name="admin_booking_complete")
+@router.post("/barber/bookings/{booking_id}/complete", name="barber_booking_complete")
 def complete(
     request: Request,
     booking_id: int,
     db: DbSession,
     clock: ClockDep,
-    admin: WebAdmin,
+    barber: WebBarber,
     next: Annotated[str, Form()] = "",
 ) -> Response:
     """Raises: 404 `BOOKING_NOT_FOUND`; refusals (`TOO_EARLY_TO_COMPLETE`) are shown as a notice."""
     return _act(
-        request, db, clock, admin, booking_id, BookingStatus.COMPLETED, "booking_completed", next
+        request, db, clock, barber, booking_id, BookingStatus.COMPLETED, "booking_completed", next
     )
 
 
-@router.post("/admin/bookings/{booking_id}/cancel", name="admin_booking_cancel")
+@router.post("/barber/bookings/{booking_id}/cancel", name="barber_booking_cancel")
 def cancel(
     request: Request,
     booking_id: int,
     db: DbSession,
     clock: ClockDep,
-    admin: WebAdmin,
+    barber: WebBarber,
     reason: Annotated[str, Form(max_length=500)] = "",
     next: Annotated[str, Form()] = "",
 ) -> Response:
@@ -281,10 +275,10 @@ def cancel(
         request,
         db,
         clock,
-        admin,
+        barber,
         booking_id,
         BookingStatus.CANCELLED,
-        "booking_cancelled_admin",
+        "booking_cancelled_barber",
         next,
         reason.strip() or None,
     )

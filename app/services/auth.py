@@ -3,8 +3,8 @@
 Rules:
 - Emails are compared case-insensitively: they are stored trimmed and
   lower-cased, and the unique index on `lower(email)` is the real guarantee.
-- Registration can only ever create a `customer`. Admins come from the
-  create-admin CLI (`ensure_admin`, P2.6), never from an endpoint.
+- Registration can only ever create a `customer`. Barbers come from the
+  create-barber CLI (`ensure_barber`), never from an endpoint.
 - A wrong email and a wrong password are indistinguishable to the caller
   (same error, and a password hash is computed either way), so the login
   endpoint cannot be used to find out who has an account.
@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.rate_limit import LoginAttemptLimiter
 from app.core.security import hash_password, verify_password
+from app.models.provider import Provider
 from app.models.user import User, UserRole
 
 _EMAIL_UNIQUE_INDEX = "uq_users_email_lower"
@@ -160,33 +161,45 @@ def login(
     return user
 
 
-def ensure_admin(db: Session, *, email: str, password: str, full_name: str) -> tuple[User, str]:
-    """Make sure an active admin with this email and password exists.
+def ensure_barber(db: Session, *, email: str, password: str, full_name: str) -> tuple[User, str]:
+    """Make sure an active barber with this email and password exists.
 
-    Idempotent, for the create-admin script. A new email creates the account. An
-    existing account (any letter case, customer or admin) is promoted to admin,
-    reactivated and given this password; nothing is duplicated and its name is
-    kept. Returns the user and what happened: `"created"`, `"updated"` or
-    `"unchanged"` (so rerunning the same command changes no row).
+    Idempotent, for the create-barber script. A new email creates the account
+    and the barber's provider record (named `full_name`) together: a barber
+    without a provider cannot exist (a CHECK on `users` says so). An existing
+    account (any letter case, customer or barber) is promoted to barber,
+    reactivated and given this password; a promoted customer gets a provider
+    too, a barber keeps theirs, and nothing is duplicated. Returns the user and
+    what happened: `"created"`, `"updated"` or `"unchanged"` (so rerunning the
+    same command changes no row).
 
     Checking that the email and password are acceptable is the caller's job
     (the script validates with the same schema as registration).
     """
     user = _find_by_email(db, email)
     if user is None:
+        provider = Provider(name=full_name.strip())
+        db.add(provider)
+        db.flush()
         user = User(
             email=normalize_email(email),
             password_hash=hash_password(password),
             full_name=full_name.strip(),
-            role=UserRole.ADMIN,
+            role=UserRole.BARBER,
+            provider_id=provider.id,
         )
         db.add(user)
         db.flush()
         return user, "created"
 
     changed = False
-    if user.role != UserRole.ADMIN:
-        user.role, changed = UserRole.ADMIN, True
+    if user.provider_id is None:
+        provider = Provider(name=user.full_name)
+        db.add(provider)
+        db.flush()
+        user.provider_id, changed = provider.id, True
+    if user.role != UserRole.BARBER:
+        user.role, changed = UserRole.BARBER, True
     if not user.is_active:
         user.is_active, changed = True, True
     # Compare before hashing: a new salt would "change" the hash on every rerun.

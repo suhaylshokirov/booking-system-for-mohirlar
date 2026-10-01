@@ -10,6 +10,7 @@ import pytest
 from app.api.cookies import ACCESS_COOKIE, CSRF_COOKIE
 from app.core.security import create_access_token, hash_password
 from app.models import AvailabilityRule, Provider, ProviderService, Service, User, UserRole
+from tests.support import add_barber
 
 TEN = "2026-10-05T05:00:00Z"
 NOTE = r"Short, on the sides; no \ clippers"
@@ -107,8 +108,8 @@ def test_someone_elses_booking_is_404(client, db, booking_id, frozen_clock):
     assert response.json()["error"]["code"] == "BOOKING_NOT_FOUND"
 
 
-def test_an_admin_can_download_any_booking(client, db, booking_id, frozen_clock):
-    staff = make_user(db, "staff@example.com", UserRole.ADMIN)
+def test_the_barber_can_download_their_clients_booking(client, db, setup, booking_id, frozen_clock):
+    staff = add_barber(db, "staff@example.com", provider=setup[1])
 
     response = client.get(f"/api/v1/bookings/{booking_id}/ics", headers=bearer(staff, frozen_clock))
 

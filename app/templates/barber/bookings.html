@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
-{% set active_nav = "admin" %}
+{% set active_nav = "barber" %}
 
-{% block title %}Bookings · Admin · {{ business.name }}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/admin.css">{% endblock %}
+{% block title %}Bookings · Barber · {{ business.name }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/barber.css">{% endblock %}
 
 {% block masthead %}
 <header class="masthead">
     <div class="container">
-        <a class="back-link" href="/admin">Admin</a>
+        <a class="back-link" href="/barber">Barber</a>
         <h1 class="sheet-title">Bookings</h1>
         <p class="sheet-sub">Every booking, soonest first. Times are in <span class="mono">{{ business.timezone }}</span>.</p>
     </div>
@@ -16,24 +16,17 @@
 {% endblock %}
 
 {% block content %}
-{{ ui.admin_nav("bookings") }}
+{{ ui.barber_nav("bookings") }}
 <section class="section" aria-labelledby="bookings-title">
     <div class="section-head"><h2 id="bookings-title">Find a booking</h2></div>
     {# A plain GET form: works without JS. With JS (initLiveFilter) a change
        swaps only the table below. #}
-    <form class="inline-form" method="get" action="/admin/bookings" data-live-filter data-live-target="#booking-results">
+    <form class="inline-form" method="get" action="/barber/bookings" data-live-filter data-live-target="#booking-results">
         <div class="field">
             <label class="field__label" for="f-status">Status</label>
             <select id="f-status" name="status">
                 <option value="">Any</option>
                 {% for s in statuses %}<option value="{{ s.value }}"{% if filters.status == s.value %} selected{% endif %}>{{ s.value|capitalize }}</option>{% endfor %}
-            </select>
-        </div>
-        <div class="field">
-            <label class="field__label" for="f-provider">Provider</label>
-            <select id="f-provider" name="provider">
-                <option value="">Anyone</option>
-                {% for p in providers %}<option value="{{ p.id }}"{% if filters.provider == p.id|string %} selected{% endif %}>{{ p.name }}</option>{% endfor %}
             </select>
         </div>
         <div class="field">
@@ -49,11 +42,11 @@
             <input id="f-customer" name="customer" type="search" value="{{ filters.customer }}" placeholder="part of an email">
         </div>
         <button type="submit" class="btn btn--small">Filter</button>
-        <a class="btn btn--quiet btn--small" href="/admin/bookings">Clear</a>
+        <a class="btn btn--quiet btn--small" href="/barber/bookings">Clear</a>
     </form>
 
     <div id="booking-results">
-        {% include "_partials/admin_bookings_table.html" %}
+        {% include "_partials/barber_bookings_table.html" %}
     </div>
 </section>
 {% endblock %}

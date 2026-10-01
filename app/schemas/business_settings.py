@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# The slot grid sizes offered to the admin: each divides an hour evenly, so
+# The slot grid sizes offered to barbers: each divides an hour evenly, so
 # slots line up with the clock face.
 SlotGranularity = Literal[5, 10, 15, 20, 30, 60]
 
@@ -25,7 +25,7 @@ _EXAMPLE = {
 
 
 class SettingsResponse(BaseModel):
-    """Everything a customer or the admin UI needs to know about the business.
+    """Everything a customer or the barber UI needs to know about the business.
 
     Nothing here is secret (no id, no internal flags): the horizon and cutoff
     are shown to customers so a refusal is never a surprise.

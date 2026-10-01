@@ -10,6 +10,7 @@ import pytest
 
 from app.core.security import create_access_token, hash_password
 from app.models import AvailabilityRule, Provider, ProviderService, Service, User, UserRole
+from tests.support import add_barber
 
 TEN = "2026-10-05T05:00:00Z"
 ELEVEN = "2026-10-05T06:00:00Z"
@@ -169,9 +170,12 @@ def test_missing_booking_looks_the_same_as_someone_elses(client, bob):
     assert response.json()["error"]["code"] == "BOOKING_NOT_FOUND"
 
 
-def test_admin_can_read_any_booking_but_lists_only_their_own(client, db, frozen_clock, ali, setup):
+def test_a_barber_can_read_their_clients_booking_but_lists_only_their_own(
+    client, db, frozen_clock, ali, setup
+):
     booking_id = client.post("/api/v1/bookings", json=payload(setup), headers=ali).json()["id"]
-    boss = login_as(db, frozen_clock, "boss@example.com", UserRole.ADMIN)
+    barber = add_barber(db, "boss@example.com", provider=setup[1])
+    boss = {"Authorization": f"Bearer {create_access_token(barber.id, frozen_clock.now())}"}
 
     assert client.get(f"/api/v1/bookings/{booking_id}", headers=boss).status_code == 200
     assert client.get("/api/v1/bookings", headers=boss).json()["total"] == 0
