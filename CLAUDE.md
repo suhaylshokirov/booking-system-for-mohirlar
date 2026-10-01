@@ -182,7 +182,6 @@ Deliberately not built (Theoria features that serve no requirement here):
 - Poster galleries, and image uploads other than a barber's own photo (that one
   was added on 2026-10-01 at the owner's request, ADR 0012)
 - Charts (the barber dashboard uses a plain `.stats` row)
-- Email-code (passwordless) login
 - The Θ brand mark — Navbat gets its own mark
 - A separate administrator role. (Provider logins were out of scope until 2026-10-01;
   barbers are now the staff, see ADR 0010.)

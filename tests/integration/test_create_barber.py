@@ -128,7 +128,7 @@ def test_refuses_weak_passwords_and_bad_emails(db, capsys, email, password):
 
 
 def test_refuses_the_public_placeholder_password_in_production(db, capsys, monkeypatch):
-    production = Settings(app_env="production", jwt_secret="x" * 40)
+    production = Settings(app_env="production", jwt_secret="x" * 40, smtp_host="smtp.example.com")
     monkeypatch.setattr(create_barber, "get_settings", lambda: production)
 
     assert _run("--email", EMAIL, "--password", PLACEHOLDER_BARBER_PASSWORD) == 1

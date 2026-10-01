@@ -685,6 +685,34 @@ checklist (P11.4) is verified against this table.
 
 ---
 
+## P12 — Email-code sign-in (owner's change request)
+
+Added on 2026-10-01 while P11.1 was in progress; P11 is paused until it lands (the
+deploy preparation is stashed, see the Deviations log). Replaces passwords with a
+6-digit code emailed to the person, for signing up and for signing in. Decisions
+(asked, answered): the code is sent over SMTP using only the standard library;
+reviewers of a live demo register their own address, no code is ever shown on screen.
+
+### P12.1 — Sending email (SMTP, console fallback)
+- [x] Status
+- Goal: the app can send a plain-text email, and development and tests need no mail server.
+- Requirement(s) served: Authentication (groundwork); product thinking. Lifts "email-code login" from CLAUDE.md §8.
+- Acceptance criteria: `app/core/mail.py` with a `Mailer` protocol, `SmtpMailer` (stdlib `smtplib`; STARTTLS, SSL or none; timeout; login only when a user is set) and `ConsoleMailer`; `SMTP_*` settings in `config.py` and `.env.example`; `get_mailer` dependency tests can override; production refuses to start without `SMTP_HOST`; a mail server problem is a `MailError` and is logged, not shown.
+- Tests: `tests/unit/test_mail.py` (conversation per security mode, headers, failures, header injection refused, settings choose the mailer, production guard).
+- Docs updated: `.env.example`, README environment table, `docs/architecture.md`, `docs/edge-cases.md` (row 97), this file.
+- Edge cases covered: 97.
+
+### P12.2 — Sign up and sign in with a code, no passwords
+- [ ] Status
+- Goal: nobody has a password; signing up and signing in both end with typing the 6-digit code that was emailed.
+- Requirement(s) served: Authentication; basic validation; race conditions (a code is used once).
+- Acceptance criteria: `users.password_hash` dropped (migration `0008`) and `login_codes` created; `POST /auth/register` and `POST /auth/login` send a code and answer the same whether or not the address has an account; `POST /auth/verify` checks it (10 minutes, 5 wrong tries, once, newest code only), creates the customer on a sign-up, and sets the cookies; web pages for the same flow with a "send a new code" button; `create_barber` and the seed need no password; the pwdlib dependency is removed; ADR 0013.
+- Tests: unit (code generation and hashing); integration (API and web flows, expiry at the exact boundary, wrong tries, replaced code, unknown address indistinguishable, inactive account, send failure leaves nothing behind, rate limit); concurrency (two verifications of one code: exactly one wins); migration up/down.
+- Docs to update: ADR 0013, `docs/api.md`, `docs/database.md`, `docs/architecture.md`, `docs/edge-cases.md`, README, CLAUDE.md, error catalog, walkthrough script.
+- Edge cases covered: 98 onward.
+
+---
+
 ## P11 — Ship
 
 ### P11.1 — Deploy
@@ -795,3 +823,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-10-01 | P10.8 | The shop's photos are static files in the repo, not something a barber uploads or edits | A gallery a barber manages is the "poster gallery" CLAUDE.md §8 still rules out; five fixed photos serve the home page. Changing them is a code change |
 | 2026-10-01 | P10.8 | The shop photos are rounded rectangles, not arches; the arch frame stays on barber portraits only | Owner's review: the arch framing did not suit the shop pictures |
 | 2026-10-01 | P10.7 | The seed fills a demo barber's photo and phone whenever they are empty, instead of only when it creates the barber. A demo barber who removes their photo gets it back on the next Docker start | Owner's review: a database seeded before photos existed showed only initials. Every demo barber should have a face; a photo or number the barber set is never replaced, and non-demo barbers are never touched |
+| 2026-10-01 | P12 (during P11.1) | Passwords are removed; customers and barbers sign up and in with a 6-digit code emailed to them. P11.1 (deploy) is paused: its preparation (`render.yaml`, `docker/start.sh` as the container start script with `--proxy-headers`, the `postgresql://` to psycopg 3 driver fix in `config.py`, the compose change to use that script) is in `git stash` (`P11.1 deploy prep (paused)`), uncommitted, to be restored with `git stash pop` when deploy resumes. CLAUDE.md §8 no longer lists email-code login as out of scope; CLAUDE.md §3 loses `pwdlib` in P12.2 | Owner's request. Choices confirmed with the owner: the code goes over SMTP using the standard library (no new dependency); a reviewer of the live demo registers their own address, so no code is ever shown on screen and no password is published. Production now needs `SMTP_HOST` (and credentials the owner supplies) before it can sign anyone in, which P11.1 must include |

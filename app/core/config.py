@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     barber_email: str = "jasur@navbat.local"
     barber_password: str = PLACEHOLDER_BARBER_PASSWORD
 
+    # Email for the sign-in codes. Unset SMTP_HOST means "log the message to the
+    # console" (development, tests); production requires it (validated below).
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str = ""
+    smtp_from: str = "Navbat <no-reply@navbat.local>"
+    # starttls: connect plain, then upgrade (port 587). ssl: encrypted from the
+    # start (port 465). none: no encryption, only for a local test server.
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+
     # Docker entrypoint: run `python -m scripts.seed` before starting the app.
     seed_demo_data: bool = False
 
@@ -43,6 +54,8 @@ class Settings(BaseSettings):
     def _reject_placeholder_secret_in_production(self) -> "Settings":
         if self.app_env == "production" and self.jwt_secret == _PLACEHOLDER_JWT_SECRET:
             raise ValueError("JWT_SECRET must be changed from the placeholder in production")
+        if self.app_env == "production" and not self.smtp_host:
+            raise ValueError("SMTP_HOST must be set in production: sign-in codes are emailed")
         return self
 
 

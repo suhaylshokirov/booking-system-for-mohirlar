@@ -136,7 +136,7 @@ def test_login_sets_an_httponly_lax_cookie_that_opens_me(client):
 
 def test_login_cookie_is_secure_in_production(client, monkeypatch):
     _register(client)
-    production = Settings(app_env="production", jwt_secret="x" * 40)
+    production = Settings(app_env="production", jwt_secret="x" * 40, smtp_host="smtp.example.com")
     monkeypatch.setattr("app.api.cookies.get_settings", lambda: production)
 
     set_cookies = _login(client).headers.get_list("set-cookie")

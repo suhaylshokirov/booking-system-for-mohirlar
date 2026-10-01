@@ -12,6 +12,11 @@ Cross-cutting pieces live in `app/core/`:
 
 - **`config.py`**: `Settings` (pydantic-settings) reads every variable in
   `.env.example`; production refuses to start with the placeholder JWT secret.
+- **`mail.py`**: sending one plain-text email. `SmtpMailer` (standard-library
+  `smtplib`) when `SMTP_HOST` is set, otherwise `ConsoleMailer`, which logs the
+  message. Business code takes a `Mailer` (a dependency tests override) and never
+  opens a connection; a server problem is a `MailError`, logged with the cause and
+  shown to nobody. Booking notices do not use it: they go through the outbox (ADR 0009).
 - **`clock.py`**: business code takes `now` from an injected `Clock` rather than
   calling `datetime.now()`, so tests can freeze time at rule boundaries.
 - **`errors.py`**: services raise `AppError(code, message, status_code, details)`

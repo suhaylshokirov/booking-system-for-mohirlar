@@ -303,6 +303,7 @@ def _demo_settings(monkeypatch, app_env="development"):
     settings = Settings(
         app_env=app_env,
         jwt_secret="a-real-secret-for-this-test",
+        smtp_host="smtp.example.com",
         barber_email="boss@example.com",
         barber_password=PASSWORD,
     )

@@ -184,6 +184,11 @@ which must be replaced in production.
 | `JWT_EXPIRE_MINUTES` | `720` | Lifetime of a login token. |
 | `LOGIN_RATE_LIMIT_ATTEMPTS` | `5` | Failed logins allowed per (IP, email) per window. |
 | `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `300` | Length of that window. |
+| `SMTP_HOST` | empty | Mail server that sends the sign-in codes. Empty: codes are only logged to the console (development). **Required in production.** |
+| `SMTP_PORT` | `587` | Mail server port (`465` with `SMTP_SECURITY=ssl`). |
+| `SMTP_USER` / `SMTP_PASSWORD` | empty | **Secret** (the password). Login for the mail server; skipped when the user is empty. |
+| `SMTP_FROM` | `Navbat <no-reply@navbat.local>` | The sender shown on the email. |
+| `SMTP_SECURITY` | `starttls` | `starttls`, `ssl`, or `none` (a local test server only). |
 | `BARBER_EMAIL` | `jasur@navbat.local` | Email of the first barber (`scripts/create_barber.py`; the seed's first barber and the demo button). |
 | `BARBER_PASSWORD` | placeholder | **Secret.** Password of the first barber (the seed gives every demo barber this password). |
 | `SEED_DEMO_DATA` | `false` (`true` in `docker-compose.yml`) | Run the seed script on container start. Safe to leave on; see below. |
