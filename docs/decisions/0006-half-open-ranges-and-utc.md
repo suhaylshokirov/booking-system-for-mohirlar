@@ -60,3 +60,24 @@ Two rules about time decide whether bookings behave correctly:
   `Europe/Berlin` in `tests/unit/test_timezones.py`.
 - Around a DST change a window is an hour shorter (gap) or longer (overlap)
   than its wall-clock length, and a window wholly inside a gap is empty.
+
+## Addendum (P10.3, 2026-10-01): showing times
+
+Storing UTC and reading business-local hours leaves one more question: what does a
+reader or a client see? Decisions:
+
+- **API:** booking and slot responses carry the UTC instant (the source of truth),
+  the same instant on the business's clock *with its offset* (`local_start`), and the
+  `timezone` name. A client never does timezone arithmetic. The offset is the one in
+  force on that date, so a Berlin booking reads `+02:00` in October and `+01:00` in
+  November.
+- **Pages:** every time is printed on the business's clock with the zone named, and
+  the UTC offset is computed **per instant** (`utc_offset`), or per day at local noon
+  for a date (`day_offset`), never per zone. A zone name alone ("Europe/Berlin") does
+  not say which side of a clock change a time is on.
+- **A device on another clock:** a small script compares the browser's UTC offset with
+  the business's and, when they differ, shows a note. It compares offsets, not names,
+  so neighbouring zones with the same offset stay quiet. It never decides anything and
+  is hidden without JavaScript.
+- **Not done:** the availability-conflicts response is UTC-only (a barber's
+  warning list), and the note script is checked against `Intl` in Node, not in a browser.

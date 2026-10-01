@@ -143,6 +143,10 @@ A task in `tasks.md` is done only when **all** of these hold:
 - [ ] Module and service-function docstrings state the business rule and the
       errors raised
 - [ ] The task's checkbox in `tasks.md` is ticked
+- [ ] Every decision made while doing it is written down in the same commit: an ADR
+      for a design choice, a row in `tasks.md` → "Deviations log" for anything that
+      departs from the plan or the acceptance criteria, an edge-case row for each
+      risk handled. "The code shows it" is not a record of *why*
 - [ ] One focused Conventional Commit (`feat(bookings): …`, `test(slots): …`,
       `docs(edge-cases): …`, `fix: …`), with a *why* in the body when it
       isn't obvious. Never squash, never rewrite pushed history.

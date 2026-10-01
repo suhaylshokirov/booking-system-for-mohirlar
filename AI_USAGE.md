@@ -542,6 +542,72 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P10 — Bonuses (in progress: P10.4 is still to do)
+
+- **Asked:** one task at a time: the calendar file (P10.1), a notifier with an
+  outbox (P10.2), timezone display polish (P10.3). Before P10.4 I changed the
+  product: **remove the admin and let the barbers manage client requests**
+  (P10.5, ADR 0010). The AI asked me four design questions before touching code
+  (how barbers log in, who manages shared setup, how accounts are created, what
+  a barber may see) and I chose: a `barber` role tied to one provider, any
+  barber manages services and settings, accounts by script and seed only, a
+  barber sees only the bookings made with them.
+- **Produced:**
+  - P10.1 `services/calendar.py` (pure RFC 5545 builder), two download routes,
+    an "Add to calendar" link; ADR 0011. Commit `94fe5b0`.
+  - P10.2 `services/notifications.py` (`Notifier` protocol, console and outbox
+    notifiers), `outbox_messages` and migration `0004`, hooks in
+    `create_booking` and `transition`; ADR 0009. Commit `aabf9ab`.
+  - P10.3 `local_start` / `local_end` / `timezone` in booking and slot
+    responses, a per-instant UTC offset beside every time on the pages, and a
+    device-timezone note; ADR 0006 addendum. Commit `78c0e50`.
+  - P10.5 the barber role: migration `0005`, `require_barber` and
+    `require_own_provider`, scoped bookings, dashboard, hours and profile,
+    `/admin` renamed to `/barber`, `create_barber`, a seed login per barber;
+    ADR 0010, edge cases 87-90. Commit `46cfa32`.
+- **Verified how:** a test file or test group per task (including a Berlin
+  business across the 25 October clock change, a rolled-back booking leaving no
+  notification, and "another barber's booking is a 404" through the API and the
+  web); the whole suite after each task (866, 881, 897, then 906 tests);
+  `alembic check` for model/migration drift; a test that migration `0005`
+  converts an existing admin; for P10.5 also a real server against the
+  migrated and seeded dev database, signing in as a barber and fetching every
+  barber page. The device-timezone script was checked against real `Intl` in
+  Node, **not** in a browser, and the new CSS was not looked at by eye.
+- **Changed / rejected:**
+  - The AI considered an environment switch for the notifiers and kept a plain
+    module list (tests swap it) because nothing needs the switch.
+  - For P10.5 the AI offered a "lead barber" flag and per-barber services; both
+    rejected as an admin by another name and as model growth for no requirement.
+  - Barbers' own pages dropped the provider id from the address entirely rather
+    than checking it, so there is nothing to tamper with.
+  - Not built, on purpose: a notification to the barber, a delivery worker for
+    the outbox, a browser test for the timezone note.
+- **Bugs caught:**
+  - The full-suite run after P10.2 failed a concurrency test that is not about
+    the change. Reproducing it on the previous commit (4 failures in 25 runs)
+    showed it was an old flaky test: a deadlock-aborted insert is mapped to
+    `SLOT_TAKEN` by design, but the test only accepted `CUSTOMER_OVERLAP`.
+    Fixed separately in `0dac484` and logged in the Deviations log.
+  - P10.1: my first edit script ran with a `python` that does not exist, so
+    nothing was applied; I noticed because lint was unchanged. Then escaped
+    semicolons in test strings were malformed (ruff flagged them, a `sed` fix
+    made them worse, raw strings fixed them). `DTSTAMP` formatted a datetime
+    without converting it to UTC first, which is wrong if the driver returns
+    another offset; fixed with `astimezone(UTC)`.
+  - P10.2: I put the calendar paragraph under "Authentication" in
+    `architecture.md`; moved to its own section in the next commit.
+  - P10.3: a template conditional (`if start is defined else ...`) was clumsy and
+    replaced with one explicit expression per file.
+  - P10.5: a word-level rename (`admin` to `barber`) also rewrote prose it should
+    not have ("the the barber wrote", "visited the barber"), found by reading the
+    diff. The new CHECK would have failed on any database that already had an
+    admin; the migration now creates a provider per admin first, and a test
+    proves it. Tests that expected 404 for another provider's hours now expect
+    403 on purpose (that is a public provider, not a private booking).
+
+---
+
 ## Summary (for the submission form)
 
 _Written in P11.5._
