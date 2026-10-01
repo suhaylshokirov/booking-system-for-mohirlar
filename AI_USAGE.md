@@ -771,9 +771,10 @@ in [`CLAUDE.md`](CLAUDE.md).
   `.vercel`. Neon's installer dropped `.agents/` and `skills-lock.json` into the repo
   (agent skills I did not ask for); they are not part of the project and were left for
   me to delete, because the AI's attempt to delete them was blocked.
-- **Bugs caught:** five tests fail in my checkout, before and after the AI's change,
+- **Bugs caught:** tests fail in my checkout, before and after the AI's change,
   because my local `.env` has real SMTP settings and the tests read it. With the SMTP
-  variables blanked all 1235 pass. Found by stashing the change and re-running; not fixed.
+  variables blanked all 1235 pass. Found by stashing the change and re-running; fixed
+  later, in P11.3 to P11.5 below.
   The AI also saw that a seeded `*.local` barber could never receive a code in
   production and seeded the first barber with my real address instead.
 - **Not verified:** the email actually arriving and a booking made on the live site. The
@@ -782,6 +783,83 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P11.3 to P11.5 — Screenshots, final documentation pass, submission drafts
+
+- **Asked:** "We've deployed the project on Vercel, and now we need to fully finish
+  Phase 11. Let's continue where we left off."
+- **Produced:** five screenshots in `docs/screenshots/` taken with a throwaway
+  Playwright script that is not part of the repo; a rewritten README (a feature
+  checklist where each item links to its code and test, architecture diagram, ADR
+  table, edge cases, known limitations); a trade-offs section in `architecture.md`;
+  `tests/unit/test_edge_case_docs.py`; a root `conftest.py`; `docs/submission.md` and
+  the summary at the end of this file.
+- **Verified how:** the full suite (1241 tests) and `ruff` pass; every relative link in
+  the README and the docs resolves (a script); every claim in the README's feature list
+  was checked against the file or endpoint it names (that is how `/events` became
+  `/history`); each screenshot was looked at before it was kept. The live site's health
+  endpoint and service list were checked with `curl`. The new edge-case test was shown
+  to fail on a wrong name, then the name was restored.
+- **Changed/rejected:** the screenshots came from the local app, not the live one,
+  because the live site needs an emailed code. The first barber screenshot showed my
+  real email address from a test booking; it was retaken filtered to the demo customers.
+  The slot-picker shot was retaken as a viewport capture because the sticky Continue
+  bar covered part of the grid in a full-page one. The "admin dashboard" screenshot of
+  the plan became the barber's bookings page (ADR 0010).
+- **Bugs caught:**
+  - The leak from P11.1 is real and is now fixed: three tests (the "code is in the app's
+    log" page and two SMTP-conversation tests) failed whenever `.env` named a real mail
+    server, and passed in CI only because CI has no `.env`. A first fix in
+    `tests/conftest.py` did nothing, because `app/core/db.py` reads the cached settings at
+    import time, before that file runs; the fix is a `conftest.py` at the repository root.
+  - The AI's first screenshot run signed in as `demo@navbat.local` while my `.env` pointed
+    at my Gmail account, so it tried to send a real email (to an address that cannot
+    receive one). Seen in the log; the server was restarted with `SMTP_HOST` blanked.
+  - The documentation had drifted: the README still said "in development" and "the owner
+    manages", the feature checklist was unticked, `architecture.md` still called itself a
+    skeleton, an edge-case row named a test that does not exist (`#98`), another still
+    said "planned" for something that was done (`#37`), and ADR 0009 said there was no
+    SMTP. The new test now stops the edge-case table drifting again.
+- **Not verified:** the emailed code arriving at a real inbox and a booking made on the
+  live site. The AI cannot read my inbox, so P11.1 and P11.2 stay unticked until I do it.
+
+---
+
 ## Summary (for the submission form)
 
-_Written in P11.5._
+**Tools.** Claude Code (a command-line coding agent) running Anthropic's Claude Opus 5.5
+and Claude Sonnet 5.5, as a pair programmer for the whole project.
+
+**What I decided myself.** The architecture: PostgreSQL exclusion constraints as the
+double-booking guarantee, slots computed rather than stored, synchronous SQLAlchemy, a
+server-rendered UI, UTC storage with half-open ranges, price and duration snapshots
+on bookings, guarded status updates. They are recorded as 14 short ADRs, each with the
+alternatives that were rejected. Later I changed the product on my own initiative: the
+administrator role was removed (barbers run the shop), passwords were replaced by emailed
+codes, and I chose Vercel with Neon.
+
+**Where AI helped.** It wrote most of the code, the tests and the first drafts of the
+documentation, one task at a time from `tasks.md`, under the rules in `CLAUDE.md`
+(routers stay thin; each business rule in one place; PostgreSQL in tests, never SQLite;
+no `datetime.now()` in business code).
+
+**How it was checked.** Each task shipped with tests, and the whole suite had to pass
+before a commit (1241 tests: unit, integration against a real PostgreSQL, and
+concurrency tests that use real commits and threads). The race tests are the important
+ones: ten customers booking one slot give exactly one booking, and confirm against cancel
+gives one winner. I read the generated migrations by hand, because autogenerate does not
+produce exclusion constraints. I looked at screenshots of every page before keeping the
+UI. Every phase has an entry above.
+
+**What the AI got wrong, and I caught.** A migration that created an enum twice and never
+dropped it; tests that were wrong rather than the code (a token issued "in the future", a
+boundary that touches rather than overlaps); an update that flushed a half-edited row into
+the exclusion constraint and would have been a 500; a flaky concurrency test whose
+deadlock was really a bug in booking creation (the loser got a 500 instead of a `409`);
+invisible white-on-white buttons found only by screenshots; a race test for sign-up that
+proved nothing; and, at the end, tests that passed in CI but failed on my machine because
+they read my real mail settings. Each is described in the phase entry where it happened.
+
+**What is not AI-proven.** The emailed code arriving at a real inbox and a booking on
+the live site are checked by hand, not by tests. Booking notification emails are not sent
+(they are stored in an outbox with no delivery worker). The login rate limiter is
+per-process, so it is weaker on Vercel.

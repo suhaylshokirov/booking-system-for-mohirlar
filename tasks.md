@@ -754,7 +754,7 @@ reviewers of a live demo register their own address, no code is ever shown on sc
 - Edge cases covered: —
 
 ### P11.5 — AI usage summary and submission draft
-- [ ] Status
+- [x] Status
 - Goal: honest, specific answers ready for the form.
 - Requirement(s) served: AI usage explanation
 - Acceptance criteria: `AI_USAGE.md` summary section; `docs/submission.md` with drafts for: product description (≥100 chars), architecture, AI tools used, where AI helped and what was verified/changed (≥120 chars).
