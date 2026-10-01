@@ -43,9 +43,24 @@ def test_public_happy_path_lists_slots_grouped_by_provider(client, setup):
     assert [p["provider"]["name"] for p in body["providers"]] == ["Aziz", "Jasur"]
     assert body["providers"][0]["slots"] == []
     assert body["providers"][1]["slots"] == [
-        {"start_at": "2026-10-05T04:00:00Z", "end_at": "2026-10-05T04:30:00Z"},
-        {"start_at": "2026-10-05T04:15:00Z", "end_at": "2026-10-05T04:45:00Z"},
-        {"start_at": "2026-10-05T04:30:00Z", "end_at": "2026-10-05T05:00:00Z"},
+        {
+            "start_at": "2026-10-05T04:00:00Z",
+            "end_at": "2026-10-05T04:30:00Z",
+            "local_start": "2026-10-05T09:00:00+05:00",
+            "local_end": "2026-10-05T09:30:00+05:00",
+        },
+        {
+            "start_at": "2026-10-05T04:15:00Z",
+            "end_at": "2026-10-05T04:45:00Z",
+            "local_start": "2026-10-05T09:15:00+05:00",
+            "local_end": "2026-10-05T09:45:00+05:00",
+        },
+        {
+            "start_at": "2026-10-05T04:30:00Z",
+            "end_at": "2026-10-05T05:00:00Z",
+            "local_start": "2026-10-05T09:30:00+05:00",
+            "local_end": "2026-10-05T10:00:00+05:00",
+        },
     ]
 
 

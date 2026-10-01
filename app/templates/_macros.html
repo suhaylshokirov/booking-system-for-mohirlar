@@ -1,3 +1,14 @@
+{# The zone a time is on: "UTC+5" for the instant shown. Times are always the
+   business's clock; this says which clock that is, in a way that stays right
+   across daylight-saving changes. #}
+{% macro zone(instant, tz) %}<span class="zone">{{ instant|utc_offset(tz) }}</span>{% endmacro %}
+
+{# Hidden unless the browser's timezone has a different UTC offset from the
+   business's (app.js, initTimezoneNote). Without JS it simply never shows. #}
+{% macro timezone_note(business) %}
+<p class="notice tz-note" role="note" data-business-timezone="{{ business.timezone }}" hidden></p>
+{% endmacro %}
+
 {# One labelled form control, with its hint and the server's error message.
    The input points at both through aria-describedby, and aria-invalid marks
    it for screen readers when the server rejected it. #}

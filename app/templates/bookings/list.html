@@ -18,6 +18,7 @@
 {% endblock %}
 
 {% block content %}
+{{ ui.timezone_note(business) }}
 {% set tz = business.timezone %}
 <section class="section" aria-labelledby="bookings-title">
     <div class="section-head">
@@ -45,7 +46,7 @@
                 <p class="stub__service">{{ line.service_name }}</p>
                 <p class="stub__meta">
                     <a class="stub__link" href="/me/bookings/{{ booking.id }}">{{ booking.start_at|local_date(tz) }}</a>
-                    · <span class="mono">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span>
+                    · <span class="mono">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span> {{ ui.zone(booking.start_at, tz) }}
                     · with {{ line.provider_name }}
                 </p>
             </div>

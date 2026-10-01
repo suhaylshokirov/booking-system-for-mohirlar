@@ -13,7 +13,7 @@
         <tr>
             <td>
                 <a href="/admin/bookings/{{ booking.id }}">{{ booking.start_at|local_date(tz) }}</a><br>
-                <span class="mono">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span>
+                <span class="mono">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span> {{ ui.zone(booking.start_at, tz) }}
             </td>
             <td>{{ row.line.service_name }} with {{ row.line.provider_name }}<br>
                 <span class="mono faint">{{ booking.price_amount|money(business.currency) }}</span></td>

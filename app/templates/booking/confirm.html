@@ -19,6 +19,7 @@
 {% endblock %}
 
 {% block content %}
+{{ ui.timezone_note(business) }}
 {% set tz = business.timezone %}
 <div class="booking-layout">
     {# The ticket: the one thing on the page that matters, with the time set
@@ -34,7 +35,7 @@
                 <p class="ticket__time" id="ticket-time">
                     {{ start|local_time(tz) }}<span class="ticket__to">–{{ end|local_time(tz) }}</span>
                 </p>
-                <p class="ticket__day">{{ start|local_date(tz) }} <span class="faint">{{ tz }}</span></p>
+                <p class="ticket__day">{{ start|local_date(tz) }} <span class="faint">{{ tz }} · {{ start|utc_offset(tz) }}</span></p>
             </div>
         </div>
         <div class="ticket__perf" aria-hidden="true"></div>
@@ -47,7 +48,7 @@
         <p class="ticket__policy">
             It starts as a request, and {{ business.name }} confirms it. Until then you can
             cancel any time before it starts. Once confirmed, you can cancel online until
-            <span class="mono">{{ cutoff_at|local_time(tz) }}</span> on {{ cutoff_at|local_date(tz) }}
+            <span class="mono">{{ cutoff_at|local_time(tz) }}</span> {{ ui.zone(cutoff_at, tz) }} on {{ cutoff_at|local_date(tz) }}
             ({{ business.cancellation_cutoff_hours }} hour{{ "" if business.cancellation_cutoff_hours == 1 else "s" }} before).
         </p>
     </article>

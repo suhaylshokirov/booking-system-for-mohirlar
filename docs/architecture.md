@@ -79,6 +79,20 @@ _P4.1._ Three rules (ADR 0006):
 - **Ranges are half-open `[start, end)`**, so a day's bounds are
   `[local midnight, next local midnight)` and neighbouring days tile exactly.
 
+**Showing times (P10.3).** Nothing is ever shown as a bare clock reading.
+API responses for bookings and slots carry the UTC instant, the same instant on
+the business's clock with its offset (`local_start`, `local_end`), and the
+`timezone` name (`BookingResponse.from_booking`, built with `utc_to_local`).
+Pages print times on the business clock and name the zone and its offset *for
+that date* (`utc_offset` / `day_offset` in `app/web/formatting.py`): ticket
+and detail pages say "Asia/Tashkent · UTC+5", list rows end in a "UTC+5" tag, the
+slot picker says which clock the chosen day is on. The offset comes from the
+instant, not the zone, so it is right on both sides of a clock change. A small
+script (`initTimezoneNote` in `app.js`) compares the browser's UTC offset with the
+business's and, when they differ, shows "Your device is on Europe/Berlin
+(UTC+2). Times on this page are Asia/Tashkent (UTC+5)." It is formatting only,
+and hidden without JavaScript.
+
 A local date is not a UTC date: 02:00 on 5 October in Tashkent is 21:00 UTC on
 the 4th, so "bookings on the 5th" is always a query on `local_day_bounds_utc`,
 never on `start_at::date`.

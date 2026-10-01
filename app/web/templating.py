@@ -40,6 +40,8 @@ templates.env.filters["duration"] = formatting.duration
 templates.env.filters["local_time"] = formatting.local_time
 templates.env.filters["local_date"] = formatting.local_date
 templates.env.filters["day_label"] = formatting.day_label
+templates.env.filters["utc_offset"] = formatting.utc_offset
+templates.env.filters["day_offset"] = formatting.day_offset
 
 FLASH_COOKIE = "flash"
 

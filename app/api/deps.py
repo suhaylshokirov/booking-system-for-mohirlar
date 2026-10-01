@@ -26,6 +26,7 @@ from app.core.rate_limit import InMemoryLoginLimiter, LoginAttemptLimiter
 from app.core.security import decode_access_token
 from app.models.user import User, UserRole
 from app.services import auth as auth_service
+from app.services.business_settings import get_business_settings
 
 # Shared with the CSRF check so both agree on what counts as a Bearer request.
 # auto_error=False: without it a missing header would be a generic 403 before
@@ -126,7 +127,13 @@ def get_login_limiter() -> LoginAttemptLimiter:
     )
 
 
+def business_timezone(db: DbSession) -> str:
+    """The business's IANA timezone, for responses that show local times."""
+    return get_business_settings(db).timezone
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 AdminUser = Annotated[User, Depends(require_admin)]
 IncludeInactive = Annotated[bool, Depends(include_inactive_allowed)]
+BusinessTimezone = Annotated[str, Depends(business_timezone)]

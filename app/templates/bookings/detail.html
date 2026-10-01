@@ -16,6 +16,7 @@
 {% endblock %}
 
 {% block content %}
+{{ ui.timezone_note(business) }}
 {% set tz = business.timezone %}
 {% set booking = line.booking %}
 
@@ -37,7 +38,7 @@
                     <p class="ticket__time" id="ticket-time">
                         {{ booking.start_at|local_time(tz) }}<span class="ticket__to">–{{ booking.end_at|local_time(tz) }}</span>
                     </p>
-                    <p class="ticket__day">{{ booking.start_at|local_date(tz) }} <span class="faint">{{ tz }}</span></p>
+                    <p class="ticket__day">{{ booking.start_at|local_date(tz) }} <span class="faint">{{ tz }} · {{ booking.start_at|utc_offset(tz) }}</span></p>
                 </div>
                 {{ ui.status_chip(booking.status, stamp=true) }}
             </div>
@@ -63,7 +64,7 @@
             <h2 class="panel__title" id="cancel-title">Can't make it?</h2>
             <p class="muted">
                 {% if booking.status.value == "confirmed" %}
-                You can cancel online until <span class="mono">{{ cutoff_at|local_time(tz) }}</span> on {{ cutoff_at|local_date(tz) }}.
+                You can cancel online until <span class="mono">{{ cutoff_at|local_time(tz) }}</span> {{ ui.zone(cutoff_at, tz) }} on {{ cutoff_at|local_date(tz) }}.
                 {% else %}
                 You can cancel any time before it starts.
                 {% endif %}
@@ -84,7 +85,7 @@
                 {% if cancel_closed == "started" %}
                 This booking has already started, so it can't be cancelled online.
                 {% else %}
-                Online cancellation closed at <span class="mono">{{ cutoff_at|local_time(tz) }}</span> on {{ cutoff_at|local_date(tz) }},
+                Online cancellation closed at <span class="mono">{{ cutoff_at|local_time(tz) }}</span> {{ ui.zone(cutoff_at, tz) }} on {{ cutoff_at|local_date(tz) }},
                 {{ business.cancellation_cutoff_hours }} hour{{ "" if business.cancellation_cutoff_hours == 1 else "s" }} before it starts.
                 To change it now, contact {{ business.name }}.
                 {% endif %}
@@ -99,7 +100,7 @@
             {% for entry in history %}
             <li>
                 <span class="timeline__what">{{ entry.text }}</span>
-                <span class="timeline__when mono">{{ entry.at|local_date(tz) }}, {{ entry.at|local_time(tz) }}</span>
+                <span class="timeline__when mono">{{ entry.at|local_date(tz) }}, {{ entry.at|local_time(tz) }} {{ entry.at|utc_offset(tz) }}</span>
                 {% if entry.reason %}<span class="timeline__reason">Reason: {{ entry.reason }}</span>{% endif %}
             </li>
             {% endfor %}

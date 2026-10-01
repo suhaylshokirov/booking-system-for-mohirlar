@@ -37,7 +37,7 @@
     <ul class="conflicts">
         {% for line, why in conflicts %}
         <li>
-            {{ line.booking.start_at|local_date(tz) }}, <span class="mono">{{ line.booking.start_at|local_time(tz) }}–{{ line.booking.end_at|local_time(tz) }}</span>
+            {{ line.booking.start_at|local_date(tz) }}, <span class="mono">{{ line.booking.start_at|local_time(tz) }}–{{ line.booking.end_at|local_time(tz) }}</span> {{ ui.zone(line.booking.start_at, tz) }}
             · {{ line.service_name }} · {{ ui.status_chip(line.booking.status) }}
             <span class="faint">Because {{ why }}.</span>
         </li>

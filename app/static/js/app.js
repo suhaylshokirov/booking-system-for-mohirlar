@@ -413,6 +413,50 @@
     setInterval(tick, 15000);
   }
 
+  /* --- Timezone note --------------------------------------------------------------
+     Every time on the site is the business's clock. When the browser's zone has
+     a different UTC offset (a visitor abroad, a laptop on the wrong zone), the
+     hidden [data-business-timezone] note is filled in and shown, so nobody
+     reads "10:00" as their own 10:00. Compared by offset, not by name, so
+     Asia/Samarkand versus Asia/Tashkent stays quiet. Formatting only: Intl does
+     the arithmetic, and nothing is decided from it. If the browser cannot say
+     (no longOffset support, unknown zone) the note stays hidden. */
+
+  function offsetMinutes(zone, when) {
+    var parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longOffset" })
+      .formatToParts(when);
+    var name = parts.filter(function (part) { return part.type === "timeZoneName"; })[0].value;
+    var match = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(name);
+    if (!match) return 0; // plain "GMT" is UTC+0
+    var minutes = Number(match[2]) * 60 + Number(match[3] || 0);
+    return match[1] === "-" ? -minutes : minutes;
+  }
+
+  function offsetLabel(minutes) {
+    var abs = Math.abs(minutes);
+    var rest = abs % 60;
+    return "UTC" + (minutes < 0 ? "-" : "+") + Math.floor(abs / 60) + (rest ? ":" + String(rest).padStart(2, "0") : "");
+  }
+
+  function initTimezoneNote() {
+    var note = document.querySelector("[data-business-timezone]");
+    if (!note) return;
+    try {
+      var business = note.getAttribute("data-business-timezone");
+      var mine = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      var now = new Date();
+      var theirs = offsetMinutes(mine, now);
+      var shops = offsetMinutes(business, now);
+      if (theirs === shops) return;
+      note.textContent =
+        "Your device is on " + mine + " (" + offsetLabel(theirs) + "). Times on this page are " +
+        business + " (" + offsetLabel(shops) + ").";
+      note.hidden = false;
+    } catch (error) {
+      // Leave the note hidden.
+    }
+  }
+
   function init() {
     initThemeToggle();
     initNavToggle();
@@ -423,6 +467,7 @@
     initLiveFilter();
     initSlotSummary();
     initShopClock();
+    initTimezoneNote();
   }
 
   if (document.readyState === "loading") {

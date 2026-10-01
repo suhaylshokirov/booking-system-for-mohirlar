@@ -51,7 +51,7 @@ implemented once it exists.
 - [ ] API documentation (Swagger + guide)
 - [ ] Docker
 - [ ] Admin dashboard
-- [ ] Timezone support
+- [x] Timezone support (business timezone; UTC storage; local time and offset in API and pages)
 - [ ] Cancellation policy: customers can cancel a confirmed booking until a cutoff (default 2 hours before it starts, set in business settings); admins are exempt but must give a reason
 - [x] Calendar integration (`.ics`)
 - [x] Email notification (pluggable notifier; messages go to a transactional outbox, no SMTP yet: ADR 0009)

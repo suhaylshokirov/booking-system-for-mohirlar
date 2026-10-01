@@ -44,7 +44,7 @@
             <tr>
                 <td>
                     {{ booking.start_at|local_date(tz) }}<br>
-                    <span class="mono">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span>
+                    <span class="mono">{{ booking.start_at|local_time(tz) }}–{{ booking.end_at|local_time(tz) }}</span> {{ ui.zone(booking.start_at, tz) }}
                     {% if row.is_stale %}<br><span class="stale">Expired: never confirmed</span>{% endif %}
                 </td>
                 <td>{{ row.line.service_name }} with {{ row.line.provider_name }}<br>

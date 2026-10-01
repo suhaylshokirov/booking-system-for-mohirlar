@@ -4,10 +4,11 @@ The rules about *when* a booking may start live in `services/booking_rules.py`.
 """
 
 import datetime as dt
-from typing import Annotated
+from typing import Annotated, Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
+from app.core.timezones import utc_to_local
 from app.models.booking import BookingStatus
 from app.models.user import UserRole
 from app.schemas.types import UtcDatetime
@@ -58,6 +59,12 @@ class BookingResponse(BaseModel):
     service_id: int
     start_at: dt.datetime = Field(description="UTC instant.")
     end_at: dt.datetime = Field(description="UTC instant, exclusive.")
+    local_start: dt.datetime = Field(
+        description="`start_at` on the business's clock, with its UTC offset "
+        "(`2026-10-05T09:00:00+05:00`). The same instant, for display."
+    )
+    local_end: dt.datetime = Field(description="`end_at` on the business's clock, with its offset.")
+    timezone: str = Field(description="IANA name of the business timezone, e.g. `Asia/Tashkent`.")
     status: BookingStatus
     price_amount: int = Field(description="Whole UZS, as agreed when booked.")
     duration_minutes: int = Field(description="As agreed when booked.")
@@ -65,7 +72,26 @@ class BookingResponse(BaseModel):
     cancel_reason: str | None
     created_at: dt.datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    @classmethod
+    def from_booking(cls, booking: Any, timezone: str, **extra: Any) -> Self:
+        """Build the response from a `Booking`, adding the local times.
+
+        The database holds UTC only (rule 4); the local fields are derived here
+        with `utc_to_local`, the one conversion function, so a client never has
+        to do timezone arithmetic of its own.
+        """
+        data = {
+            name: getattr(booking, name)
+            for name in cls.model_fields
+            if name not in ("local_start", "local_end", "timezone") and name not in extra
+        }
+        return cls(
+            **data,
+            **extra,
+            local_start=utc_to_local(booking.start_at, timezone),
+            local_end=utc_to_local(booking.end_at, timezone),
+            timezone=timezone,
+        )
 
 
 class EventActor(BaseModel):

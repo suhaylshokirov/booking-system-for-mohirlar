@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.api.deps import AdminUser, CurrentUser
+from app.api.deps import AdminUser, BusinessTimezone, CurrentUser
 from app.core.clock import Clock, get_clock
 from app.core.db import DbSession
 from app.core.pagination import PageParamsDep
@@ -54,14 +54,14 @@ _UNAUTHENTICATED = {401: {"model": ErrorResponse, "description": "Not logged in.
     },
 )
 def create_booking(
-    body: BookingCreate, db: DbSession, user: CurrentUser, clock: ClockDep
+    body: BookingCreate, db: DbSession, user: CurrentUser, clock: ClockDep, tz: BusinessTimezone
 ) -> BookingResponse:
     """Creates a `pending` booking. Price and duration are copied from the
     service now, so a later edit to the service does not change this booking."""
     booking = booking_service.create_booking(
         db, user, body.service_id, body.provider_id, body.start_at, body.notes, clock.now()
     )
-    return BookingResponse.model_validate(booking)
+    return BookingResponse.from_booking(booking, tz)
 
 
 @router.get(
@@ -74,6 +74,7 @@ def list_bookings(
     db: DbSession,
     user: CurrentUser,
     clock: ClockDep,
+    tz: BusinessTimezone,
     params: PageParamsDep,
     scope: Annotated[
         booking_service.Scope | None,
@@ -88,7 +89,7 @@ def list_bookings(
         db, user, params, clock.now(), scope, booking_status
     )
     return Page[BookingResponse](
-        items=[BookingResponse.model_validate(item) for item in items],
+        items=[BookingResponse.from_booking(item, tz) for item in items],
         total=total,
         limit=params.limit,
         offset=params.offset,
@@ -108,6 +109,7 @@ def list_all_bookings(
     db: DbSession,
     admin: AdminUser,
     clock: ClockDep,
+    tz: BusinessTimezone,
     params: PageParamsDep,
     booking_status: Annotated[
         BookingStatus | None, Query(alias="status", description="Only this status.")
@@ -129,10 +131,7 @@ def list_all_bookings(
     )
     return Page[AdminBookingResponse](
         items=[
-            AdminBookingResponse(
-                **BookingResponse.model_validate(item).model_dump(),
-                stale_pending=is_stale_pending(item, now),
-            )
+            AdminBookingResponse.from_booking(item, tz, stale_pending=is_stale_pending(item, now))
             for item in items
         ],
         total=total,
@@ -154,8 +153,10 @@ def list_all_bookings(
         },
     },
 )
-def read_booking(booking_id: int, db: DbSession, user: CurrentUser) -> BookingResponse:
-    return BookingResponse.model_validate(booking_service.get_booking(db, user, booking_id))
+def read_booking(
+    booking_id: int, db: DbSession, user: CurrentUser, tz: BusinessTimezone
+) -> BookingResponse:
+    return BookingResponse.from_booking(booking_service.get_booking(db, user, booking_id), tz)
 
 
 @router.get(
@@ -238,6 +239,7 @@ def cancel_booking(
     db: DbSession,
     user: CurrentUser,
     clock: ClockDep,
+    tz: BusinessTimezone,
     body: CancelRequest | None = None,
 ) -> BookingResponse:
     """Customers cancel their own; admins any. Cancelling frees the time at once."""
@@ -245,7 +247,7 @@ def cancel_booking(
     booking = booking_service.transition(
         db, user, booking_id, BookingStatus.CANCELLED, clock.now(), reason
     )
-    return BookingResponse.model_validate(booking)
+    return BookingResponse.from_booking(booking, tz)
 
 
 @router.post(
@@ -258,12 +260,12 @@ def cancel_booking(
     },
 )
 def confirm_booking(
-    booking_id: int, db: DbSession, admin: AdminUser, clock: ClockDep
+    booking_id: int, db: DbSession, admin: AdminUser, clock: ClockDep, tz: BusinessTimezone
 ) -> BookingResponse:
     booking = booking_service.transition(
         db, admin, booking_id, BookingStatus.CONFIRMED, clock.now()
     )
-    return BookingResponse.model_validate(booking)
+    return BookingResponse.from_booking(booking, tz)
 
 
 @router.post(
@@ -276,9 +278,9 @@ def confirm_booking(
     },
 )
 def complete_booking(
-    booking_id: int, db: DbSession, admin: AdminUser, clock: ClockDep
+    booking_id: int, db: DbSession, admin: AdminUser, clock: ClockDep, tz: BusinessTimezone
 ) -> BookingResponse:
     booking = booking_service.transition(
         db, admin, booking_id, BookingStatus.COMPLETED, clock.now()
     )
-    return BookingResponse.model_validate(booking)
+    return BookingResponse.from_booking(booking, tz)

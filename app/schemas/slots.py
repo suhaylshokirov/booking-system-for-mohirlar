@@ -4,6 +4,7 @@ import datetime as dt
 
 from pydantic import BaseModel, Field
 
+from app.core.timezones import utc_to_local
 from app.services.slot_query import SlotsResult
 
 _EXAMPLE = {
@@ -14,8 +15,18 @@ _EXAMPLE = {
         {
             "provider": {"id": 1, "name": "Jasur"},
             "slots": [
-                {"start_at": "2026-10-05T04:00:00Z", "end_at": "2026-10-05T04:30:00Z"},
-                {"start_at": "2026-10-05T04:15:00Z", "end_at": "2026-10-05T04:45:00Z"},
+                {
+                    "start_at": "2026-10-05T04:00:00Z",
+                    "end_at": "2026-10-05T04:30:00Z",
+                    "local_start": "2026-10-05T09:00:00+05:00",
+                    "local_end": "2026-10-05T09:30:00+05:00",
+                },
+                {
+                    "start_at": "2026-10-05T04:15:00Z",
+                    "end_at": "2026-10-05T04:45:00Z",
+                    "local_start": "2026-10-05T09:15:00+05:00",
+                    "local_end": "2026-10-05T09:45:00+05:00",
+                },
             ],
         },
         {"provider": {"id": 2, "name": "Aziz"}, "slots": []},
@@ -38,6 +49,10 @@ class SlotProviderInfo(BaseModel):
 class SlotResponse(BaseModel):
     start_at: dt.datetime = Field(description="UTC instant the appointment would start.")
     end_at: dt.datetime = Field(description="`start_at` plus the service duration (exclusive).")
+    local_start: dt.datetime = Field(
+        description="`start_at` on the business's clock, with its UTC offset."
+    )
+    local_end: dt.datetime = Field(description="`end_at` on the business's clock, with its offset.")
 
 
 class ProviderSlotsResponse(BaseModel):
@@ -69,7 +84,13 @@ class SlotsResponse(BaseModel):
                 ProviderSlotsResponse(
                     provider=SlotProviderInfo(id=item.provider.id, name=item.provider.name),
                     slots=[
-                        SlotResponse(start_at=start, end_at=start + length) for start in item.starts
+                        SlotResponse(
+                            start_at=start,
+                            end_at=start + length,
+                            local_start=utc_to_local(start, result.timezone),
+                            local_end=utc_to_local(start + length, result.timezone),
+                        )
+                        for start in item.starts
                     ],
                 )
                 for item in result.providers

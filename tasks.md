@@ -629,7 +629,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: notification for a booking that failed.
 
 ### P10.3 — Timezone display polish
-- [ ] Status
+- [x] Status
 - Goal: times are never ambiguous.
 - Requirement(s) served: Bonus 5
 - Acceptance criteria: every displayed time shows the business tz abbreviation/offset; API responses include both UTC `start_at` and `local_start` + `timezone`; UI note when the viewer's browser tz differs from the business tz.

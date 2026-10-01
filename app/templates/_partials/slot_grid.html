@@ -20,6 +20,7 @@
     <span class="day-step day-step--none" aria-hidden="true"></span>
     {% endif %}
 </div>
+<p class="day-zone faint">Times are <span class="mono">{{ tz }}</span>, {{ day|day_offset(tz) }}.</p>
 
 {# Read out after every live update, so a screen reader hears the result
    of changing the day without re-reading the whole grid. #}

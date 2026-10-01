@@ -1704,3 +1704,25 @@ main:has(.error-page) .page:not(:has(.notice-list)) {
     scroll-behavior: auto !important;
   }
 }
+
+/* The zone a time is on ("UTC+5"), set quietly after the time itself. */
+.zone {
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* "Your device is on another clock": only shown by app.js when the offsets differ. */
+.tz-note {
+  margin-bottom: var(--space-4);
+}
+
+.tz-note[hidden] {
+  display: none;
+}
+
+.day-zone {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-3);
+  text-align: center;
+  font-size: var(--text-sm);
+}

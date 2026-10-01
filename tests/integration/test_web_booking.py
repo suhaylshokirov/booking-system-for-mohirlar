@@ -187,7 +187,9 @@ def test_confirm_shows_the_ticket_and_the_cancellation_policy(client, haircut, j
     assert "Asia/Tashkent" in html
     assert "<dd>Jasur</dd>" in html
     assert "60 000 UZS" in html
-    assert '<span class="mono">07:00</span> on Fri 2 Oct 2026' in html  # 2 h before 09:00
+    assert (
+        '<span class="mono">07:00</span> <span class="zone">UTC+5</span> on Fri 2 Oct 2026' in html
+    )  # 2 h before 09:00
     assert 'class="btn btn--commit"' in html
     assert f'name="csrf_token" value="{CSRF}"' in html
 

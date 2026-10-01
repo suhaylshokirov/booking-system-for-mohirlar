@@ -21,6 +21,7 @@
 {% endblock %}
 
 {% block content %}
+{{ ui.timezone_note(business) }}
 <div class="picker">
     {# A plain GET form: without JS, "Show times" reloads the page for the
        chosen person and day. With JS (initLiveFilter), any change fetches

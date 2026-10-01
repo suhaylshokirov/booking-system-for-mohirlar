@@ -274,14 +274,17 @@ curl 'localhost:8000/api/v1/slots?service_id=1&date=2026-10-05&provider_id=1'
   "service": {"id": 1, "name": "Haircut", "duration_minutes": 30, "price": 60000},
   "providers": [
     {"provider": {"id": 1, "name": "Jasur"},
-     "slots": [{"start_at": "2026-10-05T04:00:00Z", "end_at": "2026-10-05T04:30:00Z"}]},
+     "slots": [{"start_at": "2026-10-05T04:00:00Z", "end_at": "2026-10-05T04:30:00Z",
+                "local_start": "2026-10-05T09:00:00+05:00", "local_end": "2026-10-05T09:30:00+05:00"}]},
     {"provider": {"id": 2, "name": "Aziz"}, "slots": []}
   ]
 }
 ```
 
-- `start_at`/`end_at` are UTC instants; `date` and `timezone` say which local
-  day was asked for (04:00Z is 09:00 in Tashkent). `end_at` is exclusive.
+- `start_at`/`end_at` are UTC instants; `local_start`/`local_end` are the same
+  instants on the business's clock, with the UTC offset (04:00Z is
+  `09:00+05:00` in Tashkent). `date` and `timezone` say which local day was
+  asked for. `end_at` is exclusive. Send `start_at` back when booking.
 - `date` must be from today to today + the booking horizon (business settings),
   otherwise `422 DATE_OUT_OF_RANGE` with `details.earliest` / `details.latest`.
 - A provider with nothing free is still listed, with `"slots": []`.
@@ -302,12 +305,19 @@ curl -X POST localhost:8000/api/v1/bookings \
 {
   "id": 7, "customer_id": 3, "provider_id": 1, "service_id": 1,
   "start_at": "2026-10-05T04:00:00Z", "end_at": "2026-10-05T04:30:00Z",
+  "local_start": "2026-10-05T09:00:00+05:00", "local_end": "2026-10-05T09:30:00+05:00",
+  "timezone": "Asia/Tashkent",
   "status": "pending", "price_amount": 60000, "duration_minutes": 30,
   "notes": "Short back and sides", "cancel_reason": null,
   "created_at": "2026-10-01T07:00:00Z"
 }
 ```
 
+- **Times.** Every booking response has the UTC instants (`start_at`, `end_at`,
+  the source of truth), the same instants on the business's clock with their
+  offset (`local_start`, `local_end`), and the IANA `timezone`. The offset is
+  the one in force *on that date*, so a Berlin booking is `+02:00` in October
+  and `+01:00` in November; a client never needs timezone arithmetic of its own.
 - `201` creates a `pending` booking. Price and duration are copied from the
   service now, so a later edit to the service does not change this booking.
 - `409 SLOT_TAKEN`: the provider is busy then. `409 CUSTOMER_OVERLAP`: you
