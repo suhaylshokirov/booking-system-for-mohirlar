@@ -641,8 +641,8 @@ in [`CLAUDE.md`](CLAUDE.md).
     /providers/{id}/photo`, `photo_url` with a version, the profile upload with
     preview and remove, the `.arch` component (every photo framed as an iwan
     arch), seed portraits; ADR 0012. Commit `e2d735d`.
-  - P10.8 the home page: five shop photos as an arcade of arches rising out of
-    the band, and a "Barbers" section with a booking link per service.
+  - P10.8 the home page: five shop photos rising out of the band, and a
+    "Barbers" section with a booking link per service.
   - Photos are Unsplash stock (free licence), picked by the AI after looking at
     about 25 candidates, cropped by Unsplash's image service, credited in
     `docs/credits.md`.
@@ -674,6 +674,15 @@ in [`CLAUDE.md`](CLAUDE.md).
     multipart upload to describe its fields instead.
   - The first photo credits linked `unsplash.com/photos/<id>` addresses that do not
     exist in that form; replaced with the image addresses actually downloaded.
+- **Owner's review, and what changed:**
+  - The shop photos were first framed as pointed arches too (an arcade). I did
+    not like the framing on the shop pictures; they are now plain rounded
+    rectangles in the same row. The arch stays on barber portraits only.
+  - My running app showed initials, not photos: its database had been seeded
+    before photos existed, and the AI had made the seed add a photo only when it
+    creates a barber. It had flagged this in its summary rather than fixing it.
+    The seed now fills a missing photo and phone for the demo barbers on every
+    run, never replacing ones a barber set (tested).
 
 ---
 

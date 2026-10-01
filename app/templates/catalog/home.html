@@ -55,27 +55,16 @@
 {% endblock %}
 
 {% block content %}
-{# The shop itself, as an arcade of arched niches rising out of the band: the
-   big iwan in the middle, smaller niches either side, like a madrasa front.
-   `--i` is each niche's distance from the middle, which orders their entrance.
-   The outer pair is dropped on narrow screens. #}
-<section class="section arcade" aria-label="Inside the shop">
-    <ul class="arcade__row">
-        <li class="arch arcade__niche arcade__niche--outer" style="--i: 2">
-            <span class="arch__frame"><img src="/static/img/shop/chair.jpg" width="540" height="900" alt="A vintage barber chair in tufted brown leather, seen from below"></span>
-        </li>
-        <li class="arch arcade__niche" style="--i: 1">
-            <span class="arch__frame"><img src="/static/img/shop/fade.jpg" width="540" height="900" alt="A barber shaping a skin fade with a razor and comb"></span>
-        </li>
-        <li class="arch arcade__niche arcade__niche--iwan" style="--i: 0">
-            <span class="arch__frame"><img src="/static/img/shop/chairs.jpg" width="900" height="1125" alt="A black barber chair under a hanging lamp, in front of a brick wall with mirrors and a star-tiled floor"></span>
-        </li>
-        <li class="arch arcade__niche" style="--i: 1">
-            <span class="arch__frame"><img src="/static/img/shop/beard.jpg" width="540" height="900" alt="A barber trimming a customer's beard with scissors"></span>
-        </li>
-        <li class="arch arcade__niche arcade__niche--outer" style="--i: 2">
-            <span class="arch__frame"><img src="/static/img/shop/counter.jpg" width="540" height="900" alt="Pomade, a wooden comb and scissors on the counter"></span>
-        </li>
+{# The shop itself, in a row of photos rising out of the band; the whole shop
+   in the middle. `--i` is each photo's distance from the middle, which orders
+   their entrance. The outer pair is dropped on narrow screens. #}
+<section class="section shop-photos" aria-label="Inside the shop">
+    <ul class="shop-photos__row">
+        <li class="shop-photos__item shop-photos__item--outer" style="--i: 2"><img src="/static/img/shop/chair.jpg" width="540" height="900" alt="A vintage barber chair in tufted brown leather, seen from below"></li>
+        <li class="shop-photos__item" style="--i: 1"><img src="/static/img/shop/fade.jpg" width="540" height="900" alt="A barber shaping a skin fade with a razor and comb"></li>
+        <li class="shop-photos__item shop-photos__item--main" style="--i: 0"><img src="/static/img/shop/chairs.jpg" width="900" height="1125" alt="A black barber chair under a hanging lamp, in front of a brick wall with mirrors and a star-tiled floor"></li>
+        <li class="shop-photos__item" style="--i: 1"><img src="/static/img/shop/beard.jpg" width="540" height="900" alt="A barber trimming a customer's beard with scissors"></li>
+        <li class="shop-photos__item shop-photos__item--outer" style="--i: 2"><img src="/static/img/shop/counter.jpg" width="540" height="900" alt="Pomade, a wooden comb and scissors on the counter"></li>
     </ul>
 </section>
 

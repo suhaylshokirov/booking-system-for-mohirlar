@@ -88,9 +88,12 @@ curl http://localhost:8000/api/v1/health     # {"status":"ok","database":"ok"}
 different service sets, weekly hours, a demo phone number and a stock photo (one has a day off next week), a login
 for each barber, a demo customer and four bookings covering every status. Dates
 are relative to today. It is idempotent: run it as often as you like; it never
-duplicates rows and never overwrites what you changed in the barber UI. Docker
-Compose runs it on start while `SEED_DEMO_DATA=true`. The barbers' portraits and the shop photos on the home page are free Unsplash
-stock photos, credited in [`docs/credits.md`](docs/credits.md).
+duplicates rows and never overwrites what you changed in the barber UI (one
+exception: a demo barber with no photo or phone gets the demo one again, so a
+database seeded before photos existed gets them too). Docker Compose runs it on
+start while `SEED_DEMO_DATA=true`. The barbers' portraits and the shop photos on
+the home page are free Unsplash stock photos, credited in
+[`docs/credits.md`](docs/credits.md).
 
 | Role | Email | Password |
 |---|---|---|

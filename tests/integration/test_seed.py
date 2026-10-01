@@ -102,14 +102,33 @@ def test_every_seeded_barber_has_a_phone_number(db, frozen_clock):
     assert phones and all(phone and phone.startswith("+998") for phone in phones)
 
 
-def test_every_seeded_barber_has_a_photo_and_a_removed_one_stays_removed(db, frozen_clock):
+def test_every_seeded_barber_has_a_photo(db, frozen_clock):
     seed(db, Settings(), frozen_clock)
+
     assert all(db.scalars(select(Provider.photo_type)).all())
 
+
+def test_a_barber_seeded_before_photos_and_phones_gets_them_on_the_next_run(db, frozen_clock):
+    """A database seeded by an older version: the barbers exist, with no photo or phone."""
+    seed(db, Settings(), frozen_clock)
     jasur = db.scalar(select(Provider).where(Provider.name == "Jasur"))
-    jasur.photo, jasur.photo_type = None, None
+    jasur.photo, jasur.photo_type, jasur.phone = None, None, None
     db.flush()
-    seed(db, Settings(), frozen_clock)  # Docker runs the seed on every start
+
+    seed(db, Settings(), frozen_clock)
 
     db.refresh(jasur)
-    assert jasur.photo_type is None
+    assert (jasur.photo_type, jasur.phone) == ("image/jpeg", "+998900000001")
+
+
+def test_the_seed_never_replaces_a_photo_or_phone_the_barber_set(db, frozen_clock):
+    seed(db, Settings(), frozen_clock)
+    jasur = db.scalar(select(Provider).where(Provider.name == "Jasur"))
+    own = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
+    jasur.photo, jasur.photo_type, jasur.phone = own, "image/png", "+998711234567"
+    db.flush()
+
+    seed(db, Settings(), frozen_clock)
+
+    db.refresh(jasur)
+    assert (jasur.photo, jasur.phone) == (own, "+998711234567")

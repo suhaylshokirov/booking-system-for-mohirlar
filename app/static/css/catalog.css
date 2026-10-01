@@ -75,48 +75,66 @@
   }
 }
 
-/* --- The arcade ---------------------------------------------------------------
-   The shop's photos as a row of arched niches (the .arch of app.css) that
-   rise out of the band: the band grows by --arcade-rise at the bottom and the
-   arcade is pulled up by the same amount, so the crowns stand on the glaze
-   and the feet on the white page. The big iwan in the middle, two smaller
-   niches each side, all standing on one floor line. */
+/* --- Shop photos ------------------------------------------------------------
+   The shop's photos in one row that rises out of the band: the band grows by
+   --photos-rise at the bottom and the row is pulled up by the same amount, so
+   the photos sit half on the glaze and half on the white page. The middle
+   photo (the whole shop) is the widest; all five share one height. */
 
-main:has(.arcade) {
-  --arcade-rise: clamp(4rem, 10vw, 8rem);
+main:has(.shop-photos) {
+  --photos-rise: clamp(4rem, 10vw, 8rem);
 }
 
 .masthead--hero {
-  padding-bottom: calc(var(--space-8) + var(--arcade-rise, 0px));
+  padding-bottom: calc(var(--space-8) + var(--photos-rise, 0px));
 }
 
-.arcade {
+.shop-photos {
   position: relative;
   z-index: 1;
-  margin-top: calc(-1 * (var(--space-6) + var(--arcade-rise, 0px)));
+  margin-top: calc(-1 * (var(--space-6) + var(--photos-rise, 0px)));
 }
 
-.arcade__row {
+.shop-photos__row {
   display: grid;
   grid-template-columns: 1fr 1fr 1.45fr 1fr 1fr;
-  align-items: end;
   gap: clamp(var(--space-2), 1.6vw, var(--space-5));
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.arcade__niche {
-  --arch-ratio: 3 / 5;
-  animation: arch-rise 0.9s var(--ease) both;
+.shop-photos__item {
+  aspect-ratio: 3 / 5;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--tile);
+  box-shadow: var(--shadow-lift);
+  animation: photo-rise 0.9s var(--ease) both;
   animation-delay: calc(0.12s + var(--i, 0) * 0.11s);
 }
 
-.arcade__niche--iwan {
-  --arch-ratio: 4 / 5;
+/* As tall as its neighbours, wider: it takes the row's height, not a ratio.
+   Its photo is taken out of the flow so the photo's own height cannot
+   stretch the row. */
+.shop-photos__item--main {
+  position: relative;
+  aspect-ratio: auto;
 }
 
-@keyframes arch-rise {
+.shop-photos__item--main img {
+  position: absolute;
+  inset: 0;
+}
+
+.shop-photos__item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@keyframes photo-rise {
   from {
     opacity: 0;
     translate: 0 2.5rem;
@@ -125,20 +143,20 @@ main:has(.arcade) {
 
 @media (max-width: 44rem) {
   .masthead--hero {
-    padding-bottom: calc(var(--space-6) + var(--arcade-rise, 0px));
+    padding-bottom: calc(var(--space-6) + var(--photos-rise, 0px));
   }
 
-  .arcade__row {
+  .shop-photos__row {
     grid-template-columns: 1fr 1fr;
   }
 
-  .arcade__niche--iwan {
+  .shop-photos__item--main {
     grid-column: 1 / -1;
     grid-row: 1;
-    --arch-ratio: 1 / 1;
+    aspect-ratio: 4 / 3;
   }
 
-  .arcade__niche--outer {
+  .shop-photos__item--outer {
     display: none;
   }
 }

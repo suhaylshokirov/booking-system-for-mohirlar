@@ -1418,10 +1418,10 @@ th.num {
 }
 
 /* --- The arch ------------------------------------------------------------------------------------
-   Every photo on the site (a barber, the shop) is framed as an iwan: the
-   pointed arch of the niches that line a Tashkent madrasa courtyard, the same
-   tilework the band comes from. A photo is a window into the shop, so it gets
-   the shape the city gives its openings.
+   A barber's portrait is framed as an iwan: the pointed arch of the niches
+   that line a Tashkent madrasa courtyard, the same tilework the band comes
+   from. (The shop's own photos on the home page are plain rounded
+   rectangles, catalog.css.)
 
    Markup: <span class="arch"><span class="arch__frame"><img ...></span></span>.
    Each box is a size container for the one inside it, so each can be cut in

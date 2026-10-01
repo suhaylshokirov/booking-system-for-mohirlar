@@ -77,13 +77,11 @@ BARBERS = {
     ),
 }
 
-# Demo numbers in the shape a barber would enter (E.164). Set only when the
-# barber is first created, like everything else on their profile.
+# Demo numbers in the shape a barber would enter (E.164).
 PHONES = {"Jasur": "+998900000001", "Bekzod": "+998900000002", "Dilshod": "+998900000003"}
 
 # One portrait per barber (`<name>.jpg`, free stock photos: see the README in
-# that folder). Also set only on creation, so a barber who removed theirs does
-# not get it back the next time the seed runs (Docker runs it on every start).
+# that folder).
 SEED_PHOTOS = Path(__file__).resolve().parent / "seed_photos"
 
 
@@ -117,11 +115,22 @@ def seed_services(db: Session) -> dict[str, Service]:
 
 def seed_providers(db: Session, services: dict[str, Service]) -> dict[str, Provider]:
     """Providers with a phone number and a photo, the services each offers, and their
-    weekly hours."""
+    weekly hours.
+
+    A demo barber who already exists but has no photo or phone (seeded before
+    those existed, or cleared since) gets the demo one again: every barber on
+    the demo has a face and a number. Only empty fields are filled; a photo or
+    number the barber set themselves is never replaced.
+    """
     providers: dict[str, Provider] = {}
     for name, (offered, weekdays, windows) in BARBERS.items():
         provider = db.scalar(select(Provider).where(Provider.name == name))
-        if provider is None:
+        if provider is not None:
+            if provider.photo_type is None:
+                provider.photo, provider.photo_type = _portrait(name)
+            if provider.phone is None:
+                provider.phone = PHONES[name]
+        else:
             photo, photo_type = _portrait(name)
             provider = Provider(name=name, phone=PHONES[name], photo=photo, photo_type=photo_type)
             db.add(provider)

@@ -63,5 +63,8 @@ is not settled yet. A barber has one photo, and a shop has a handful of barbers.
   them to object storage and keep only the URL here.
 - A barber who uploads a very large-dimension but small-file image gets it shown
   as is (no resizing); browsers scale it.
-- The seed loads three stock portraits (`scripts/seed_photos/`, Unsplash License)
-  when it creates each barber, and only then, so a removed photo stays removed.
+- The seed gives each demo barber a stock portrait (`scripts/seed_photos/`,
+  Unsplash License) whenever they have none, including databases seeded before
+  photos existed. So a demo barber who removes their photo gets it back the next
+  time the seed runs (Docker runs it on every start); a photo they uploaded is
+  never replaced. Barbers who are not part of the demo are never touched.
