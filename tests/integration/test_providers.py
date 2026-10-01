@@ -174,6 +174,30 @@ def test_update_validation_and_authorisation(client, barber, customer, db):
     assert db.get(Provider, provider.id).name == "Barber"
 
 
+def test_a_barber_sets_a_phone_number_that_is_stored_and_shown_as_e164(client, barber):
+    url = f"{PROVIDERS}/{barber.provider.id}"
+
+    saved = client.patch(url, json={"phone": "+998 (90) 123-45-67"}, headers=barber).json()
+
+    assert saved["phone"] == "+998901234567"
+    assert client.get(url).json()["phone"] == "+998901234567"
+    assert client.get(PROVIDERS).json()["items"][0]["phone"] == "+998901234567"
+
+
+def test_a_phone_without_a_country_code_is_422_and_null_or_blank_clears_it(client, barber, db):
+    url = f"{PROVIDERS}/{barber.provider.id}"
+    client.patch(url, json={"phone": "+998901234567"}, headers=barber)
+
+    refused = client.patch(url, json={"phone": "90 123 45 67"}, headers=barber)
+    assert refused.status_code == 422
+    assert refused.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert db.get(Provider, barber.provider.id).phone == "+998901234567"
+
+    assert client.patch(url, json={"phone": ""}, headers=barber).json()["phone"] is None
+    client.patch(url, json={"phone": "+998901234567"}, headers=barber)
+    assert client.patch(url, json={"phone": None}, headers=barber).json()["phone"] is None
+
+
 def test_deactivating_hides_the_provider_and_activating_shows_them_again(client, barber, db):
     provider = barber.provider
     url = f"{PROVIDERS}/{provider.id}"

@@ -22,6 +22,8 @@
         {{ ui.csrf_field(csrf_token) }}
         {{ ui.field("name", "Name", value=values.name, error=errors.name, autofocus=true) }}
         {{ ui.textarea("bio", "Bio", value=values.bio, error=errors.bio, hint="Optional. Shown to customers.") }}
+        {{ ui.field("phone", "Phone", type="tel", value=values.phone, error=errors.phone, autocomplete="tel", required=false,
+                    hint="Optional. With the country code, such as +998 90 123 45 67. Customers see it on your card and on their booking.") }}
 
         <fieldset class="field{% if errors.service_ids %} field--invalid{% endif %}">
             <legend class="field__label">Services I offer</legend>

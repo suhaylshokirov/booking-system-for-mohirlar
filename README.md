@@ -85,7 +85,7 @@ curl http://localhost:8000/api/v1/health     # {"status":"ok","database":"ok"}
 
 `python -m scripts.seed` fills the database with a demo barbershop: settings
 (Asia/Tashkent, UZS, 15-minute slots), four services, three barbers with
-different service sets and weekly hours (one has a day off next week), a login
+different service sets, weekly hours and a demo phone number (one has a day off next week), a login
 for each barber, a demo customer and four bookings covering every status. Dates
 are relative to today. It is idempotent: run it as often as you like; it never
 duplicates rows and never overwrites what you changed in the barber UI. Docker

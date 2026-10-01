@@ -656,6 +656,15 @@ checklist (P11.4) is verified against this table.
 - Docs to update: `docs/api.md`; `AI_USAGE.md` P10 entry; push.
 - Edge cases covered: —
 
+### P10.6 — Barber phone numbers (owner's request)
+- [x] Status
+- Goal: a customer can call their barber: from the barber's card before booking, and from the booking itself when running late.
+- Requirement(s) served: product thinking; basic validation. Asked for by the owner on 2026-10-01 together with P10.7 and P10.8. Decision (asked, answered): the number is public on the staff cards and shown on the customer's live booking.
+- Acceptance criteria: optional `providers.phone`, stored only as E.164 (`ck_providers_phone_e164`, migration `0006`); `PhoneNumber` accepts spaces, dashes, dots and brackets and requires the country code; `PATCH /providers/{id}` sets it (blank or `null` clears it) and every provider response returns it; the barber's profile form has the field; staff cards show it as a `tel:` link; a pending or confirmed booking's page shows "Call <barber>"; Uzbek numbers are displayed grouped (`+998 90 123 45 67`); the seed gives each barber a demo number.
+- Tests: `tests/unit/test_phone_number.py`; `tests/unit/test_formatting.py` (phone); `tests/integration/test_db_constraints.py` (phone CHECK); `tests/integration/test_providers.py`, `test_web_barber_profile.py`, `test_web_catalog.py`, `test_web_my_bookings.py`, `test_seed.py` (phone tests).
+- Docs updated: `docs/database.md`, `docs/api.md`, `docs/edge-cases.md` (row 91), README.
+- Edge cases covered: 91.
+
 ---
 
 ## P11 — Ship
@@ -762,3 +771,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-10-01 | P10.4 | The curl walkthrough is also a runnable script, `docs/walkthrough.sh` (bash, curl, python3; no jq). It was run against a fresh `docker compose up` as a **separate compose project on other host ports**, so the development database was not touched. It is not run in CI | The criterion is that the walkthrough runs end to end on a fresh compose stack; a script is the only way to prove it. CI has no compose stack, and a test replaying the same calls would not test the real image |
 | 2026-10-01 | P10.4 | `GET /auth/me` now also returns `provider_id` (the provider a barber runs; `null` for customers) | Found by the walkthrough: after ADR 0010 a barber had no way to learn the provider id that `/providers/{id}/...` and `/availability` need. An additive field; tested |
 | 2026-10-01 | UI (post-P10) | The girih lattice is removed everywhere (page band, footer, barber tile) and its `--girih` token deleted; the band is one flat `--band` colour instead of a gradient; the page colour (`--porcelain`) is plain white in light and plain black in dark. Cobalt, saffron and the cards (`--paper`) are unchanged | The owner asked for no background pattern on the home page, plain white / plain black, keeping the blue. The band and footer are shared components (app.css contract), so the pattern goes from every page rather than the home page alone; the tile in the staff card used the same token and the next step puts barber photos there. The blue band stays as the accent: it is the one judgement call in this change |
+| 2026-10-01 | P10.6 | Barber phone numbers added after P10 (not in the original plan); stored as E.164 only, and only Uzbek (`+998`) numbers are grouped for display | Owner's request. One stored shape makes every number a working `tel:` link and lets the database check it; grouping rules differ per country, so other numbers are shown as stored rather than grouped wrongly |

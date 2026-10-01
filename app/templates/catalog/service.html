@@ -47,6 +47,7 @@
             <div class="staff-card__text">
                 <p class="staff-card__name">{{ person.name }}</p>
                 {% if person.bio %}<p class="staff-card__bio">{{ person.bio }}</p>{% endif %}
+                {% if person.phone %}<a class="staff-card__phone mono" href="tel:{{ person.phone }}" aria-label="Call {{ person.name }}: {{ person.phone|phone }}">{{ person.phone|phone }}</a>{% endif %}
             </div>
             <a class="btn btn--quiet btn--small staff-card__cta" href="/book/{{ service.id }}?provider={{ person.id }}">Book with {{ person.name }}</a>
         </li>

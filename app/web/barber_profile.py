@@ -1,7 +1,8 @@
-"""A barber's own profile: name, bio, offered services, and whether customers see them.
+"""A barber's own profile: name, bio, phone, offered services, and whether customers
+see them.
 
     GET  /barber/profile               the form and the visibility switch
-    POST /barber/profile               save name, bio and offered services
+    POST /barber/profile               save name, bio, phone and offered services
     POST /barber/profile/activate      show me to customers again (and /deactivate)
 
 Barber only (`WebBarber`), and only the barber's own provider record: it comes from
@@ -33,6 +34,7 @@ from app.core.pagination import PageParams
 from app.schemas.provider import ProviderUpdate
 from app.services import provider_catalog, service_catalog
 from app.services.business_settings import get_business_settings
+from app.web import formatting
 from app.web.deps import WebBarber
 from app.web.forms import field_errors
 from app.web.templating import render, set_flash
@@ -45,6 +47,7 @@ ALL = PageParams(limit=200, offset=0)
 _MESSAGES = {
     "name": "Enter a name, up to 100 characters.",
     "bio": "Keep the bio under 1000 characters.",
+    "phone": "Enter the number with its country code, such as +998 90 123 45 67.",
 }
 _SERVICES_GONE = "One of the chosen services is no longer active. Check the list and save again."
 
@@ -65,14 +68,16 @@ def _values(view) -> dict:
     return {
         "name": view.provider.name,
         "bio": view.provider.bio or "",
+        # Shown grouped (+998 90 123 45 67); the spaces are dropped again on save.
+        "phone": formatting.phone(view.provider.phone) if view.provider.phone else "",
         "service_ids": [s.id for s in view.services],
     }
 
 
-def _save(db: DbSession, provider_id: int, name: str, bio: str, service_ids: list[int]):
+def _save(db: DbSession, provider_id: int, name: str, bio: str, phone: str, service_ids: list[int]):
     """Returns the field errors (empty on success); on errors nothing has been changed."""
     try:
-        body = ProviderUpdate(name=name, bio=bio)
+        body = ProviderUpdate(name=name, bio=bio, phone=phone)
     except ValidationError as error:
         return field_errors(error, _MESSAGES)
     try:
@@ -101,13 +106,14 @@ def update(
     barber: WebBarber,
     name: Annotated[str, Form()] = "",
     bio: Annotated[str, Form()] = "",
+    phone: Annotated[str, Form()] = "",
     service_ids: Annotated[list[int], Form()] = [],  # noqa: B006 - FastAPI copies the default
 ) -> Response:
     """Raises: nothing; a bad form is shown again (422)."""
     view = provider_catalog.get_provider(db, barber.provider_id, include_inactive=True)
-    errors = _save(db, barber.provider_id, name, bio, service_ids)
+    errors = _save(db, barber.provider_id, name, bio, phone, service_ids)
     if errors:
-        values = {"name": name, "bio": bio, "service_ids": service_ids}
+        values = {"name": name, "bio": bio, "phone": phone, "service_ids": service_ids}
         return _form(request, db, view, values, errors, 422)
     response = RedirectResponse("/barber/profile", status_code=303)
     set_flash(response, "provider_saved")

@@ -265,6 +265,34 @@
   font-size: var(--text-sm);
 }
 
+/* A number is data, so it is set in the mono face like every price and time.
+   The handset is drawn in CSS: a rounded receiver tilted on its side. */
+.staff-card__phone {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.staff-card__phone::before {
+  content: "";
+  flex: none;
+  width: 0.55em;
+  height: 1.05em;
+  border: 2px solid currentColor;
+  border-inline-start-width: 4px;
+  border-radius: 3px 2px 2px 3px;
+  rotate: -30deg;
+}
+
+.staff-card__phone:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .staff-card__cta {
   grid-column: 1 / -1;
   justify-self: start;

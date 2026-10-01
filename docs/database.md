@@ -52,6 +52,7 @@ erDiagram
         int id PK
         string name
         string bio
+        string phone "E.164, optional"
         bool is_active
     }
     provider_services {
@@ -186,6 +187,11 @@ deleted; bookings copy price and duration (see Snapshot fields).
 The barbers customers book. A provider row is created together with its barber's
 user (`scripts/create_barber.py`) and managed by that barber alone. Soft
 deactivation via `is_active`: a barber can hide themselves from customers.
+`phone` is optional and stored in one shape only, E.164 (`+998901234567`):
+`ck_providers_phone_e164` (migration `0006`) refuses spaces, a missing country
+code and more than 15 digits, so every number shown is a working `tel:` link.
+The API accepts the usual spellings and normalises them first
+(`app/schemas/types.PhoneNumber`).
 
 ### `provider_services`
 Which provider offers which service. Composite primary key
@@ -271,6 +277,7 @@ Every constraint and index, with the reason it exists. Names are the real ones
 | `ck_bookings_cancellation_fields_only_when_cancelled` | `bookings` | Cancellation data on a live booking would falsify its history |
 | `ck_services_duration_positive`, `ck_services_price_not_negative` | `services` | A zero-length or negatively priced service is nonsense |
 | `ck_*_name_not_blank` | `services`, `providers`, `business_settings` | Names made only of spaces |
+| `ck_providers_phone_e164` | `providers` | A phone number is `+` and 8-15 digits, country code first, or NULL |
 | `ck_availability_rules_weekday_range` | `availability_rules` | Weekday is 0–6 |
 | `ck_availability_rules_end_after_start` | `availability_rules` | A window needs positive length |
 | `ck_availability_exceptions_day_off_or_valid_hours` | `availability_exceptions` | Both times NULL (day off) or both set with end after start |

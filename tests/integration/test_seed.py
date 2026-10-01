@@ -93,3 +93,10 @@ def test_rerunning_the_seed_does_not_overwrite_barber_edits(db, frozen_clock):
 
     db.refresh(haircut)
     assert (haircut.price, haircut.is_active) == (75_000, False)
+
+
+def test_every_seeded_barber_has_a_phone_number(db, frozen_clock):
+    seed(db, Settings(), frozen_clock)
+
+    phones = db.scalars(select(Provider.phone)).all()
+    assert phones and all(phone and phone.startswith("+998") for phone in phones)

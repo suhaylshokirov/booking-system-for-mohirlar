@@ -105,6 +105,17 @@ def test_service_page_shows_the_facts_and_who_offers_it(client, db, haircut):
     assert f'href="/book/{haircut.id}?provider={jasur.id}">Book with Jasur</a>' in html
 
 
+def test_a_barbers_phone_is_a_tap_to_call_link_on_their_card(client, db, haircut):
+    _provider(db, "Jasur", [haircut], phone="+998901234567")
+    _provider(db, "Bekzod", [haircut])  # no number given
+
+    html = client.get(f"/services/{haircut.id}").text
+
+    grouped = "+998 90 123 45 67".replace(" ", NBSP)
+    assert f'href="tel:+998901234567" aria-label="Call Jasur: {grouped}">{grouped}</a>' in html
+    assert html.count('class="staff-card__phone') == 1
+
+
 def test_inactive_staff_are_not_offered(client, db, haircut):
     _provider(db, "Jasur", [haircut])
     _provider(db, "Bekzod", [haircut], is_active=False)

@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from app.web.formatting import NBSP, day_offset, duration, money, utc_offset
+from app.web.formatting import NBSP, day_offset, duration, money, phone, utc_offset
 
 
 @pytest.mark.parametrize(
@@ -57,3 +57,16 @@ def test_day_offset_is_taken_at_local_noon_on_a_clock_change_day():
     # Berlin's clocks go back at 03:00 on 2026-10-25; by noon it is winter time.
     assert day_offset(date(2026, 10, 25), "Europe/Berlin") == "UTC+1"
     assert day_offset(date(2026, 10, 24), "Europe/Berlin") == "UTC+2"
+
+
+# --- phone ---------------------------------------------------------------------------------
+
+
+def test_an_uzbek_number_is_grouped_the_way_it_is_said():
+    assert phone("+998901234567") == "+998 90 123 45 67".replace(" ", NBSP)
+
+
+@pytest.mark.parametrize("number", ["+4930123456", "+12025550123", "+99890123456"])
+def test_other_numbers_are_shown_as_stored(number):
+    """Grouping is per country; a wrong grouping is worse than none."""
+    assert phone(number) == number

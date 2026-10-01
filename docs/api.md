@@ -164,7 +164,7 @@ another barber's provider id (or an unknown one) and for customers.
 |---|---|---|---|
 | `GET /providers` | public | 200 page | Active providers, alphabetical, each with the services they offer. `?service_id=` keeps only providers who offer that service (an unknown or inactive service matches nobody). `include_inactive=true` is barber-only (`401` anonymous, `403` customer). |
 | `GET /providers/{id}` | public | 200 provider | Includes `services`. An inactive provider is `404` for everyone but barbers. |
-| `PATCH /providers/{id}` | that barber | 200 provider | Partial. `bio: null` clears it; `name` cannot be null; an empty body is `422`. |
+| `PATCH /providers/{id}` | that barber | 200 provider | Partial. `bio: null` clears it; `name` cannot be null; an empty body is `422`. `phone` needs the country code; spaces, dashes, dots and brackets are dropped (`"+998 90 123-45-67"` is stored and returned as `"+998901234567"`); `""` or `null` clears it; without a country code it is `422 VALIDATION_ERROR`. |
 | `POST /providers/{id}/deactivate` | that barber | 200 provider | Hides them from customers. No hard delete exists. Repeating it is a no-op. |
 | `POST /providers/{id}/activate` | that barber | 200 provider | |
 | `PUT /providers/{id}/services` | that barber | 200 provider | Body `{"service_ids": [1, 2]}` **replaces** the whole set; `[]` means "offers nothing"; repeated ids count once. Any id that is not an existing, active service is `422 UNKNOWN_SERVICE` (`details.service_ids` lists them) and nothing is changed. |

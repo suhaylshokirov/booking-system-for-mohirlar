@@ -240,6 +240,21 @@ def test_the_detail_page_shows_the_ticket_history_and_a_cancel_form(
     assert f'name="csrf_token" value="{CSRF}"' in html
 
 
+def test_a_live_booking_shows_the_barbers_phone_and_a_cancelled_one_does_not(
+    client, db, haircut, jasur, aziza
+):
+    jasur.phone = "+998901234567"
+    booking = _book(db, aziza, haircut, jasur)
+    _sign_in(client, aziza)
+
+    html = client.get(f"/me/bookings/{booking.id}").text
+    assert "Call Jasur" in html
+    assert 'href="tel:+998901234567"' in html
+
+    _cancel(client, booking)
+    assert "tel:" not in client.get(f"/me/bookings/{booking.id}").text
+
+
 def test_someone_else_s_booking_is_a_404_page(client, db, haircut, jasur, aziza, bob):
     theirs = _book(db, bob, haircut, jasur)
     _sign_in(client, aziza)

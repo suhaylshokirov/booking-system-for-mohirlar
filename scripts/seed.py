@@ -75,6 +75,10 @@ BARBERS = {
     ),
 }
 
+# Demo numbers in the shape a barber would enter (E.164). Set only when the
+# barber is first created, like everything else on their profile.
+PHONES = {"Jasur": "+998900000001", "Bekzod": "+998900000002", "Dilshod": "+998900000003"}
+
 
 def _count(db: Session, model) -> int:
     return db.scalar(select(func.count()).select_from(model)) or 0
@@ -97,12 +101,12 @@ def seed_services(db: Session) -> dict[str, Service]:
 
 
 def seed_providers(db: Session, services: dict[str, Service]) -> dict[str, Provider]:
-    """Providers, the services each offers, and their weekly hours."""
+    """Providers with a phone number, the services each offers, and their weekly hours."""
     providers: dict[str, Provider] = {}
     for name, (offered, weekdays, windows) in BARBERS.items():
         provider = db.scalar(select(Provider).where(Provider.name == name))
         if provider is None:
-            provider = Provider(name=name)
+            provider = Provider(name=name, phone=PHONES[name])
             db.add(provider)
             db.flush()
             for service_name in offered:

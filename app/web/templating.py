@@ -37,6 +37,7 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 templates.env.filters["money"] = formatting.money
 templates.env.filters["duration"] = formatting.duration
+templates.env.filters["phone"] = formatting.phone
 templates.env.filters["local_time"] = formatting.local_time
 templates.env.filters["local_date"] = formatting.local_date
 templates.env.filters["day_label"] = formatting.day_label

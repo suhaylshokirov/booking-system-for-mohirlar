@@ -112,6 +112,33 @@ def test_a_blank_name_shows_the_error_and_keeps_the_ticked_services(client, db, 
     assert jasur.name == "Jasur"
 
 
+def test_the_phone_is_saved_as_e164_and_shown_grouped(client, db, staff, jasur):
+    _sign_in(client, staff)
+
+    _post(client, "/barber/profile", name="Jasur", phone="+998 90 123-45-67")
+
+    db.refresh(jasur)
+    assert jasur.phone == "+998901234567"
+    html = client.get("/barber/profile").text
+    assert 'type="tel"' in html
+    assert 'value="+998\u00a090\u00a0123\u00a045\u00a067"' in html
+
+
+def test_a_phone_without_a_country_code_is_shown_back_with_the_error(client, db, staff, jasur):
+    jasur.phone = "+998901234567"
+    db.flush()
+    _sign_in(client, staff)
+
+    response = _post(client, "/barber/profile", name="Jasur", phone="90 123 45 67")
+
+    assert response.status_code == 422
+    assert 'id="field-phone-error"' in response.text
+    assert "country code" in response.text
+    assert 'value="90 123 45 67"' in response.text
+    db.refresh(jasur)
+    assert jasur.phone == "+998901234567"
+
+
 def test_unticking_everything_offers_nothing(client, db, staff, jasur):
     haircut = _service(db, "Haircut")
     db.add(ProviderService(provider_id=jasur.id, service_id=haircut.id))

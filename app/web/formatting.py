@@ -57,6 +57,19 @@ def money(amount: int, currency: str) -> str:
     return f"{amount:,}".replace(",", NBSP) + NBSP + currency
 
 
+def phone(number: str) -> str:
+    """How a stored E.164 number is read aloud and written in Uzbekistan:
+    "+998901234567" -> "+998 90 123 45 67" (no-break spaces, so it never wraps).
+
+    Only Uzbek numbers are grouped: other countries group differently, and a
+    wrong grouping is worse than none, so they are shown as stored.
+    """
+    if number.startswith("+998") and len(number) == 13:
+        groups = (number[:4], number[4:6], number[6:9], number[9:11], number[11:])
+        return NBSP.join(groups)
+    return number
+
+
 def duration(minutes: int) -> str:
     """30 -> "30 min", 60 -> "1 h", 75 -> "1 h 15 min" (no-break spaces)."""
     hours, rest = divmod(minutes, 60)

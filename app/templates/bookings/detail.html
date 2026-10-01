@@ -46,6 +46,10 @@
             <dl class="ticket__facts">
                 <div><dt class="label">Service</dt><dd>{{ line.service_name }}</dd></div>
                 <div><dt class="label">With</dt><dd>{{ line.provider_name }}</dd></div>
+                {% if line.provider_phone and booking.status.value in ("pending", "confirmed") %}
+                {# So a customer running late can call the chair they booked. #}
+                <div class="ticket__wide"><dt class="label">Call {{ line.provider_name }}</dt><dd><a class="mono" href="tel:{{ line.provider_phone }}">{{ line.provider_phone|phone }}</a></dd></div>
+                {% endif %}
                 <div><dt class="label">Duration</dt><dd class="mono">{{ booking.duration_minutes|duration }}</dd></div>
                 <div><dt class="label">Price</dt><dd class="mono">{{ booking.price_amount|money(business.currency) }}</dd></div>
                 {% if booking.notes %}<div class="ticket__wide"><dt class="label">Your note</dt><dd>{{ booking.notes }}</dd></div>{% endif %}

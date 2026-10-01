@@ -231,6 +231,17 @@ def test_negative_service_price_is_rejected(db):
         db.add(Service(name="Haircut", duration_minutes=30, price=-1))
 
 
+@pytest.mark.parametrize("phone", ["901234567", "+998-90-1234567", "+0998901234567", "+1234567"])
+def test_a_phone_number_not_in_e164_is_rejected(db, phone):
+    with rejected(db, CHECK_VIOLATION, "ck_providers_phone_e164"):
+        db.add(Provider(name="Jasur", phone=phone))
+
+
+def test_a_provider_without_a_phone_is_allowed(db):
+    db.add(Provider(name="Jasur", phone=None))
+    db.flush()  # no exception
+
+
 def test_free_service_is_allowed(db):
     db.add(Service(name="Consultation", duration_minutes=15, price=0))
     db.flush()  # no exception

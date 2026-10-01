@@ -401,15 +401,18 @@ def list_history(
 
 @dataclass(frozen=True)
 class BookingLine:
-    """A booking with the names a page shows next to it."""
+    """A booking with the names a page shows next to it, and the barber's phone
+    number so a customer running late can call them."""
 
     booking: Booking
     service_name: str
     provider_name: str
+    provider_phone: str | None = None
 
 
 def describe_bookings(db: Session, bookings: list[Booking]) -> list[BookingLine]:
-    """Attach service and provider names to `bookings`, keeping their order.
+    """Attach service and provider names (and the provider's phone) to `bookings`,
+    keeping their order.
 
     Two queries for the whole list rather than one per row. Names are looked
     up even for retired services and providers: bookings keep pointing at them
@@ -420,11 +423,14 @@ def describe_bookings(db: Session, bookings: list[Booking]) -> list[BookingLine]
     services = dict(
         db.execute(select(Service.id, Service.name).where(Service.id.in_(service_ids))).all()
     )
-    providers = dict(
-        db.execute(select(Provider.id, Provider.name).where(Provider.id.in_(provider_ids))).all()
-    )
+    providers = {
+        provider_id: (name, phone)
+        for provider_id, name, phone in db.execute(
+            select(Provider.id, Provider.name, Provider.phone).where(Provider.id.in_(provider_ids))
+        )
+    }
     return [
-        BookingLine(booking, services[booking.service_id], providers[booking.provider_id])
+        BookingLine(booking, services[booking.service_id], *providers[booking.provider_id])
         for booking in bookings
     ]
 
