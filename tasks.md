@@ -674,6 +674,15 @@ checklist (P11.4) is verified against this table.
 - Docs updated: ADR 0012, CLAUDE.md §8, `docs/database.md`, `docs/api.md` (routes and the two error codes), `docs/architecture.md`, `docs/edge-cases.md` (rows 92-95), README, `scripts/seed_photos/README.md`.
 - Edge cases covered: 92-95.
 
+### P10.8 — Shop photos and the barbers on the home page (owner's request)
+- [x] Status
+- Goal: the home page shows the shop itself and who works there, not only a price list.
+- Requirement(s) served: product thinking (UI). Nice to have; no assignment requirement changes.
+- Acceptance criteria: five shop photos (`app/static/img/shop/`, Unsplash License, credited in `docs/credits.md`) as an arcade of arches rising out of the hero band, the middle one larger; two hidden on narrow screens; each with a real description as `alt`; a staggered entrance that respects reduced motion. A "Barbers" section lists active barbers with photo (or initial), bio, phone and one link per service they offer (`/book/{service}?provider={id}`); a barber who offers nothing says so; the section is left out when there are no barbers.
+- Tests: `tests/integration/test_web_catalog.py` (`test_home_shows_the_shop_in_photos_that_exist_and_are_described`, `test_home_lists_the_barbers_with_a_link_per_service_they_book`, `test_a_barber_who_offers_nothing_is_shown_as_not_taking_bookings`, `test_with_no_barbers_the_section_is_left_out`). Checked by eye in headless Chromium at 1280 px and 390 px, light and dark.
+- Docs updated: `docs/credits.md`, `docs/architecture.md`, `docs/edge-cases.md` (row 96), README, `AI_USAGE.md` (P10 owner requests).
+- Edge cases covered: 96.
+
 ---
 
 ## P11 — Ship
@@ -783,3 +792,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-10-01 | P10.6 | Barber phone numbers added after P10 (not in the original plan); stored as E.164 only, and only Uzbek (`+998`) numbers are grouped for display | Owner's request. One stored shape makes every number a working `tel:` link and lets the database check it; grouping rules differ per country, so other numbers are shown as stored rather than grouped wrongly |
 | 2026-10-01 | P10.7 | Image uploads, listed as out of scope in CLAUDE.md §8, are added for a barber's own photo; stored in Postgres, not on disk; no resizing | Owner's request and choice (upload over a pasted link). Postgres needs no volume, bucket or credentials on any host and is already backed up (ADR 0012); resizing would need Pillow, a dependency not worth it for a few small photos shown at thumbnail size |
 | 2026-10-01 | P10.7 | `tests/unit/test_openapi_docs.py`: a `multipart/form-data` request body needs a description on every field instead of a JSON example | A file has no meaningful JSON example; the rule still fails a new upload endpoint whose fields say nothing |
+| 2026-10-01 | P10.8 | The shop's photos are static files in the repo, not something a barber uploads or edits | A gallery a barber manages is the "poster gallery" CLAUDE.md §8 still rules out; five fixed photos serve the home page. Changing them is a code change |

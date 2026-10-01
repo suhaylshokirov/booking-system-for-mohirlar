@@ -75,6 +75,74 @@
   }
 }
 
+/* --- The arcade ---------------------------------------------------------------
+   The shop's photos as a row of arched niches (the .arch of app.css) that
+   rise out of the band: the band grows by --arcade-rise at the bottom and the
+   arcade is pulled up by the same amount, so the crowns stand on the glaze
+   and the feet on the white page. The big iwan in the middle, two smaller
+   niches each side, all standing on one floor line. */
+
+main:has(.arcade) {
+  --arcade-rise: clamp(4rem, 10vw, 8rem);
+}
+
+.masthead--hero {
+  padding-bottom: calc(var(--space-8) + var(--arcade-rise, 0px));
+}
+
+.arcade {
+  position: relative;
+  z-index: 1;
+  margin-top: calc(-1 * (var(--space-6) + var(--arcade-rise, 0px)));
+}
+
+.arcade__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.45fr 1fr 1fr;
+  align-items: end;
+  gap: clamp(var(--space-2), 1.6vw, var(--space-5));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.arcade__niche {
+  --arch-ratio: 3 / 5;
+  animation: arch-rise 0.9s var(--ease) both;
+  animation-delay: calc(0.12s + var(--i, 0) * 0.11s);
+}
+
+.arcade__niche--iwan {
+  --arch-ratio: 4 / 5;
+}
+
+@keyframes arch-rise {
+  from {
+    opacity: 0;
+    translate: 0 2.5rem;
+  }
+}
+
+@media (max-width: 44rem) {
+  .masthead--hero {
+    padding-bottom: calc(var(--space-6) + var(--arcade-rise, 0px));
+  }
+
+  .arcade__row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .arcade__niche--iwan {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    --arch-ratio: 1 / 1;
+  }
+
+  .arcade__niche--outer {
+    display: none;
+  }
+}
+
 /* --- Price board -------------------------------------------------------------
    One card per service. Name in the display face, price opposite, the
    duration at the foot next to the way in. */
@@ -289,6 +357,12 @@
 .staff-card__cta {
   grid-column: 1 / -1;
   justify-self: start;
+}
+
+/* On the home page the foot of a barber's card is the set of services they
+   book, under a label. */
+.staff-card__cta .chips {
+  margin-top: var(--space-2);
 }
 
 .staff-note {

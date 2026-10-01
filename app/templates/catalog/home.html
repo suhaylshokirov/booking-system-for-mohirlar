@@ -55,6 +55,30 @@
 {% endblock %}
 
 {% block content %}
+{# The shop itself, as an arcade of arched niches rising out of the band: the
+   big iwan in the middle, smaller niches either side, like a madrasa front.
+   `--i` is each niche's distance from the middle, which orders their entrance.
+   The outer pair is dropped on narrow screens. #}
+<section class="section arcade" aria-label="Inside the shop">
+    <ul class="arcade__row">
+        <li class="arch arcade__niche arcade__niche--outer" style="--i: 2">
+            <span class="arch__frame"><img src="/static/img/shop/chair.jpg" width="540" height="900" alt="A vintage barber chair in tufted brown leather, seen from below"></span>
+        </li>
+        <li class="arch arcade__niche" style="--i: 1">
+            <span class="arch__frame"><img src="/static/img/shop/fade.jpg" width="540" height="900" alt="A barber shaping a skin fade with a razor and comb"></span>
+        </li>
+        <li class="arch arcade__niche arcade__niche--iwan" style="--i: 0">
+            <span class="arch__frame"><img src="/static/img/shop/chairs.jpg" width="900" height="1125" alt="A black barber chair under a hanging lamp, in front of a brick wall with mirrors and a star-tiled floor"></span>
+        </li>
+        <li class="arch arcade__niche" style="--i: 1">
+            <span class="arch__frame"><img src="/static/img/shop/beard.jpg" width="540" height="900" alt="A barber trimming a customer's beard with scissors"></span>
+        </li>
+        <li class="arch arcade__niche arcade__niche--outer" style="--i: 2">
+            <span class="arch__frame"><img src="/static/img/shop/counter.jpg" width="540" height="900" alt="Pomade, a wooden comb and scissors on the counter"></span>
+        </li>
+    </ul>
+</section>
+
 <section class="section" id="services" aria-labelledby="services-title">
     <div class="section-head">
         <h2 id="services-title">Services</h2>
@@ -86,4 +110,39 @@
     <p class="empty">Nothing can be booked yet: the business hasn't listed its services. Check back soon.</p>
     {% endif %}
 </section>
+
+{% if barbers %}
+<section class="section" id="barbers" aria-labelledby="barbers-title">
+    <div class="section-head">
+        <h2 id="barbers-title">Barbers</h2>
+        <span class="section-note">Book one by name, or call them</span>
+    </div>
+    {# Each barber with what they do: a chip books that service with them. #}
+    <ul class="staff-list">
+        {% for view in barbers %}
+        {% set person = view.provider %}
+        <li class="staff-card">
+            {{ ui.portrait(person, "staff-card__photo") }}
+            <div class="staff-card__text">
+                <p class="staff-card__name">{{ person.name }}</p>
+                {% if person.bio %}<p class="staff-card__bio">{{ person.bio }}</p>{% endif %}
+                {% if person.phone %}<a class="staff-card__phone mono" href="tel:{{ person.phone }}" aria-label="Call {{ person.name }}: {{ person.phone|phone }}">{{ person.phone|phone }}</a>{% endif %}
+            </div>
+            <div class="staff-card__cta">
+                {% if view.services %}
+                <p class="label" id="books-{{ person.id }}">Book with {{ person.name }}</p>
+                <ul class="chips" aria-labelledby="books-{{ person.id }}">
+                    {% for service in view.services %}
+                    <li><a class="chip" href="/book/{{ service.id }}?provider={{ person.id }}">{{ service.name }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="faint">Not taking bookings right now.</p>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
 {% endblock %}

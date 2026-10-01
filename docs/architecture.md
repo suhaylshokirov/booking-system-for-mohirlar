@@ -288,7 +288,10 @@ take and wait to hear called): paper, a perforation, a torn edge and the time
 printed large, on the confirm step and the booking's page. Every photo (a
 barber's portrait, the shop) is framed as an *iwan*, the pointed arch of the
 niches around a madrasa courtyard, with a thin cobalt rim (`.arch` in
-`app.css`); a barber without a photo shows their initial in the same arch. Saffron
+`app.css`); a barber without a photo shows their initial in the same arch. The
+home page opens with the shop as an arcade of these arches rising out of the
+band, a big iwan in the middle and smaller niches either side, then the services
+and the barbers (each with a link per service they offer). Saffron
 means *committed or selected*: the chosen slot, a Confirmed status, the step
 and page you're on, the button that books; red is only for cancelling and
 errors; a barber-pole stripe only means "loading". Status chips always spell

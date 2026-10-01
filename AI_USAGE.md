@@ -622,6 +622,59 @@ in [`CLAUDE.md`](CLAUDE.md).
     run booked with one barber and then signed in as another, correctly seeing nothing:
     the script was wrong, the API was right.
 
+## P10 — Owner requests: phone numbers, photos, the home page
+
+- **Asked:** add photos and phone numbers to the barbers, and photos of the
+  barbershop to the home page, using the frontend-design skill. The AI asked
+  two questions first, because image uploads were listed as out of scope
+  (CLAUDE.md §8): how a photo gets in (I chose upload, stored in Postgres, over
+  pasting a link) and where the phone is shown (I chose the staff cards and the
+  customer's own booking). My pending, uncommitted lattice-removal UI change was
+  committed on its own first (`0c40b20`) so it did not mix with this work.
+- **Produced:**
+  - P10.6 phone numbers: `PhoneNumber` (E.164, country code required),
+    `ck_providers_phone_e164` and migration `0006`, the profile field, `tel:`
+    links on staff cards and on a live booking, grouped display for `+998`.
+    Commit `1ceb8fc`.
+  - P10.7 photos: `services/provider_photo.py` (type from the file's first
+    bytes, 2 MB cap), migration `0007` with three CHECKs, `GET`/`PUT`/`DELETE
+    /providers/{id}/photo`, `photo_url` with a version, the profile upload with
+    preview and remove, the `.arch` component (every photo framed as an iwan
+    arch), seed portraits; ADR 0012. Commit `e2d735d`.
+  - P10.8 the home page: five shop photos as an arcade of arches rising out of
+    the band, and a "Barbers" section with a booking link per service.
+  - Photos are Unsplash stock (free licence), picked by the AI after looking at
+    about 25 candidates, cropped by Unsplash's image service, credited in
+    `docs/credits.md`.
+- **Verified how:** tests per task (phone spellings and refusals, the CHECKs,
+  SVG and mislabelled files refused, exactly 2 MB accepted and one byte more
+  refused, a refused photo undoing the whole profile save, photo bytes not loaded
+  when listing, the home page's links and images); the whole suite after each
+  commit; `alembic check` (no drift); and, because tests cannot judge a shape, the
+  pages were run against a separate scratch database and screenshotted in
+  headless Chromium at 1280 px and 390 px, light and dark.
+- **Changed / rejected:**
+  - Rejected: a link to a hosted image (breaks, depends on a third party), files
+    on disk (lost on redeploy without a volume), resizing with Pillow (a new
+    dependency for a few thumbnails).
+  - `photo_url` was first written in the service layer; moved to the schema
+    module because building a URL is presentation, not a business rule.
+  - The shop photos are static files, not a gallery a barber manages (still out
+    of scope); recorded in the Deviations log.
+- **Bugs caught:**
+  - The first arch screenshot showed a step where the crown met the sides: the
+    crown SVG had `preserveAspectRatio="none"`, which removes its aspect ratio,
+    so the browser stretched it to the full height. Only the screenshot showed it.
+  - On a photo with a white background (Jasur's) the arch vanished into the white
+    card; a thin cobalt rim was added. A CSS-drawn phone handset read as a pill
+    and was replaced by an icon.
+  - A constraint test used a phone spelling longer than the column, so it hit
+    "value too long" before the CHECK it meant to test; the value was changed.
+  - The OpenAPI docs test assumed every request body is JSON; it now requires a
+    multipart upload to describe its fields instead.
+  - The first photo credits linked `unsplash.com/photos/<id>` addresses that do not
+    exist in that form; replaced with the image addresses actually downloaded.
+
 ---
 
 ## Summary (for the submission form)

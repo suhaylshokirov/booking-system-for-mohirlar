@@ -1,4 +1,5 @@
-"""What can be booked: the services list (the home page) and one service's page.
+"""What can be booked: the home page (the shop, its services, its barbers) and one
+service's page.
 
 Customers only ever see active services and active staff; an inactive
 service's page is the same 404 as one that never existed (the rule lives in
@@ -30,13 +31,21 @@ def home(
     db: DbSession,
     page: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 1,
 ) -> HTMLResponse:
-    """Raises: 404 for a page past the last."""
+    """The shop's photos, its services (paged) and its barbers, each barber with the
+    services they offer so a customer can book them directly.
+
+    Raises: 404 for a page past the last.
+    """
     business = get_business_settings(db)
     services, total = list_services(
         db, page_params(page, SERVICES_PER_PAGE), include_inactive=False
     )
     pager = make_pager(page, SERVICES_PER_PAGE, total)
-    context = {"business": business, "services": services, "pager": pager}
+    # Active barbers only, each with their active services (see provider_catalog).
+    barbers, _ = list_providers(
+        db, PageParams(limit=MAX_LIMIT, offset=0), include_inactive=False, service_id=None
+    )
+    context = {"business": business, "services": services, "pager": pager, "barbers": barbers}
     return render(request, "catalog/home.html", context)
 
 

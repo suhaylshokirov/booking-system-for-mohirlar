@@ -89,7 +89,8 @@ different service sets, weekly hours, a demo phone number and a stock photo (one
 for each barber, a demo customer and four bookings covering every status. Dates
 are relative to today. It is idempotent: run it as often as you like; it never
 duplicates rows and never overwrites what you changed in the barber UI. Docker
-Compose runs it on start while `SEED_DEMO_DATA=true`.
+Compose runs it on start while `SEED_DEMO_DATA=true`. The barbers' portraits and the shop photos on the home page are free Unsplash
+stock photos, credited in [`docs/credits.md`](docs/credits.md).
 
 | Role | Email | Password |
 |---|---|---|

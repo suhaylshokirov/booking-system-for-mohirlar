@@ -1,5 +1,7 @@
 """The services list (home page) and a service's page (P8.3)."""
 
+import re
+
 import pytest
 from sqlalchemy.orm import Session
 
@@ -49,6 +51,44 @@ def test_home_lists_active_services_with_duration_and_price(client, haircut):
     assert f"60{NBSP}000{NBSP}UZS" in html
     assert "Classic scissor or clipper cut" in html
     assert f'href="/services/{haircut.id}"' in html
+
+
+def test_home_shows_the_shop_in_photos_that_exist_and_are_described(client):
+    html = client.get("/").text
+
+    images = re.findall(r'<img src="(/static/img/shop/[^"]+)"[^>]* alt="([^"]+)"', html)
+    assert len(images) == 5
+    for src, alt in images:
+        assert alt.strip(), f"{src} needs a description"
+        assert client.get(src).headers["content-type"] == "image/jpeg"
+
+
+def test_home_lists_the_barbers_with_a_link_per_service_they_book(client, db, haircut):
+    shave = _service(db, "Hot towel shave")
+    jasur = _provider(db, "Jasur", [haircut, shave], phone="+998901234567")
+    _provider(db, "Bekzod", [haircut], is_active=False)
+
+    html = client.get("/").text
+
+    assert '<h2 id="barbers-title">Barbers</h2>' in html
+    assert '<p class="staff-card__name">Jasur</p>' in html
+    assert f'href="/book/{haircut.id}?provider={jasur.id}">Haircut</a>' in html
+    assert f'href="/book/{shave.id}?provider={jasur.id}">Hot towel shave</a>' in html
+    assert 'href="tel:+998901234567"' in html
+    assert "Bekzod" not in html
+
+
+def test_a_barber_who_offers_nothing_is_shown_as_not_taking_bookings(client, db, haircut):
+    _provider(db, "Dilshod", [])
+
+    html = client.get("/").text
+
+    assert "Dilshod" in html
+    assert "Not taking bookings right now." in html
+
+
+def test_with_no_barbers_the_section_is_left_out(client, haircut):
+    assert 'id="barbers"' not in client.get("/").text
 
 
 def test_inactive_services_are_not_listed(client, db, haircut):
