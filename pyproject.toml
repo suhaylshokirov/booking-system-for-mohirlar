@@ -22,7 +22,6 @@ dependencies = [
     "jinja2==3.1.6",
     # Needed by FastAPI to parse HTML form posts (the no-JavaScript UI).
     "python-multipart==0.0.32",
-    "pwdlib[argon2]==0.3.1",
     "pyjwt==2.15.1",
 ]
 

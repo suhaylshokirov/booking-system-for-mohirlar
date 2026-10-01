@@ -48,3 +48,21 @@
   padding-top: var(--space-5);
   border-top: 1px dashed var(--rule-strong);
 }
+
+/* The 6-digit code: large, evenly spaced digits so a mistyped one is easy to spot.
+   Only a layout of the shared .field input, no new colours. */
+.code-input {
+  font-family: var(--font-mono);
+  font-size: 1.75rem;
+  letter-spacing: 0.4em;
+  text-align: center;
+}
+
+.auth-resend {
+  margin-top: var(--space-4);
+}
+
+.auth-resend .auth-alt {
+  margin-top: var(--space-3);
+  text-align: center;
+}

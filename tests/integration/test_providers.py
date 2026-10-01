@@ -242,7 +242,7 @@ def test_a_barber_cannot_change_another_barbers_profile(client, barber, db):
 
 
 def _future_booking(db: Session, provider: Provider, service: Service) -> Booking:
-    customer = User(email="ali@example.uz", password_hash="x", full_name="Ali")
+    customer = User(email="ali@example.uz", full_name="Ali")
     db.add(customer)
     db.flush()
     start = datetime(2026, 10, 5, 9, 0, tzinfo=UTC)

@@ -27,24 +27,21 @@
 
         {% if problem %}<p class="notice notice--error" role="alert">{{ problem }}</p>{% endif %}
 
-        {# After a wrong password the email is kept, so the cursor goes
-           straight to the password. #}
         {{ ui.field("email", "Email", type="email", value=values.email, error=errors.email,
-                    autocomplete="email", autofocus=not problem) }}
-        {{ ui.field("password", "Password", type="password", error=errors.password,
-                    autocomplete="current-password", autofocus=problem) }}
+                    hint="We email you a 6-digit code. There is no password.",
+                    autocomplete="email", autofocus=true) }}
 
-        <button type="submit" class="btn btn--block" data-busy-label="Signing in…">Sign in</button>
+        <button type="submit" class="btn btn--block" data-busy-label="Sending the code…">Email me a code</button>
     </form>
 
     {% if demo_barber %}
     {# Only outside production (app/web/auth.py). Its own form: one click signs
-       in as the demo barber and opens the barber dashboard. #}
+       in as the demo barber, with no code, and opens the barber dashboard. #}
     <form class="form auth-form demo-barber" method="post" action="/login/demo-barber" data-submit-once>
         {{ ui.csrf_field(csrf_token) }}
         <button type="submit" class="btn btn--quiet btn--block" data-busy-label="Opening…">Open the barber dashboard (demo)</button>
         <p class="field__hint">
-            Demo barber: <span class="mono">{{ demo_barber.email }}</span> / <span class="mono">{{ demo_barber.password }}</span>
+            Demo barber: <span class="mono">{{ demo_barber.email }}</span> (no code needed here)
         </p>
     </form>
     {% endif %}

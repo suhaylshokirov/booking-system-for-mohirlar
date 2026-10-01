@@ -5,7 +5,9 @@ the guide: how to authenticate, a walkthrough of the booking flow, and the
 conventions every endpoint follows. All endpoints are under `/api/v1`.
 
 ## Authentication
-Two ways to prove who you are; both carry the same signed token.
+There are no passwords (ADR 0013). To sign up or in you give your email, we send a
+6-digit code to it, and you send the code back (`POST /auth/verify`). Everything after
+that is a signed token, in two forms:
 
 - **Bearer** (curl, scripts, Swagger): send `Authorization: Bearer <token>`.
 - **Cookie** (the browser): login also sets an HttpOnly, `SameSite=Lax`
@@ -18,20 +20,34 @@ is not quietly replaced by the cookie. Tokens last `JWT_EXPIRE_MINUTES`
 account locks it out immediately.
 
 ```bash
-# 1. Create an account (always a customer; barbers come from the create-barber script, see the README)
+# 1. Sign up: ask for a code (always a customer; barbers come from the create-barber script, see the README)
 curl -X POST localhost:8000/api/v1/auth/register -H 'Content-Type: application/json' \
-  -d '{"email": "aziza@example.com", "password": "a long passphrase", "full_name": "Aziza Karimova"}'
+  -d '{"email": "aziza@example.com", "full_name": "Aziza Karimova"}'
+#    ...the 6-digit code arrives by email (with no mail server set up, it is in the app's
+#    log: `docker compose logs app`). The account is created when you prove it:
+TOKEN=$(curl -s -X POST localhost:8000/api/v1/auth/verify -H 'Content-Type: application/json' \
+  -d '{"email": "aziza@example.com", "code": "482913"}' | jq -r .access_token)
 
-# 2. Log in and keep the token
-TOKEN=$(curl -s -X POST localhost:8000/api/v1/auth/login -H 'Content-Type: application/json' \
-  -d '{"email": "aziza@example.com", "password": "a long passphrase"}' | jq -r .access_token)
+# Signing in later is the same two steps with /auth/login instead of /auth/register:
+curl -X POST localhost:8000/api/v1/auth/login -H 'Content-Type: application/json' \
+  -d '{"email": "aziza@example.com"}'
 
-# 3. Use it
+# 2. Use the token
 curl localhost:8000/api/v1/auth/me -H "Authorization: Bearer $TOKEN"
 ```
 
-In Swagger (`/docs`): call `POST /auth/login`, copy `access_token`, press
-**Authorize** and paste it.
+In Swagger (`/docs`): call `POST /auth/login`, then `POST /auth/verify` with the code,
+copy `access_token`, press **Authorize** and paste it.
+
+**The code.** 6 digits, valid for 10 minutes, usable once. Asking again replaces it
+(only the newest code works) and the email carries it in the subject too. After 5 wrong
+tries the code is dead; ask for a new one. At most 5 codes can be requested per address
+per 10 minutes (`429 TOO_MANY_CODES`, `Retry-After`). `POST /auth/register` and
+`POST /auth/login` answer `202` with the same body for every address, with or without
+an account (or with a deactivated one), and send mail only when there is a real account
+to sign in to, so the endpoints cannot be used to learn who is registered. Signing up
+with an address that already has an account just sends it a sign-in code.
+If the mail server refuses the message: `503 EMAIL_SEND_FAILED`, and no code is kept.
 
 **CSRF (cookie requests only).** A browser attaches cookies to requests that
 other websites trigger, so any `POST`, `PUT`, `PATCH` or `DELETE` that is
@@ -41,7 +57,7 @@ HTML forms). Otherwise: `403 CSRF_FAILED`.
 
 - `GET`/`HEAD`/`OPTIONS` never need it.
 - **Bearer requests never need it** (curl, scripts, Swagger's Authorize).
-- Anonymous requests (registering or logging in with curl, no cookies) never
+- Anonymous requests (asking for a code or proving it with curl, no cookies) never
   need it.
 - Login issues a new `csrf_token`; logout clears both cookies.
 - Swagger gotcha: after logging in *inside* Swagger the browser holds the
@@ -54,24 +70,25 @@ const csrf = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/)?.[1];
 fetch("/api/v1/auth/logout", { method: "POST", headers: { "X-CSRF-Token": csrf } });
 ```
 
-**Login rate limit.** Failed logins are counted per (client IP, email) in a
-sliding window: `LOGIN_RATE_LIMIT_ATTEMPTS` failures (default 5) within
-`LOGIN_RATE_LIMIT_WINDOW_SECONDS` (default 300). After that, further attempts,
-**even with the correct password**, get `429 TOO_MANY_ATTEMPTS` with a
-`Retry-After` header (and `details.retry_after_seconds`) until the oldest
-failure leaves the window. Details:
+**Wrong-code rate limit.** Wrong codes at `POST /auth/verify` are counted per (client IP,
+email) in a sliding window: `LOGIN_RATE_LIMIT_ATTEMPTS` failures (default 5) within
+`LOGIN_RATE_LIMIT_WINDOW_SECONDS` (default 300). After that, further attempts, **even with
+the right code**, get `429 TOO_MANY_ATTEMPTS` with a `Retry-After` header (and
+`details.retry_after_seconds`) until the oldest failure leaves the window. Details:
 
-- The counter is per pair, so someone failing against your email from another
-  address cannot lock you out.
-- Emails are compared normalised (case, padding), and unknown emails are
-  limited the same way as real ones, so the 429 does not reveal who has an account.
-- Only wrong credentials count. Blocked attempts do not extend the block.
-  Invalid request bodies (422) and deactivated accounts do not count.
-- A successful login clears the counter.
+- The counter is per pair, so someone failing against your email from another address
+  cannot lock *you* out of the counter. They do use up that code's own five tries, so
+  you ask for a new code (which they can only do five times per ten minutes).
+- Emails are compared normalised (case, padding), and unknown emails are limited the
+  same way as real ones, so the 429 does not reveal who has an account.
+- Only wrong codes count. Blocked attempts do not extend the block. Malformed bodies
+  (422) do not count.
+- A successful sign-in clears the counter.
 - Limits: the counters live in one process's memory, so they reset when the app
   restarts and are not shared between several instances. Rotating IP addresses
-  defeats a per-IP limit. Behind a reverse proxy the app must see the real
-  client address (uvicorn `--proxy-headers`), or all visitors share one IP.
+  defeats a per-IP limit (the per-code cap of 5 tries and the per-address cap on codes
+  still hold, because they live in the database). Behind a reverse proxy the app must
+  see the real client address (uvicorn `--proxy-headers`), or all visitors share one IP.
 
 **Who may call what.** Every endpoint is one of three kinds, and the status
 codes are consistent:
@@ -91,14 +108,16 @@ someone applies to their existing token immediately.
 
 | Endpoint | Success | Notes |
 |---|---|---|
-| `POST /auth/register` | 201 user | Email is trimmed and lower-cased; password 8–128 characters; full name 1–100. `409 EMAIL_TAKEN` if the email exists in any letter case. |
-| `POST /auth/login` | 200 `{access_token, token_type}` + cookie | Unknown email and wrong password give the same `401 INVALID_CREDENTIALS`. Rate limited: see below. |
+| `POST /auth/register` | 202 `{message, expires_in_minutes}` | Sign up, step 1: emails a code. Email is trimmed and lower-cased; full name 1–100. Same answer for every address. `429 TOO_MANY_CODES`, `503 EMAIL_SEND_FAILED`. |
+| `POST /auth/login` | 202 `{message, expires_in_minutes}` | Sign in, step 1: emails a code if the address has an active account; same answer if not. `429 TOO_MANY_CODES`, `503 EMAIL_SEND_FAILED`. |
+| `POST /auth/verify` | 200 `{access_token, token_type}` + cookie | Step 2 of both: `{email, code}`. Creates the customer after a sign-up. Wrong, expired, used and replaced codes give the same `401 INVALID_CODE`. Rate limited: see above. |
 | `POST /auth/logout` | 204 | Clears both cookies (needs the CSRF header if sent by cookie). Tokens are stateless, so a Bearer token you copied stays valid until it expires. |
 | `GET /auth/me` | 200 user | `401` without valid credentials. `provider_id` is the provider a barber runs (what to put in `/providers/{id}/...`), `null` for a customer. |
 
 Email addresses are checked with a simple `name@domain.tld` pattern, not a full
-RFC validator (that would need an extra dependency); an address that passes but
-does not exist is caught the only way it can be: it never receives mail.
+RFC validator (that would need an extra dependency). An address that passes but
+does not exist is caught the only way it can be: the code never arrives, and it
+cannot be proven, so no account is created for it.
 
 ## Business settings
 The business's timezone, currency and booking rules live in one row.
@@ -277,9 +296,8 @@ bash docs/walkthrough.sh                            # against http://localhost:8
 BASE=http://localhost:18000 bash docs/walkthrough.sh   # another host or port
 ```
 
-It needs only bash, curl and python3. It registers a customer, signs in as the seeded
-barber (`BARBER_EMAIL` / `BARBER_PASSWORD`, defaults `jasur@navbat.local` /
-`change-me-barber-password`), finds a free slot, books it, checks that the same time is
+It needs only bash, curl and python3. It signs a customer up with a code, signs in as the seeded
+barber (`BARBER_EMAIL`, default `jasur@navbat.local`), finds a free slot, books it, checks that the same time is
 `409 SLOT_TAKEN`, a time without an offset is `422`, a customer cannot confirm (`403`),
 that the barber sees the booking and confirms it, reads the history and the `.ics`
 file, that another customer gets `404`, then cancels and sees the time offered again.
@@ -475,13 +493,14 @@ _The complete list. It is `app/core/error_catalog.py`; a test keeps this table i
 | `VALIDATION_ERROR` | 422 | Body, query or path failed schema validation; see `details.errors` |
 | `BAD_REQUEST` | 400 | Generic framework 400 |
 | `UNAUTHENTICATED` | 401 | No credentials sent (or a generic framework 401) |
-| `INVALID_CREDENTIALS` | 401 | Login: unknown email or wrong password (deliberately indistinguishable) |
+| `INVALID_CODE` | 401 | Sign-in code: wrong, expired, already used or replaced by a newer one (deliberately indistinguishable) |
 | `INVALID_TOKEN` | 401 | Token is malformed, tampered with, wrongly signed, or names a user that no longer exists |
 | `TOKEN_EXPIRED` | 401 | Token is past its expiry; log in again |
-| `TOO_MANY_ATTEMPTS` | 429 | Login: too many failed attempts for this IP and email; wait `Retry-After` seconds |
+| `TOO_MANY_ATTEMPTS` | 429 | Sign-in: too many wrong codes for this IP and email; wait `Retry-After` seconds |
+| `TOO_MANY_CODES` | 429 | Sign-in: too many codes were requested for this email; wait `Retry-After` seconds |
+| `EMAIL_SEND_FAILED` | 503 | Sign-in: the mail server did not accept the email carrying the code; try again |
 | `CSRF_FAILED` | 403 | Cookie-authenticated unsafe request without a matching `X-CSRF-Token` header / `csrf_token` field (Bearer requests are exempt) |
-| `ACCOUNT_INACTIVE` | 401 | The account was deactivated (at login only once the password was right; on any request with a token) |
-| `EMAIL_TAKEN` | 409 | Registration: that email already has an account |
+| `ACCOUNT_INACTIVE` | 401 | The account was deactivated (at sign-in only once the code was right; on any request with a token) |
 | `INVALID_TIMEZONE` | 422 | Settings: the timezone is not an IANA name such as `Asia/Tashkent` |
 | `GRANULARITY_CONFLICT` | 409 | Settings: an active service's duration is not a multiple of the new slot granularity; `details.services` lists them |
 | `DURATION_NOT_ALIGNED` | 422 | A service's duration is not a multiple of the slot granularity; `details` has both numbers |

@@ -19,15 +19,17 @@ from app.api.csrf import require_csrf
 from app.api.deps import CurrentUser
 from app.core.clock import FrozenClock, get_clock
 from app.core.db import get_db
+from app.core.mail import get_mailer
 from app.main import create_app
+from tests.support import Mailbox, api_sign_up
 
 LOGIN = "/api/v1/auth/login"
+VERIFY = "/api/v1/auth/verify"
 REGISTER = "/api/v1/auth/register"
-PASSWORD = "a long passphrase"
 
 
 @pytest.fixture
-def client(db: Session, frozen_clock: FrozenClock) -> Iterator[TestClient]:
+def client(db: Session, frozen_clock: FrozenClock, mailbox: Mailbox) -> Iterator[TestClient]:
     """The real app plus probe routes, wired like the shared `client` fixture."""
     app = create_app()
 
@@ -57,17 +59,15 @@ def client(db: Session, frozen_clock: FrozenClock) -> Iterator[TestClient]:
 
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_clock] = lambda: frozen_clock
+    app.dependency_overrides[get_mailer] = lambda: mailbox
     with TestClient(app) as test_client:
         yield test_client
 
 
 @pytest.fixture
-def logged_in(client: TestClient) -> TestClient:
-    """The client after register + login: it holds both cookies, and the jar sends them."""
-    client.post(REGISTER, json={"email": "a@example.com", "password": PASSWORD, "full_name": "A"})
-    assert (
-        client.post(LOGIN, json={"email": "a@example.com", "password": PASSWORD}).status_code == 200
-    )
+def logged_in(client: TestClient, mailbox: Mailbox) -> TestClient:
+    """The client after signing up: it holds both cookies, and the jar sends them."""
+    assert api_sign_up(client, mailbox, "a@example.com", "A").status_code == 200
     return client
 
 
@@ -83,9 +83,8 @@ def test_login_sets_a_csrf_cookie_that_scripts_can_read(logged_in):
     assert logged_in.cookies.get("csrf_token")
 
 
-def test_login_cookie_flags(client):
-    client.post(REGISTER, json={"email": "a@example.com", "password": PASSWORD, "full_name": "A"})
-    response = client.post(LOGIN, json={"email": "a@example.com", "password": PASSWORD})
+def test_login_cookie_flags(client, mailbox):
+    response = api_sign_up(client, mailbox, "a@example.com", "A")
 
     by_name = {c.split("=", 1)[0]: c.lower() for c in response.headers.get_list("set-cookie")}
     assert "httponly" in by_name["access_token"]
@@ -93,14 +92,19 @@ def test_login_cookie_flags(client):
     assert "samesite=lax" in by_name["csrf_token"]
 
 
-def test_every_login_issues_a_new_csrf_token(client):
-    client.post(REGISTER, json={"email": "a@example.com", "password": PASSWORD, "full_name": "A"})
-    credentials = {"email": "a@example.com", "password": PASSWORD}
-    client.post(LOGIN, json=credentials)
+def test_every_login_issues_a_new_csrf_token(client, mailbox):
+    api_sign_up(client, mailbox, "a@example.com", "A")
     first = client.cookies["csrf_token"]
 
-    # Logging in again while holding the cookies is itself a cookie POST.
-    client.post(LOGIN, json=credentials, headers={"X-CSRF-Token": first})
+    # Signing in again while holding the cookies is itself a cookie POST: both steps
+    # need the header.
+    header = {"X-CSRF-Token": first}
+    client.post(LOGIN, json={"email": "a@example.com"}, headers=header)
+    client.post(
+        VERIFY,
+        json={"email": "a@example.com", "code": mailbox.last_code("a@example.com")},
+        headers=header,
+    )
 
     assert client.cookies["csrf_token"] != first
 
@@ -166,14 +170,8 @@ def test_a_csrf_field_inside_a_json_body_does_not_count(logged_in):
 # --- Bearer requests are exempt --------------------------------------------
 
 
-def _bearer_from_login(client: TestClient) -> str:
-    response = client.post(LOGIN, json={"email": "a@example.com", "password": PASSWORD})
-    return response.json()["access_token"]
-
-
-def test_bearer_post_needs_no_csrf_token(client):
-    client.post(REGISTER, json={"email": "a@example.com", "password": PASSWORD, "full_name": "A"})
-    token = _bearer_from_login(client)
+def test_bearer_post_needs_no_csrf_token(client, mailbox):
+    token = api_sign_up(client, mailbox, "a@example.com", "A").json()["access_token"]
     client.cookies.clear()  # a plain API client: no cookie jar
 
     response = client.post("/api/probe", headers={"Authorization": f"Bearer {token}"})
@@ -181,11 +179,13 @@ def test_bearer_post_needs_no_csrf_token(client):
     assert response.status_code == 200
 
 
-def test_bearer_post_is_exempt_even_when_the_browser_also_sends_cookies(logged_in):
+def test_bearer_post_is_exempt_even_when_the_browser_also_sends_cookies(logged_in, mailbox):
+    header = {"X-CSRF-Token": logged_in.cookies["csrf_token"]}
+    logged_in.post(LOGIN, json={"email": "a@example.com"}, headers=header)
     token = logged_in.post(
-        LOGIN,
-        json={"email": "a@example.com", "password": PASSWORD},
-        headers={"X-CSRF-Token": logged_in.cookies["csrf_token"]},
+        VERIFY,
+        json={"email": "a@example.com", "code": mailbox.last_code("a@example.com")},
+        headers=header,
     ).json()["access_token"]
     response = logged_in.post("/api/probe", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
@@ -200,11 +200,9 @@ def test_a_non_bearer_authorization_header_does_not_bypass_csrf(logged_in):
 
 
 def test_anonymous_api_calls_are_not_blocked_by_csrf(client):
-    """Register and login by curl have no cookie to abuse, so they need no token."""
-    response = client.post(
-        REGISTER, json={"email": "b@example.com", "password": PASSWORD, "full_name": "B"}
-    )
-    assert response.status_code == 201
+    """Asking for a code by curl has no cookie to abuse, so it needs no token."""
+    response = client.post(REGISTER, json={"email": "b@example.com", "full_name": "B"})
+    assert response.status_code == 202
 
 
 def test_anonymous_probe_fails_on_auth_not_on_csrf(client):

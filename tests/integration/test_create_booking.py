@@ -50,7 +50,7 @@ def make_provider(db: Session, service: Service, name: str = "Jasur") -> Provide
 
 
 def make_user(db: Session, email: str) -> User:
-    user = User(email=email, password_hash="x", full_name=email)
+    user = User(email=email, full_name=email)
     db.add(user)
     db.flush()
     return user

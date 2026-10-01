@@ -15,26 +15,26 @@ def _error(**data) -> ValidationError:
 
 
 def test_a_specific_message_beats_the_fields_general_one():
-    error = _error(email="a@example.com", password="short", full_name="Aziza")
+    error = _error(email="a@example.com", full_name="n" * 101)
 
-    messages = {"password.string_too_short": "Use at least 8.", "password": "Bad password."}
+    messages = {"full_name.string_too_long": "Keep it short.", "full_name": "Bad name."}
 
-    assert field_errors(error, messages) == {"password": "Use at least 8."}
+    assert field_errors(error, messages) == {"full_name": "Keep it short."}
 
 
 def test_the_general_message_covers_any_problem_with_the_field():
-    error = _error(email="not-an-email", password="a long passphrase", full_name="Aziza")
+    error = _error(email="not-an-email", full_name="Aziza")
 
     assert field_errors(error, {"email": "Enter an email."}) == {"email": "Enter an email."}
 
 
 def test_a_field_without_wording_falls_back_to_pydantics_message():
-    error = _error(email="a@example.com", password="a long passphrase", full_name="")
+    error = _error(email="a@example.com", full_name="")
 
     assert "at least 1 character" in field_errors(error, {})["full_name"]
 
 
 def test_every_invalid_field_gets_one_message():
-    error = _error(email="x", password="short", full_name="")
+    error = _error(email="x", full_name="")
 
-    assert set(field_errors(error, {})) == {"email", "password", "full_name"}
+    assert set(field_errors(error, {})) == {"email", "full_name"}

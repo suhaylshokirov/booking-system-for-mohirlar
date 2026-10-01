@@ -61,7 +61,7 @@ def make_provider(db, service, name="Jasur", hours=((9, 0), (10, 0)), offers=Tru
 def book(db, provider, service, start, status=BookingStatus.CONFIRMED, minutes=30) -> Booking:
     customer = db.query(User).first()
     if customer is None:
-        customer = User(email="c@example.com", password_hash="x", full_name="C")
+        customer = User(email="c@example.com", full_name="C")
         db.add(customer)
         db.flush()
     booking = Booking(

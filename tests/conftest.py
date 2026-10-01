@@ -20,12 +20,18 @@ from app.api.deps import get_login_limiter
 from app.core.clock import FrozenClock, get_clock
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core.mail import get_mailer
 from app.core.rate_limit import InMemoryLoginLimiter
-from app.core.security import create_access_token, hash_password
+from app.core.security import create_access_token
 from app.main import create_app
 from app.models.provider import Provider
 from app.models.user import User, UserRole
-from tests.support import build_schema, ensure_test_database_is_separate, truncate_all_tables
+from tests.support import (
+    Mailbox,
+    build_schema,
+    ensure_test_database_is_separate,
+    truncate_all_tables,
+)
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -83,11 +89,18 @@ def frozen_clock() -> FrozenClock:
 
 
 @pytest.fixture
-def client(db: Session, frozen_clock: FrozenClock) -> Iterator[TestClient]:
-    """API client wired to the rolled-back `db` session and the frozen clock."""
+def mailbox() -> Mailbox:
+    """Where the emails the app sends end up; read sign-in codes from it."""
+    return Mailbox()
+
+
+@pytest.fixture
+def client(db: Session, frozen_clock: FrozenClock, mailbox: Mailbox) -> Iterator[TestClient]:
+    """API client wired to the rolled-back `db` session, the frozen clock and the `mailbox`."""
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_clock] = lambda: frozen_clock
+    app.dependency_overrides[get_mailer] = lambda: mailbox
     # A fresh limiter per test: the real one is process-wide, so failed logins
     # in one test would otherwise count against the next.
     limiter = InMemoryLoginLimiter(max_attempts=5, window_seconds=300)
@@ -116,7 +129,6 @@ def _auth_headers(db: Session, clock: FrozenClock, role: UserRole) -> AuthHeader
         db.flush()
     user = User(
         email=f"{role.value}@example.com",
-        password_hash=hash_password("irrelevant"),
         full_name="Test User",
         role=role,
         provider_id=provider.id if provider else None,

@@ -305,7 +305,7 @@ def test_activating_a_service_that_no_longer_fits_the_grid_is_refused(client, ba
 
 def test_deactivating_or_editing_a_service_keeps_its_bookings_untouched(client, barber, db):
     service = _service(db, minutes=30, price=60000)
-    customer_user = User(email="ali@example.uz", password_hash="x", full_name="Ali")
+    customer_user = User(email="ali@example.uz", full_name="Ali")
     provider = Provider(name="Jasur")
     db.add_all([customer_user, provider])
     db.flush()

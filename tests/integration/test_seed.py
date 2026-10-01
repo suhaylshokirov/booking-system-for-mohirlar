@@ -36,7 +36,7 @@ def counts(db) -> dict[str, int]:
 
 
 def test_seeding_twice_leaves_the_same_row_counts(db, frozen_clock):
-    settings = Settings(barber_email="boss@example.uz", barber_password="a-long-barber-password")
+    settings = Settings(barber_email="boss@example.uz")
     seed(db, settings, frozen_clock)
     first = counts(db)
 
@@ -48,7 +48,7 @@ def test_seeding_twice_leaves_the_same_row_counts(db, frozen_clock):
 
 
 def test_seed_creates_a_login_for_each_barber_and_a_demo_customer(db, frozen_clock):
-    settings = Settings(barber_email="Boss@Example.uz", barber_password="a-long-barber-password")
+    settings = Settings(barber_email="Boss@Example.uz")
     seed(db, settings, frozen_clock)
 
     barbers = list(db.scalars(select(User).where(User.role == UserRole.BARBER).order_by(User.id)))
@@ -58,7 +58,6 @@ def test_seed_creates_a_login_for_each_barber_and_a_demo_customer(db, frozen_clo
         "bekzod@navbat.local",
         "dilshod@navbat.local",
     ]
-    assert barbers[0].password_hash.startswith("$argon2")  # never the plain password
     names = {b.full_name: db.get(Provider, b.provider_id).name for b in barbers}
     assert names == {"Jasur": "Jasur", "Bekzod": "Bekzod", "Dilshod": "Dilshod"}
     assert db.scalar(select(User).where(User.email == DEMO_CUSTOMER_EMAIL)) is not None

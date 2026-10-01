@@ -52,7 +52,7 @@ def _booking(
     if customer is None:
         customer = db.scalar(select(User).where(User.email == "guest@example.com"))
     if customer is None:
-        customer = User(email="guest@example.com", password_hash="x", full_name="Guest")
+        customer = User(email="guest@example.com", full_name="Guest")
         db.add(customer)
     service = db.scalar(select(Service))
     if service is None:

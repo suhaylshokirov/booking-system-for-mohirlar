@@ -35,7 +35,14 @@ services:
       DATABASE_URL: postgresql+psycopg://navbat:navbat@db:5432/navbat
       JWT_SECRET: ${JWT_SECRET:-change-me-to-a-long-random-string}
       BARBER_EMAIL: ${BARBER_EMAIL:-jasur@navbat.local}
-      BARBER_PASSWORD: ${BARBER_PASSWORD:-change-me-barber-password}
+      # Sign-in codes are logged to `docker compose logs app` unless a mail server
+      # is given here (any SMTP provider; see README "Environment variables").
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Navbat <no-reply@navbat.local>}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
       # Fill a fresh database with the demo barbershop (safe to leave on: the
       # seed never duplicates or overwrites). Set to false for an empty shop.
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}

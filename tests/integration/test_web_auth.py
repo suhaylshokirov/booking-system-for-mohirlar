@@ -1,29 +1,27 @@
-"""Sign in, create an account and sign out in the browser (P8.2)."""
+"""Sign in, sign up and sign out in the browser: two pages each, an email then the code."""
 
 from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.cookies import ACCESS_COOKIE, CSRF_COOKIE
 from app.api.deps import CurrentUser, get_login_limiter
 from app.core.clock import FrozenClock, get_clock
 from app.core.db import get_db
+from app.core.mail import get_mailer
 from app.core.rate_limit import InMemoryLoginLimiter
-from app.core.security import hash_password
 from app.main import create_app
 from app.models.user import User, UserRole
-from tests.support import add_barber
-
-PASSWORD = "a long passphrase"
+from tests.support import Mailbox, add_barber
 
 
 @pytest.fixture
 def aziza(db: Session) -> User:
     user = User(
         email="aziza@example.com",
-        password_hash=hash_password(PASSWORD),
         full_name="Aziza Karimova",
         role=UserRole.CUSTOMER,
     )
@@ -38,20 +36,34 @@ def _csrf(client: TestClient) -> str:
     return client.cookies[CSRF_COOKIE]
 
 
-def _login(client: TestClient, email: str = "aziza@example.com", password: str = PASSWORD, **extra):
-    data = {"email": email, "password": password, "csrf_token": _csrf(client), **extra}
+def _ask_login(client: TestClient, email: str = "aziza@example.com", **extra):
+    """Step 1 of signing in: the email form."""
+    data = {"email": email, "csrf_token": _csrf(client), **extra}
     return client.post("/login", data=data, follow_redirects=False)
 
 
-def _register(client: TestClient, **overrides):
+def _ask_register(client: TestClient, **overrides):
+    """Step 1 of signing up: the name and email form."""
     data = {
         "full_name": "Bobur Aliyev",
         "email": "bobur@example.com",
-        "password": PASSWORD,
         "csrf_token": _csrf(client),
         **overrides,
     }
     return client.post("/register", data=data, follow_redirects=False)
+
+
+def _enter_code(client: TestClient, code: str, email: str = "aziza@example.com", **extra):
+    """Step 2: the code form."""
+    data = {"email": email, "code": code, "csrf_token": _csrf(client), **extra}
+    return client.post("/login/code", data=data, follow_redirects=False)
+
+
+def _login(client: TestClient, mailbox: Mailbox, email: str = "aziza@example.com", **extra):
+    """Both steps of signing in; returns the answer to the code form."""
+    asked = _ask_login(client, email, **extra)
+    assert asked.status_code == 303, asked.text
+    return _enter_code(client, mailbox.last_code(email), email, **extra)
 
 
 # --- The forms -----------------------------------------------------------------
@@ -78,66 +90,142 @@ def test_visitor_sees_a_sign_in_link_in_the_header(client):
     assert "Sign out" not in html
 
 
-# --- Register --------------------------------------------------------------------
+# --- Sign up ---------------------------------------------------------------------
 
 
-def test_register_signs_the_person_in_and_greets_them(client):
-    response = _register(client)
+def test_register_emails_a_code_and_opens_the_code_page(client, mailbox):
+    response = _ask_register(client)
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login/code?")
+    assert "email=bobur%40example.com" in response.headers["location"]
+    assert ACCESS_COOKIE not in response.cookies  # nobody is signed in by asking
+    assert len(mailbox.to("bobur@example.com")) == 1
+
+
+def test_proving_the_code_creates_the_account_signs_in_and_greets(client, mailbox, db):
+    _ask_register(client)
+
+    response = _enter_code(client, mailbox.last_code("bobur@example.com"), "bobur@example.com")
 
     assert response.status_code == 303
     assert response.headers["location"] == "/"
     assert ACCESS_COOKIE in response.cookies
-
     home = client.get("/").text
-    assert "Your account is ready, and you&#39;re signed in." in home
+    assert "You&#39;re signed in." in home
     assert '<span class="account-name">Bobur</span>' in home
     assert "Sign out" in home
+    assert (
+        db.scalar(select(User.full_name).where(User.email == "bobur@example.com")) == "Bobur Aliyev"
+    )
 
 
-def test_register_goes_on_to_a_same_site_next(client):
-    response = _register(client, next="/book/3")
+def test_register_goes_on_to_a_same_site_next(client, mailbox):
+    asked = _ask_register(client, next="/book/3")
+    assert "next=%2Fbook%2F3" in asked.headers["location"]
+
+    response = _enter_code(
+        client, mailbox.last_code("bobur@example.com"), "bobur@example.com", next="/book/3"
+    )
 
     assert response.headers["location"] == "/book/3"
 
 
-def test_invalid_registration_shows_field_messages_and_keeps_what_was_typed(client):
-    response = _register(client, email="bobur@example", password="short", full_name="   ")
+def test_invalid_registration_shows_field_messages_and_keeps_what_was_typed(client, mailbox):
+    response = _ask_register(client, email="bobur@example", full_name="   ")
 
     assert response.status_code == 422
     html = response.text
     assert "Enter your name, so the business knows who is coming." in html
     assert "Enter an email address like name@example.com." in html
-    assert "Use at least 8 characters." in html
     assert 'value="bobur@example"' in html
-    assert 'value="short"' not in html  # a password is never sent back
     assert 'aria-invalid="true"' in html
-    assert ACCESS_COOKIE not in response.cookies
+    assert mailbox.sent == []
+    assert "password" not in html.lower().replace("no password", "")
 
 
-def test_registering_a_taken_email_offers_to_sign_in_instead(client, aziza):
-    response = _register(client, email="AZIZA@example.com")
+def test_signing_up_with_a_taken_email_looks_the_same_and_sends_a_sign_in_code(
+    client, aziza, mailbox
+):
+    """No "already registered" page exists to probe."""
+    response = _ask_register(client, email="AZIZA@example.com", full_name="Someone Else")
 
-    assert response.status_code == 409
-    assert "An account with this email already exists." in response.text
-    assert "Sign in instead" in response.text
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login/code?")
+    assert "Hello Aziza Karimova," in mailbox.to("aziza@example.com")[0].body
 
 
-def test_register_without_a_csrf_token_is_a_403_page(client):
-    response = client.post(
-        "/register",
-        data={"full_name": "Bobur", "email": "bobur@example.com", "password": PASSWORD},
-    )
+def test_register_without_a_csrf_token_is_a_403_page(client, mailbox):
+    response = client.post("/register", data={"full_name": "Bobur", "email": "bobur@example.com"})
 
     assert response.status_code == 403
     assert response.headers["content-type"].startswith("text/html")
     assert "This form has expired" in response.text
+    assert mailbox.sent == []
 
 
-# --- Log in ------------------------------------------------------------------------
+def test_a_mail_server_that_is_down_says_so_and_keeps_the_form(client, mailbox):
+    mailbox.fail = True
+
+    response = _ask_register(client)
+
+    assert response.status_code == 503
+    assert "We could not send the email." in response.text
+    assert 'value="bobur@example.com"' in response.text
 
 
-def test_login_signs_in_and_redirects_home_with_a_notice(client, aziza):
-    response = _login(client)
+# --- Sign in ------------------------------------------------------------------------
+
+
+def test_login_emails_a_code_and_opens_the_code_page(client, aziza, mailbox):
+    response = _ask_login(client)
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login/code?")
+    assert len(mailbox.to("aziza@example.com")) == 1
+
+
+def test_an_unknown_email_gets_the_same_redirect_and_no_email(client, mailbox):
+    response = _ask_login(client, "nobody@example.com")
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login/code?")
+    assert mailbox.sent == []
+
+
+def test_the_code_page_says_where_the_code_went_without_confirming_an_account(client, aziza):
+    html = client.get("/login/code", params={"email": "aziza@example.com"}).text
+
+    assert "If <strong>aziza@example.com</strong> can sign in" in html
+    assert 'autocomplete="one-time-code"' in html
+    assert 'inputmode="numeric"' in html
+    assert 'action="/login/code"' in html
+
+
+def test_the_code_page_without_an_email_goes_back_to_login(client):
+    response = client.get("/login/code", follow_redirects=False)
+
+    assert (response.status_code, response.headers["location"]) == (303, "/login")
+
+
+def test_the_code_page_resends_a_sign_in_to_login_and_a_sign_up_to_register(client):
+    sign_in = client.get("/login/code", params={"email": "a@example.com"}).text
+    sign_up = client.get("/login/code", params={"email": "a@example.com", "name": "Aziza K"}).text
+
+    assert 'action="/login"' in sign_in and 'action="/register"' in sign_up
+    assert 'name="full_name" value="Aziza K"' in sign_up
+    assert "Send a new code" in sign_in and "Send a new code" in sign_up
+
+
+def test_the_code_page_tells_a_developer_where_the_code_is_when_no_mail_server_is_set(client):
+    assert (
+        "the code is in the app's log"
+        in client.get("/login/code", params={"email": "a@example.com"}).text
+    )
+
+
+def test_login_signs_in_and_redirects_home_with_a_notice(client, aziza, mailbox):
+    response = _login(client, mailbox)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/"
@@ -145,42 +233,59 @@ def test_login_signs_in_and_redirects_home_with_a_notice(client, aziza):
     assert "You&#39;re signed in." in client.get("/").text
 
 
-def test_login_rotates_the_csrf_token(client, aziza):
+def test_login_rotates_the_csrf_token(client, aziza, mailbox):
     before = _csrf(client)
 
-    _login(client)
+    _login(client, mailbox)
 
     assert client.cookies[CSRF_COOKIE] != before
 
 
-def test_bad_login_shows_the_error_and_keeps_the_email(client, aziza):
-    response = _login(client, password="not the password")
+def test_a_wrong_code_shows_the_error_and_keeps_the_email(client, aziza, mailbox):
+    _ask_login(client)
+    code = mailbox.last_code("aziza@example.com")
+
+    response = _enter_code(client, "000000" if code != "000000" else "111111")
 
     assert response.status_code == 401
-    assert "Incorrect email or password." in response.text
-    assert 'value="aziza@example.com"' in response.text
+    assert "That code is wrong or has expired." in response.text
+    assert 'name="email" value="aziza@example.com"' in response.text
     assert ACCESS_COOKIE not in response.cookies
 
 
-def test_empty_login_form_asks_for_both_fields(client):
-    response = _login(client, email="", password="")
+def test_a_code_that_is_not_six_digits_asks_for_six(client, aziza):
+    response = _enter_code(client, "12ab")
+
+    assert response.status_code == 422
+    assert "Enter the 6-digit code from the email." in response.text
+
+
+def test_the_code_with_a_space_in_it_is_accepted(client, aziza, mailbox):
+    _ask_login(client)
+    code = mailbox.last_code("aziza@example.com")
+
+    assert _enter_code(client, f"{code[:3]} {code[3:]}").status_code == 303
+
+
+def test_empty_login_form_asks_for_the_email(client, mailbox):
+    response = _ask_login(client, "")
 
     assert response.status_code == 422
     assert "Enter an email address like name@example.com." in response.text
-    assert "Enter your password." in response.text
+    assert mailbox.sent == []
 
 
-def test_login_without_a_csrf_token_is_a_403_page(client, aziza):
+def test_login_without_a_csrf_token_is_a_403_page(client, aziza, mailbox):
     """Login CSRF: a form on another site cannot sign a browser in."""
-    response = client.post("/login", data={"email": "aziza@example.com", "password": PASSWORD})
+    response = client.post("/login/code", data={"email": "aziza@example.com", "code": "123456"})
 
     assert response.status_code == 403
     assert "This form has expired" in response.text
     assert ACCESS_COOKIE not in response.cookies
 
 
-def test_login_goes_on_to_a_same_site_next(client, aziza):
-    response = _login(client, next="/me/bookings?tab=past")
+def test_login_goes_on_to_a_same_site_next(client, aziza, mailbox):
+    response = _login(client, mailbox, next="/me/bookings?tab=past")
 
     assert response.headers["location"] == "/me/bookings?tab=past"
 
@@ -188,8 +293,11 @@ def test_login_goes_on_to_a_same_site_next(client, aziza):
 @pytest.mark.parametrize(
     "evil", ["https://evil.example", "//evil.example", "/\\evil.example", "/\t/evil.example"]
 )
-def test_open_redirect_next_is_ignored(client, aziza, evil):
-    response = _login(client, next=evil)
+def test_open_redirect_next_is_ignored(client, aziza, mailbox, evil):
+    asked = _ask_login(client, next=evil)
+    assert "evil.example" not in asked.headers["location"]
+
+    response = _enter_code(client, mailbox.last_code("aziza@example.com"), next=evil)
 
     assert response.status_code == 303
     assert response.headers["location"] == "/"
@@ -202,31 +310,50 @@ def test_open_redirect_next_is_not_echoed_into_the_form(client):
     assert '<input type="hidden" name="next" value="/">' in html
 
 
-def test_too_many_failed_logins_are_refused_with_retry_after(client, aziza):
+def test_too_many_wrong_codes_are_refused_with_retry_after(client, aziza, mailbox):
+    _ask_login(client)
+    code = mailbox.last_code("aziza@example.com")
+    wrong = "000000" if code != "000000" else "111111"
     for _ in range(5):
-        _login(client, password="wrong guess")
+        _enter_code(client, wrong)
 
-    response = _login(client)  # even the right password, while blocked
+    response = _enter_code(client, code)  # even the right code, while blocked
 
     assert response.status_code == 429
-    assert "Too many failed login attempts" in response.text
+    assert "Too many wrong codes" in response.text
     assert int(response.headers["retry-after"]) > 0
 
 
-def test_signed_in_person_opening_login_or_register_is_sent_on(client, aziza):
-    _login(client)
+def test_asking_for_too_many_codes_is_refused_with_retry_after(client, aziza, mailbox):
+    for _ in range(5):
+        assert _ask_login(client).status_code == 303
 
-    for path in ("/login", "/register"):
+    response = _ask_login(client)
+
+    assert response.status_code == 429
+    assert "Too many codes were requested" in response.text
+    assert int(response.headers["retry-after"]) > 0
+
+
+def test_signed_in_person_opening_login_register_or_code_page_is_sent_on(client, aziza, mailbox):
+    _login(client, mailbox)
+
+    for path in ("/login", "/register", "/login/code?email=a%40example.com"):
         response = client.get(path, params={"next": "/book/3"}, follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/book/3"
 
 
+def test_no_page_asks_for_a_password(client):
+    for path in ("/login", "/register", "/login/code?email=a%40example.com"):
+        assert 'type="password"' not in client.get(path).text
+
+
 # --- Log out ---------------------------------------------------------------------
 
 
-def test_logout_ends_the_session_and_says_so(client, aziza):
-    _login(client)
+def test_logout_ends_the_session_and_says_so(client, aziza, mailbox):
+    _login(client, mailbox)
     token = client.cookies[CSRF_COOKIE]
 
     response = client.post("/logout", data={"csrf_token": token}, follow_redirects=False)
@@ -239,9 +366,9 @@ def test_logout_ends_the_session_and_says_so(client, aziza):
     assert 'href="/login">Sign in</a>' in home
 
 
-def test_logout_without_the_csrf_token_is_refused(client, aziza):
+def test_logout_without_the_csrf_token_is_refused(client, aziza, mailbox):
     """Otherwise any site could sign a visitor out with a hidden form."""
-    _login(client)
+    _login(client, mailbox)
 
     response = client.post("/logout", follow_redirects=False)
 
@@ -249,8 +376,8 @@ def test_logout_without_the_csrf_token_is_refused(client, aziza):
     assert "Sign out" in client.get("/").text  # still signed in
 
 
-def test_signed_in_header_has_a_confirmed_sign_out_form(client, aziza):
-    _login(client)
+def test_signed_in_header_has_a_confirmed_sign_out_form(client, aziza, mailbox):
+    _login(client, mailbox)
 
     html = client.get("/").text
 
@@ -263,7 +390,9 @@ def test_signed_in_header_has_a_confirmed_sign_out_form(client, aziza):
 
 
 @pytest.fixture
-def client_with_private_page(db: Session, frozen_clock: FrozenClock) -> Iterator[TestClient]:
+def client_with_private_page(
+    db: Session, frozen_clock: FrozenClock, mailbox: Mailbox
+) -> Iterator[TestClient]:
     app = create_app()
 
     @app.get("/test/private")
@@ -272,6 +401,7 @@ def client_with_private_page(db: Session, frozen_clock: FrozenClock) -> Iterator
 
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_clock] = lambda: frozen_clock
+    app.dependency_overrides[get_mailer] = lambda: mailbox
     limiter = InMemoryLoginLimiter(max_attempts=5, window_seconds=300)
     app.dependency_overrides[get_login_limiter] = lambda: limiter
     with TestClient(app) as test_client:
@@ -279,7 +409,7 @@ def client_with_private_page(db: Session, frozen_clock: FrozenClock) -> Iterator
 
 
 def test_a_page_that_needs_sign_in_sends_a_visitor_to_login_and_back(
-    client_with_private_page, aziza
+    client_with_private_page, aziza, mailbox
 ):
     client = client_with_private_page
 
@@ -288,7 +418,7 @@ def test_a_page_that_needs_sign_in_sends_a_visitor_to_login_and_back(
     assert response.status_code == 303
     assert response.headers["location"] == "/login?next=%2Ftest%2Fprivate%3Fx%3D1"
 
-    after = _login(client, next="/test/private?x=1")
+    after = _login(client, mailbox, next="/test/private?x=1")
     assert after.headers["location"] == "/test/private?x=1"
     assert client.get("/test/private?x=1").json() == {"id": aziza.id}
 
@@ -305,17 +435,13 @@ def _demo_settings(monkeypatch, app_env="development"):
         jwt_secret="a-real-secret-for-this-test",
         smtp_host="smtp.example.com",
         barber_email="boss@example.com",
-        barber_password=PASSWORD,
     )
     monkeypatch.setattr(web_auth, "get_settings", lambda: settings)
 
 
 @pytest.fixture
 def boss(db: Session) -> User:
-    user = add_barber(db, "boss@example.com", "Boss")
-    user.password_hash = hash_password(PASSWORD)
-    db.flush()
-    return user
+    return add_barber(db, "boss@example.com", "Boss")
 
 
 def test_the_login_page_offers_the_demo_barber_outside_production(client, monkeypatch):
@@ -325,6 +451,7 @@ def test_the_login_page_offers_the_demo_barber_outside_production(client, monkey
 
     assert "/login/demo-barber" in html
     assert "boss@example.com" in html
+    assert "no code needed" in html
 
 
 def test_the_demo_button_signs_in_the_barber_and_opens_the_dashboard(client, monkeypatch, boss):

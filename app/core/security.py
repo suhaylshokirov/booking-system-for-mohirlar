@@ -1,7 +1,7 @@
-"""Password hashing, access tokens and CSRF tokens.
+"""Sign-in codes, access tokens and CSRF tokens.
 
-Passwords are hashed with Argon2 through pwdlib; the plain password is never
-stored or logged.
+There are no passwords (ADR 0013). A person proves they own an email address by
+typing the 6-digit code sent to it; only a keyed hash of the code is stored.
 
 Access tokens are HS256 JWTs carrying `sub` (the user id), `iat` and `exp`.
 The token proves who the caller *was* when it was issued; it says nothing about
@@ -23,14 +23,11 @@ import secrets
 from datetime import datetime, timedelta
 
 import jwt
-from pwdlib import PasswordHash
-from pwdlib.exceptions import UnknownHashError
 
 from app.core.config import get_settings
 from app.core.errors import AppError
 
-# `recommended()` is Argon2id with the library's current safe parameters.
-_hasher = PasswordHash.recommended()
+LOGIN_CODE_DIGITS = 6
 
 # The only algorithm we sign with, and the only one we accept when decoding.
 # Passing this list explicitly is what stops an attacker choosing `alg=none`
@@ -45,21 +42,32 @@ class InvalidTokenError(AppError):
         super().__init__(code, message, status_code=401)
 
 
-def hash_password(password: str) -> str:
-    """Return a salted Argon2 hash of `password`."""
-    return _hasher.hash(password)
+def generate_login_code() -> str:
+    """A fresh random 6-digit code, zero-padded ("004217").
 
-
-def verify_password(password: str, password_hash: str) -> bool:
-    """True if `password` matches `password_hash`.
-
-    A stored hash in a format we don't recognise counts as a mismatch rather
-    than an error, so a bad row can never turn a login attempt into a 500.
+    `secrets` is the operating system's random source; `random` is predictable.
     """
-    try:
-        return _hasher.verify(password, password_hash)
-    except UnknownHashError:
-        return False
+    return f"{secrets.randbelow(10**LOGIN_CODE_DIGITS):0{LOGIN_CODE_DIGITS}d}"
+
+
+def hash_login_code(email: str, code: str) -> str:
+    """Keyed hash of a code, bound to the address it was sent to.
+
+    Only this is stored, so a copy of the table does not reveal live codes.
+    That is a modest protection (a 6-digit space can be searched, which is what
+    the short lifetime and the limit on wrong tries are for), but a code should
+    not sit in a database in the clear. The address is part of the input so a
+    code is only ever valid for the address it was issued to, and the fixed
+    prefix keeps the key (shared with the token signature) from producing a
+    value usable anywhere else.
+    """
+    key = get_settings().jwt_secret.encode()
+    return hmac.new(key, f"login-code:{email}:{code}".encode(), "sha256").hexdigest()
+
+
+def login_code_matches(email: str, code: str, stored_hash: str) -> bool:
+    """True if `code` is the code `stored_hash` was made from (constant time)."""
+    return hmac.compare_digest(hash_login_code(email, code), stored_hash)
 
 
 def create_access_token(user_id: int, now: datetime) -> str:

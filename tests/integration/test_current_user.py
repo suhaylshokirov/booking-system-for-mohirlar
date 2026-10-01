@@ -17,7 +17,7 @@ from app.api.deps import ACCESS_COOKIE, BarberUser, CurrentUser, OptionalUser
 from app.core.clock import FrozenClock, get_clock
 from app.core.db import get_db
 from app.core.errors import register_error_handlers
-from app.core.security import create_access_token, hash_password
+from app.core.security import create_access_token
 from app.models.provider import Provider
 from app.models.user import User, UserRole
 
@@ -58,7 +58,6 @@ def _user(db: Session, role: UserRole = UserRole.CUSTOMER, **fields) -> User:
         fields["provider_id"] = _provider(db).id  # a barber always runs a provider
     user = User(
         email=fields.pop("email", f"{role.value}@example.com"),
-        password_hash=hash_password("irrelevant"),
         full_name="Test User",
         role=role,
         **fields,

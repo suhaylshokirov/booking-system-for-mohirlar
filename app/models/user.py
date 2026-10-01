@@ -8,6 +8,9 @@ A barber is a user linked to exactly one provider (`provider_id`), and only
 barbers have one: a CHECK ties the role to the link, and a unique constraint
 gives each provider at most one login. There is no separate administrator
 (ADR 0010): barbers manage their own bookings, hours and profile.
+
+There is no password: a person proves they own the email by typing the code
+sent to it (`login_codes`, ADR 0013).
 """
 
 import enum
@@ -48,7 +51,6 @@ class User(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(254))  # 254 = longest valid email address
-    password_hash: Mapped[str] = mapped_column(String(255))
     full_name: Mapped[str] = mapped_column(String(100))
     role: Mapped[UserRole] = mapped_column(
         # Store the lowercase value ('customer'), not the Python member name.

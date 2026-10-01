@@ -21,7 +21,7 @@ CSRF = "test-csrf-token"
 
 
 def _user(db, email, role) -> User:
-    user = User(email=email, password_hash="x", full_name="T P", role=role)
+    user = User(email=email, full_name="T P", role=role)
     db.add(user)
     db.flush()
     return user

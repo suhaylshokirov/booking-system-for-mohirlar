@@ -1,21 +1,29 @@
-"""Sign in, create an account, sign out: the browser side of `services/auth`.
+"""Sign in, sign up, sign out: the browser side of `services/auth`.
 
 Same rules as `/api/v1/auth`: the same schemas validate the input, the same
-service functions decide, and the login rate limit applies to both. What
-differs is the answer: a page instead of JSON.
+service functions decide, and the same limits apply. What differs is the
+answer: a page instead of JSON. There are no passwords (ADR 0013); signing in
+and signing up are two pages each:
+
+1. `/login` (an email) or `/register` (a name and an email) emails a code and
+   redirects to `/login/code`.
+2. `/login/code` takes the 6 digits. Success sets the login cookie and a fresh
+   CSRF token, leaves a flash notice and redirects (303, so a reload doesn't
+   post the form again) to `next`, which `safe_next_path` restricts to this site.
 
 - A problem re-renders the form with the message beside the field and the
-  email kept (never the password), with the status the API would have used.
-- Success sets the login cookie and a fresh CSRF token, leaves a flash notice
-  and redirects (303, so a reload doesn't post the form again) to `next`,
-  which `safe_next_path` restricts to this site.
-- The login and register forms are posted before a login cookie exists, so
-  the app-wide CSRF check would skip them; `require_csrf` checks them always
-  (login CSRF: an attacker's page signing a victim into the attacker's account).
-- Someone already signed in who opens /login or /register is sent on to `next`.
+  input kept, with the status the API would have used.
+- The forms are posted before a login cookie exists, so the app-wide CSRF
+  check would skip them; `require_csrf` checks them always (login CSRF: an
+  attacker's page signing a victim into the attacker's account).
+- Someone already signed in who opens these pages is sent on to `next`.
+- The email travels in the address of the code page (`?email=`) so a reload or
+  the back button keeps working without a session; it is not a secret, and the
+  code page proves nothing without the code.
 """
 
 from typing import Annotated
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -28,9 +36,10 @@ from app.core.clock import Clock, get_clock
 from app.core.config import get_settings
 from app.core.db import DbSession
 from app.core.errors import AppError
+from app.core.mail import Mailer, get_mailer
 from app.core.rate_limit import LoginAttemptLimiter
 from app.core.security import create_access_token
-from app.schemas.auth import LoginRequest, RegisterRequest
+from app.schemas.auth import LoginRequest, RegisterRequest, VerifyRequest
 from app.services import auth as auth_service
 from app.web.deps import WebUser
 from app.web.forms import field_errors
@@ -41,33 +50,29 @@ router = APIRouter(include_in_schema=False)
 
 _EMAIL_MESSAGE = "Enter an email address like name@example.com."
 
-_LOGIN_MESSAGES = {
-    "email": _EMAIL_MESSAGE,
-    "password": "Enter your password.",
-    "password.string_too_long": "That password is longer than any we accept.",
-}
+_LOGIN_MESSAGES = {"email": _EMAIL_MESSAGE}
 
 _REGISTER_MESSAGES = {
     "email": _EMAIL_MESSAGE,
-    "password.string_too_short": "Use at least 8 characters.",
-    "password.string_too_long": "Use at most 128 characters.",
-    "password": "Choose a password of at least 8 characters.",
     "full_name.string_too_long": "Keep it under 100 characters.",
     "full_name": "Enter your name, so the business knows who is coming.",
 }
 
+_CODE_MESSAGES = {"code": "Enter the 6-digit code from the email."}
+
 
 def _demo_barber() -> dict[str, str] | None:
-    """The demo barber's credentials, for the login page's shortcut; `None` in production.
+    """The demo barber's email, for the login page's shortcut; `None` in production.
 
-    A convenience for trying the project (owner's decision, see the Deviations
-    log): the credentials are the repo's public defaults, so a production
-    deployment must never offer them. `demo_barber_login` enforces the same.
+    A convenience for trying the project without a mail server (owner's decision,
+    see the Deviations log): the email is the repo's public default, and the
+    shortcut signs in without a code, so a production deployment must never
+    offer it. `demo_barber_login` enforces the same.
     """
     settings = get_settings()
     if settings.app_env == "production":
         return None
-    return {"email": settings.barber_email, "password": settings.barber_password}
+    return {"email": settings.barber_email}
 
 
 def _signed_in_redirect(user_id: int, clock: Clock, next_path: str, flash: str) -> Response:
@@ -76,6 +81,21 @@ def _signed_in_redirect(user_id: int, clock: Clock, next_path: str, flash: str) 
     # A new CSRF token per login, so one issued before login cannot outlive it.
     set_csrf_cookie(response)
     set_flash(response, flash)
+    return response
+
+
+def _code_page_redirect(email: str, next_path: str, full_name: str = "") -> Response:
+    """To the page that takes the code. `name` is only there so "send a new code"
+    on that page can repeat a sign-up instead of a sign-in."""
+    query = {"email": email, "next": next_path}
+    if full_name:
+        query["name"] = full_name
+    return RedirectResponse(f"/login/code?{urlencode(query)}", status_code=303)
+
+
+def _with_retry_after(response: Response, error: AppError) -> Response:
+    if error.headers:
+        response.headers.update(error.headers)  # Retry-After on a 429
     return response
 
 
@@ -93,9 +113,8 @@ def login(
     request: Request,
     db: DbSession,
     clock: Annotated[Clock, Depends(get_clock)],
-    limiter: Annotated[LoginAttemptLimiter, Depends(get_login_limiter)],
+    mailer: Annotated[Mailer, Depends(get_mailer)],
     email: Annotated[str, Form()] = "",
-    password: Annotated[str, Form()] = "",
     next: Annotated[str, Form()] = "",
 ) -> Response:
     next_path = safe_next_path(next)
@@ -106,77 +125,46 @@ def login(
             "values": {"email": email},
             "errors": errors,
             "demo_barber": _demo_barber(),
+            "problem": problem,
         }
-        return render(
-            request, "auth/login.html", {**context, "problem": problem}, status_code=status_code
-        )
+        return render(request, "auth/login.html", context, status_code=status_code)
 
     try:
-        body = LoginRequest(email=email, password=password)
+        body = LoginRequest(email=email)
     except ValidationError as error:
         return form_again(422, field_errors(error, _LOGIN_MESSAGES))
 
     try:
-        user = auth_service.login(
-            db,
-            limiter,
-            email=body.email,
-            password=body.password,
-            client_ip=request.client.host if request.client else "unknown",
-            now=clock.now(),
-        )
+        auth_service.request_login_code(db, mailer, email=body.email, now=clock.now())
     except AppError as error:
-        # INVALID_CREDENTIALS, ACCOUNT_INACTIVE or TOO_MANY_ATTEMPTS: the
-        # service's message is already written for a person.
-        response = form_again(error.status_code, {}, error.message)
-        if error.headers:
-            response.headers.update(error.headers)  # Retry-After on a 429
-        return response
-
-    return _signed_in_redirect(user.id, clock, next_path, "signed_in")
+        # TOO_MANY_CODES or EMAIL_SEND_FAILED: the message is written for a person.
+        return _with_retry_after(form_again(error.status_code, {}, error.message), error)
+    return _code_page_redirect(body.email, next_path)
 
 
 @router.post("/login/demo-barber", dependencies=[Depends(require_csrf)])
-def demo_barber_login(
-    request: Request,
-    db: DbSession,
-    clock: Annotated[Clock, Depends(get_clock)],
-    limiter: Annotated[LoginAttemptLimiter, Depends(get_login_limiter)],
-) -> Response:
+def demo_barber_login(request: Request, db: DbSession, clock: Annotated[Clock, Depends(get_clock)]):
     """Sign in as the demo barber and open the barber dashboard: the login page's shortcut button.
 
-    The same `auth_service.login` as the form, with the configured barber
-    credentials, so the password check and rate limit still apply.
+    No code is asked for: it exists so the project can be tried without a mail
+    server, which is why it is only available outside production.
 
     Raises: 404 `NOT_FOUND` in production, where the shortcut does not exist. A
-    failed login (barber not seeded, password changed) shows the login page again.
+    failed sign-in (barber not seeded) shows the login page again.
     """
     demo = _demo_barber()
     if demo is None:
         raise AppError("NOT_FOUND", "Page not found.", status_code=404)
     try:
-        user = auth_service.login(
-            db,
-            limiter,
-            email=demo["email"],
-            password=demo["password"],
-            client_ip=request.client.host if request.client else "unknown",
-            now=clock.now(),
-        )
+        user = auth_service.demo_sign_in(db, email=demo["email"])
     except AppError as error:
         problem = (
             "The demo barber could not sign in. Run `python -m scripts.seed` "
             "(or `make seed`) to create it."
-            if error.code == "INVALID_CREDENTIALS"
+            if error.code == "INVALID_CODE"
             else error.message
         )
-        context = {
-            "next": "/",
-            "values": {},
-            "errors": {},
-            "demo_barber": demo,
-            "problem": problem,
-        }
+        context = {"next": "/", "values": {}, "errors": {}, "demo_barber": demo, "problem": problem}
         return render(request, "auth/login.html", context, status_code=error.status_code)
     return _signed_in_redirect(user.id, clock, "/barber", "signed_in")
 
@@ -194,37 +182,105 @@ def register(
     request: Request,
     db: DbSession,
     clock: Annotated[Clock, Depends(get_clock)],
+    mailer: Annotated[Mailer, Depends(get_mailer)],
     full_name: Annotated[str, Form()] = "",
     email: Annotated[str, Form()] = "",
-    password: Annotated[str, Form()] = "",
     next: Annotated[str, Form()] = "",
 ) -> Response:
     next_path = safe_next_path(next)
 
-    def form_again(status_code: int, errors: dict[str, str], email_taken: bool = False):
+    def form_again(status_code: int, errors: dict[str, str], problem: str | None = None):
         context = {
             "next": next_path,
             "values": {"full_name": full_name, "email": email},
             "errors": errors,
-            "email_taken": email_taken,  # offers "Sign in instead"
+            "problem": problem,
         }
         return render(request, "auth/register.html", context, status_code=status_code)
 
     try:
-        body = RegisterRequest(email=email, password=password, full_name=full_name)
+        body = RegisterRequest(email=email, full_name=full_name)
     except ValidationError as error:
         return form_again(422, field_errors(error, _REGISTER_MESSAGES))
 
     try:
-        user = auth_service.register_customer(
-            db, email=body.email, password=body.password, full_name=body.full_name
+        auth_service.request_registration_code(
+            db, mailer, email=body.email, full_name=body.full_name, now=clock.now()
         )
     except AppError as error:
-        if error.code == "EMAIL_TAKEN":
-            return form_again(409, {"email": error.message}, email_taken=True)
-        raise
+        return _with_retry_after(form_again(error.status_code, {}, error.message), error)
+    return _code_page_redirect(body.email, next_path, body.full_name)
 
-    return _signed_in_redirect(user.id, clock, next_path, "registered")
+
+def _code_page(*, email: str, next_path: str, name: str, **extra) -> dict:
+    return {
+        "email": email,
+        "next": next_path,
+        "name": name,
+        "errors": {},
+        "problem": None,
+        # No mail server configured (development): say where the code went.
+        "console_mail": not get_settings().smtp_host,
+        **extra,
+    }
+
+
+@router.get("/login/code", response_class=HTMLResponse, name="login_code")
+def code_page(
+    request: Request,
+    user: WebUser,
+    email: str = "",
+    next: str | None = None,
+    name: str = "",
+) -> Response:
+    next_path = safe_next_path(next)
+    if user is not None:
+        return RedirectResponse(next_path, status_code=303)
+    if not email.strip():
+        return RedirectResponse("/login", status_code=303)
+    return render(
+        request, "auth/code.html", _code_page(email=email, next_path=next_path, name=name)
+    )
+
+
+@router.post("/login/code", dependencies=[Depends(require_csrf)])
+def verify_code(
+    request: Request,
+    db: DbSession,
+    clock: Annotated[Clock, Depends(get_clock)],
+    limiter: Annotated[LoginAttemptLimiter, Depends(get_login_limiter)],
+    email: Annotated[str, Form()] = "",
+    code: Annotated[str, Form()] = "",
+    next: Annotated[str, Form()] = "",
+    name: Annotated[str, Form()] = "",
+) -> Response:
+    next_path = safe_next_path(next)
+
+    def page_again(status_code: int, errors: dict[str, str], problem: str | None = None):
+        context = _code_page(
+            email=email, next_path=next_path, name=name, errors=errors, problem=problem
+        )
+        return render(request, "auth/code.html", context, status_code=status_code)
+
+    try:
+        body = VerifyRequest(email=email, code=code)
+    except ValidationError as error:
+        return page_again(422, field_errors(error, {**_CODE_MESSAGES, "email": _EMAIL_MESSAGE}))
+
+    try:
+        user = auth_service.verify_code(
+            db,
+            limiter,
+            email=body.email,
+            code=body.code,
+            client_ip=request.client.host if request.client else "unknown",
+            now=clock.now(),
+        )
+    except AppError as error:
+        # INVALID_CODE, ACCOUNT_INACTIVE or TOO_MANY_ATTEMPTS: the service's
+        # message is already written for a person.
+        return _with_retry_after(page_again(error.status_code, {}, error.message), error)
+    return _signed_in_redirect(user.id, clock, next_path, "signed_in")
 
 
 @router.post("/logout")

@@ -14,8 +14,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # The placeholder shipped in .env.example. Anyone can read it in the repo, so a
 # production deployment using it would have forgeable tokens.
 _PLACEHOLDER_JWT_SECRET = "change-me-to-a-long-random-string"
-# Likewise public: the create-barber script refuses it in production.
-PLACEHOLDER_BARBER_PASSWORD = "change-me-barber-password"
 
 
 class Settings(BaseSettings):
@@ -34,7 +32,6 @@ class Settings(BaseSettings):
     # The first barber: the default of scripts/create_barber.py, and the demo barber
     # the seed script creates (and the login page's demo shortcut signs in as).
     barber_email: str = "jasur@navbat.local"
-    barber_password: str = PLACEHOLDER_BARBER_PASSWORD
 
     # Email for the sign-in codes. Unset SMTP_HOST means "log the message to the
     # console" (development, tests); production requires it (validated below).

@@ -130,3 +130,31 @@ def test_migration_0005_turns_an_existing_admin_into_a_barber_with_a_provider(
         command.downgrade(alembic_config(connection), "0004")
         roles = connection.execute(text("SELECT role::text FROM users ORDER BY id")).scalars().all()
     assert roles == ["admin", "customer"]
+
+
+def test_migration_0008_drops_passwords_keeps_users_and_downgrade_restores_the_column(
+    engine, blank_schema_then_rebuilt
+):
+    """Existing accounts survive the move to email codes; only the password hash goes."""
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0007")
+        connection.execute(
+            text(
+                "INSERT INTO users (email, password_hash, full_name, role) VALUES "
+                "('ali@example.com', 'a-hash', 'Ali', 'customer')"
+            )
+        )
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0008")
+    with engine.connect() as connection:
+        columns = {c["name"] for c in inspect(connection).get_columns("users")}
+        users = connection.execute(text("SELECT email, full_name FROM users")).all()
+        assert "password_hash" not in columns
+        assert users == [("ali@example.com", "Ali")]
+        assert "login_codes" in inspect(connection).get_table_names()
+
+    with engine.begin() as connection:
+        command.downgrade(alembic_config(connection), "0007")
+        restored = connection.execute(text("SELECT password_hash FROM users")).scalars().all()
+        assert restored == [""]  # the column is back; the old hash is gone for good
+        assert "login_codes" not in inspect(connection).get_table_names()

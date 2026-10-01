@@ -95,34 +95,45 @@ start while `SEED_DEMO_DATA=true`. The barbers' portraits and the shop photos on
 the home page are free Unsplash stock photos, credited in
 [`docs/credits.md`](docs/credits.md).
 
-| Role | Email | Password |
-|---|---|---|
-| Barber (Jasur) | `BARBER_EMAIL` (`jasur@navbat.local`) | `BARBER_PASSWORD` (default `change-me-barber-password`) |
-| Barber (Bekzod, Dilshod) | `bekzod@navbat.local`, `dilshod@navbat.local` | the same `BARBER_PASSWORD` |
-| Customer | `demo@navbat.local` | `demo-customer-password` |
+| Role | Email |
+|---|---|
+| Barber (Jasur) | `BARBER_EMAIL` (`jasur@navbat.local`) |
+| Barber (Bekzod, Dilshod) | `bekzod@navbat.local`, `dilshod@navbat.local` |
+| Customer | `demo@navbat.local` |
 
-Outside production, the sign-in page also has an **Open the barber dashboard (demo)** button that signs in as Jasur and opens `/barber`; in production it does not exist. The demo passwords are public on purpose and are not secrets. Log in
-with either through `POST /api/v1/auth/login` (see [`docs/api.md`](docs/api.md)).
+**There are no passwords.** Signing in asks for your email, sends a 6-digit code to it
+and asks you to type the code (ADR 0013). These seeded `.local` addresses cannot receive
+mail, so with no mail server configured the app writes each email to its log instead:
+
+```bash
+docker compose logs -f app     # or the terminal running `make dev`
+# INFO:     [navbat.mail] email to demo@navbat.local: Navbat Barbershop: your sign-in code is 482913
+```
+
+Outside production, the sign-in page also has an **Open the barber dashboard (demo)** button that signs in as Jasur
+without a code and opens `/barber`; in production it does not exist. To try the API: `POST /api/v1/auth/login`, then
+`POST /api/v1/auth/verify` with the code (see [`docs/api.md`](docs/api.md)). Real addresses work the same once
+`SMTP_HOST` is set (below).
 
 ### Create a barber
 
 There is no administrator: the barbers run the shop (ADR 0010). A barber is a
 login together with the provider record customers book, created from the command
-line (registration always creates a customer; there is no endpoint for this):
+line (signing up always creates a customer; there is no endpoint for this):
 
 ```bash
-python -m scripts.create_barber --email jasur@example.com --password 'a long passphrase' --name Jasur
-# or take email and password from BARBER_EMAIL / BARBER_PASSWORD (preferred on a shared machine:
-# command-line arguments are visible in `ps` and shell history)
+python -m scripts.create_barber --email jasur@example.com --name Jasur
+# or take the email from BARBER_EMAIL
 python -m scripts.create_barber
 # inside Docker:
-docker compose exec app python -m scripts.create_barber --email ... --password ... --name ...
+docker compose exec app python -m scripts.create_barber --email ... --name ...
 ```
 
-It is safe to run again: an existing account with that email (any letter case)
-is promoted to barber (and given a provider record if it has none),
-reactivated and given that password; nothing is duplicated. The email and password must pass the same rules as registration,
-and in production the placeholder password from `.env.example` is refused.
+There is no password to set: the barber signs in at `/login` with a code emailed to that
+address, so use one they can read. It is safe to run again: an existing account with that
+email (any letter case) is promoted to barber (and given a provider record if it has
+none) and reactivated; nothing is duplicated. The email must pass the same check as
+sign-up.
 
 ## Local development
 
@@ -173,7 +184,7 @@ pytest tests/unit            # or one layer: unit · integration · concurrency
 
 Copy `.env.example` to `.env` to change any of them. Every variable has a
 default that works on a fresh checkout, except the two secrets marked below,
-which must be replaced in production.
+which must be replaced in production (and `SMTP_HOST`, which production requires).
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -190,7 +201,6 @@ which must be replaced in production.
 | `SMTP_FROM` | `Navbat <no-reply@navbat.local>` | The sender shown on the email. |
 | `SMTP_SECURITY` | `starttls` | `starttls`, `ssl`, or `none` (a local test server only). |
 | `BARBER_EMAIL` | `jasur@navbat.local` | Email of the first barber (`scripts/create_barber.py`; the seed's first barber and the demo button). |
-| `BARBER_PASSWORD` | placeholder | **Secret.** Password of the first barber (the seed gives every demo barber this password). |
 | `SEED_DEMO_DATA` | `false` (`true` in `docker-compose.yml`) | Run the seed script on container start. Safe to leave on; see below. |
 
 ## Architecture in brief

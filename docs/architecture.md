@@ -177,8 +177,10 @@ clients, CSRF double-submit for cookie requests (ADR 0005), login rate limiting.
 
 **Primitives (`app/core/security.py`, P2.1).**
 
-- Passwords: Argon2id via pwdlib. `verify_password` returns `False` (never
-  raises) for a stored hash it does not recognise.
+- Sign-in codes (ADR 0013, replacing passwords): `generate_login_code` (6 digits from
+  `secrets`), `hash_login_code` (HMAC-SHA256 of address and code under `JWT_SECRET`, so a
+  code is only valid for its address and a database copy does not show live codes) and
+  `login_code_matches` (constant time).
 - Tokens: HS256 JWT with `sub` (user id as a string), `iat`, `exp`; lifetime is
   `JWT_EXPIRE_MINUTES`. The token holds no role or active flag: those are
   reloaded from the database on every request (P2.3), so deactivating a user
@@ -199,28 +201,65 @@ every request app-wide: unsafe methods authenticated by the cookie, without a
 Bearer header, must echo the CSRF cookie in `X-CSRF-Token` or a form field, else
 403 `CSRF_FAILED`. Reasoning and trade-offs are in ADR 0005.
 
-**Login rate limiting (`app/core/rate_limit.py`, `services/auth.login`, P2.5).**
-A sliding window of failed attempts per (client IP, email), checked before the
-password is verified. The store is an in-process dictionary behind a
+**Sign-in by emailed code (`services/auth.py`, `core/mail.py`, P12.2, ADR 0013).** Nobody
+has a password. Signing up and in are the same two steps:
+
+```mermaid
+sequenceDiagram
+    participant P as Person
+    participant A as /auth (or /login pages)
+    participant S as services/auth
+    participant DB as PostgreSQL
+    participant M as Mailer (SMTP / console)
+
+    P->>A: register {email, name} or login {email}
+    A->>S: request_*_code
+    S->>DB: count recent codes (max 5 / 10 min), consume older codes, INSERT login_codes
+    S->>M: send "your sign-in code is 482913" (only if there is an account to sign in to)
+    A-->>P: 202, the same for every address
+    P->>A: verify {email, code}
+    A->>S: verify_code (IP limiter first)
+    S->>DB: newest live code; wrong -> failed_attempts+1 and COMMIT
+    S->>DB: UPDATE ... SET consumed_at WHERE consumed_at IS NULL (guarded claim)
+    S->>DB: create the customer if it was a sign-up (unique index decides a race)
+    A-->>P: token + cookies
+```
+
+- A request for a code answers the same for every address, and writes a row even when
+  nothing is sent, so neither the answer nor the limit reveals who has an account.
+- The three limits (per code, per IP and email, per address) and why a wrong try is
+  committed by the service are in ADR 0013.
+- `Mailer` is injected like the clock (`get_mailer`): tests read the code from a recording
+  mailbox; development reads it from the app's log (`app/core/logs.py` makes the `navbat.*`
+  loggers visible, since uvicorn only configures its own).
+
+**Wrong-code rate limiting (`app/core/rate_limit.py`, `services/auth.verify_code`, P2.5, reworked in P12.2).**
+A sliding window of wrong codes per (client IP, email), checked before the code is
+compared. The store is an in-process dictionary behind a
 three-method interface (`retry_after`, `record_failure`, `reset`), so a shared
 store could replace it; the trade-off is that it resets on restart and is not
 shared between instances. See `docs/api.md` for the exact behaviour.
 
-**In the browser (`app/web/auth.py`, P8.2).** `/login`, `/register` and
-`POST /logout` validate with the same schemas and call the same service
-functions as `/api/v1/auth`, so the rules and the rate limit are shared; only
+**In the browser (`app/web/auth.py`, P8.2, reworked in P12.2).** `/login`, `/register`,
+`/login/code` and `POST /logout` validate with the same schemas and call the same service
+functions as `/api/v1/auth`, so the rules and the limits are shared; only
 the answer differs (a re-rendered form or a 303 redirect instead of JSON).
 Details worth knowing:
 
-- Login and register are posted before any login cookie exists, so they use
+- The forms are posted before any login cookie exists, so they use
   the always-on `require_csrf`; `render()` gives every visitor a CSRF cookie on
-  their first page, and a successful login issues a fresh one.
+  their first page, and a successful sign-in issues a fresh one.
+- `/login` and `/register` redirect to `/login/code?email=...`, carrying the address (and,
+  for a sign-up, the name, so "Send a new code" can repeat the sign-up) in the address
+  of the page. It is not secret and proves nothing without the code; it keeps reload and
+  the back button working without a session.
 - `next` goes through `safe_next_path` (`app/web/redirects.py`): only a path
   on this site, never another host (open-redirect defence).
 - A page GET that raises 401 redirects to `/login?next=<that page>`
   (`app/web/errors.py`), so any page that needs an account just takes
   `CurrentUser`.
-- A re-rendered form keeps the email but never the password.
+- Every form works without JavaScript; the code field has `autocomplete="one-time-code"`
+  and `inputmode="numeric"` so phones offer the code from the email.
 
 ## Why the web UI and the API share services
 _P8.1. Decision: [ADR 0004](decisions/0004-server-rendered-ui.md)._

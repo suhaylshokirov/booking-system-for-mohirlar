@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+
+{% block title %}Enter your code · Navbat{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/auth.css">{% endblock %}
+
+{% block masthead %}
+<header class="masthead masthead--compact">
+    <div class="container">
+        <h1 class="sheet-title">Check your email</h1>
+        <p class="sheet-sub">
+            If <strong>{{ email }}</strong> can sign in, a 6-digit code is on its way.
+            It works once and expires in 10 minutes.
+        </p>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="auth">
+    <form class="form auth-form" method="post" action="/login/code" novalidate data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        <input type="hidden" name="next" value="{{ next }}">
+        <input type="hidden" name="email" value="{{ email }}">
+        <input type="hidden" name="name" value="{{ name }}">
+
+        {% if problem %}<p class="notice notice--error" role="alert">{{ problem }}</p>{% endif %}
+        {% if console_mail and not problem %}
+        {# One span: .notice lays its children out in a row, which would split the sentence at the <code>. #}
+        <p class="notice"><span>No mail server is set up here (<code>SMTP_HOST</code>), so the code is in the app's log.</span></p>
+        {% endif %}
+
+        {# autocomplete=one-time-code lets phones offer the code from the email. #}
+        {{ ui.field("code", "6-digit code", error=errors.code or errors.email, inputmode="numeric",
+                    maxlength=7, class_name="code-input", autocomplete="one-time-code",
+                    autofocus=true) }}
+
+        <button type="submit" class="btn btn--block" data-busy-label="Checking…">Sign in</button>
+    </form>
+
+    {# Its own form so it works without JavaScript: a sign-up repeats the sign-up
+       (the name is carried along), a sign-in repeats the sign-in. #}
+    <form class="form auth-form auth-resend" method="post"
+          action="{{ '/register' if name else '/login' }}" data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        <input type="hidden" name="next" value="{{ next }}">
+        <input type="hidden" name="email" value="{{ email }}">
+        {% if name %}<input type="hidden" name="full_name" value="{{ name }}">{% endif %}
+        <p class="field__hint">Nothing arrived? Check the spam folder, or</p>
+        <button type="submit" class="btn btn--quiet btn--block" data-busy-label="Sending…">Send a new code</button>
+        <p class="auth-alt">
+            <a href="{{ '/register' if name else '/login' }}{% if next != '/' %}?next={{ next|urlencode }}{% endif %}">Use a different email</a>
+        </p>
+    </form>
+</section>
+{% endblock %}

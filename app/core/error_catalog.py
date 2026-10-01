@@ -26,9 +26,9 @@ ERROR_CATALOG: dict[str, tuple[int, str]] = {
         401,
         "No credentials sent (or a generic framework 401)",
     ),
-    "INVALID_CREDENTIALS": (
+    "INVALID_CODE": (
         401,
-        "Login: unknown email or wrong password (deliberately indistinguishable)",
+        "Sign-in code: wrong, expired, already used or replaced by a newer one (deliberately indistinguishable)",
     ),
     "INVALID_TOKEN": (
         401,
@@ -40,7 +40,15 @@ ERROR_CATALOG: dict[str, tuple[int, str]] = {
     ),
     "TOO_MANY_ATTEMPTS": (
         429,
-        "Login: too many failed attempts for this IP and email; wait `Retry-After` seconds",
+        "Sign-in: too many wrong codes for this IP and email; wait `Retry-After` seconds",
+    ),
+    "TOO_MANY_CODES": (
+        429,
+        "Sign-in: too many codes were requested for this email; wait `Retry-After` seconds",
+    ),
+    "EMAIL_SEND_FAILED": (
+        503,
+        "Sign-in: the mail server did not accept the email carrying the code; try again",
     ),
     "CSRF_FAILED": (
         403,
@@ -48,11 +56,7 @@ ERROR_CATALOG: dict[str, tuple[int, str]] = {
     ),
     "ACCOUNT_INACTIVE": (
         401,
-        "The account was deactivated (at login only once the password was right; on any request with a token)",
-    ),
-    "EMAIL_TAKEN": (
-        409,
-        "Registration: that email already has an account",
+        "The account was deactivated (at sign-in only once the code was right; on any request with a token)",
     ),
     "INVALID_TIMEZONE": (
         422,

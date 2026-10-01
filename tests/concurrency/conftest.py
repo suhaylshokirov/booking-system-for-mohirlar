@@ -9,7 +9,7 @@ import pytest
 
 from app.core.clock import get_clock
 from app.core.db import get_db
-from app.core.security import create_access_token, hash_password
+from app.core.security import create_access_token
 from app.main import create_app
 from app.models import AvailabilityRule, Provider, ProviderService, Service, User
 from app.services.business_settings import get_business_settings
@@ -43,7 +43,6 @@ def world(committing_db, frozen_clock):
         with committing_db() as db:
             user = User(
                 email=f"customer{n}@example.com",
-                password_hash=hash_password("x"),
                 full_name=f"Customer {n}",
             )
             db.add(user)

@@ -5,19 +5,25 @@
 #     docker compose up --build -d        # wait for it to be healthy
 #     bash docs/walkthrough.sh            # or: BASE=http://localhost:8000 bash docs/walkthrough.sh
 #
-# It registers a new customer, finds a free slot, books it, signs in as the seeded
-# barber, confirms it, reads the history and the calendar file, cancels, and checks
-# the main refusals. It stops with a message at the first step that does not behave
+# It signs a new customer up with an emailed code, finds a free slot, books it, signs
+# in as the seeded barber (also with a code), confirms it, reads the history and the
+# calendar file, cancels, and checks the main refusals. It stops with a message at the first step that does not behave
 # as documented. Needs only bash, curl and python3 (no jq).
+#
+# There are no passwords, so the script has to read the codes the way a person reads
+# their inbox. With no mail server configured the app logs each email, and the script
+# reads the log with `docker compose logs`. For another stack set CODE_LOG_CMD to a
+# command that prints the app's log, for example
+#     CODE_LOG_CMD='docker compose -p other logs --no-log-prefix app'
+# (COMPOSE_PROJECT_NAME works too). With a real mail server, read the email yourself.
 
 set -euo pipefail
 
 BASE="${BASE:-http://localhost:8000}"
 API="$BASE/api/v1"
 BARBER_EMAIL="${BARBER_EMAIL:-jasur@navbat.local}"
-BARBER_PASSWORD="${BARBER_PASSWORD:-change-me-barber-password}"
 EMAIL="walkthrough-$(date +%s)-$RANDOM@example.com"
-PASSWORD="a long passphrase"
+CODE_LOG_CMD="${CODE_LOG_CMD:-docker compose logs --no-log-prefix app}"
 
 # json FIELD: print one top-level field of the JSON on stdin ("a.b" digs into objects)
 json() {
@@ -26,6 +32,16 @@ v = json.load(sys.stdin)
 for part in sys.argv[1].split("."):
     v = v[int(part)] if part.isdigit() else v[part]
 print(v if not isinstance(v, (dict, list)) else json.dumps(v))' "$1"
+}
+
+# code_for ADDRESS: the newest sign-in code the app emailed (logged) to ADDRESS
+code_for() {
+  local code
+  code=$(sleep 1; $CODE_LOG_CMD 2>&1 | python3 -c 'import re,sys
+found = re.findall(r"email to " + re.escape(sys.argv[1]) + r": [^\n]*sign-in code is (\d{6})", sys.stdin.read())
+print(found[-1] if found else "")' "$1")
+  [ -n "$code" ] || fail "no sign-in code for $1 in the app's log (is a mail server configured? set CODE_LOG_CMD)"
+  printf '%s' "$code"
 }
 
 step() { printf '\n== %s\n' "$*"; }
@@ -45,16 +61,18 @@ call() {
 step "0. The service is up and the database answers"
 call 200 "$API/health" >/dev/null
 
-step "1. Create an account (always a customer) and log in"
-call 201 -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"email\": \"$EMAIL\", \"password\": \"$PASSWORD\", \"full_name\": \"Walkthrough Customer\"}" >/dev/null
-TOKEN=$(call 200 -X POST "$API/auth/login" -H 'Content-Type: application/json' \
-  -d "{\"email\": \"$EMAIL\", \"password\": \"$PASSWORD\"}" | json access_token)
+step "1. Sign up: a code is emailed, proving it creates the account (always a customer) and signs in"
+call 202 -X POST "$API/auth/register" -H 'Content-Type: application/json' \
+  -d "{\"email\": \"$EMAIL\", \"full_name\": \"Walkthrough Customer\"}" >/dev/null
+TOKEN=$(call 200 -X POST "$API/auth/verify" -H 'Content-Type: application/json' \
+  -d "{\"email\": \"$EMAIL\", \"code\": \"$(code_for "$EMAIL")\"}" | json access_token)
 [ "$(call 200 "$API/auth/me" -H "Authorization: Bearer $TOKEN" | json role)" = customer ] || fail "role is not customer"
 
-step "2. Sign in as the seeded barber: their provider id comes from /auth/me"
-BARBER_TOKEN=$(call 200 -X POST "$API/auth/login" -H 'Content-Type: application/json' \
-  -d "{\"email\": \"$BARBER_EMAIL\", \"password\": \"$BARBER_PASSWORD\"}" | json access_token)
+step "2. Sign in as the seeded barber with a code: their provider id comes from /auth/me"
+call 202 -X POST "$API/auth/login" -H 'Content-Type: application/json' \
+  -d "{\"email\": \"$BARBER_EMAIL\"}" >/dev/null
+BARBER_TOKEN=$(call 200 -X POST "$API/auth/verify" -H 'Content-Type: application/json' \
+  -d "{\"email\": \"$BARBER_EMAIL\", \"code\": \"$(code_for "$BARBER_EMAIL")\"}" | json access_token)
 PROVIDER_ID=$(call 200 "$API/auth/me" -H "Authorization: Bearer $BARBER_TOKEN" | json provider_id)
 SERVICE_ID=$(call 200 "$API/providers/$PROVIDER_ID" | json services.0.id)
 echo "barber runs provider $PROVIDER_ID, who offers service $SERVICE_ID (public browsing: GET /services, GET /providers)"
@@ -110,10 +128,10 @@ echo "ics ok"
 
 step "10. Someone else's booking is a 404, not a 403"
 OTHER_EMAIL="walkthrough-other-$RANDOM@example.com"
-call 201 -X POST "$API/auth/register" -H 'Content-Type: application/json' \
-  -d "{\"email\": \"$OTHER_EMAIL\", \"password\": \"$PASSWORD\", \"full_name\": \"Other\"}" >/dev/null
-OTHER=$(call 200 -X POST "$API/auth/login" -H 'Content-Type: application/json' \
-  -d "{\"email\": \"$OTHER_EMAIL\", \"password\": \"$PASSWORD\"}" | json access_token)
+call 202 -X POST "$API/auth/register" -H 'Content-Type: application/json' \
+  -d "{\"email\": \"$OTHER_EMAIL\", \"full_name\": \"Other\"}" >/dev/null
+OTHER=$(call 200 -X POST "$API/auth/verify" -H 'Content-Type: application/json' \
+  -d "{\"email\": \"$OTHER_EMAIL\", \"code\": \"$(code_for "$OTHER_EMAIL")\"}" | json access_token)
 call 404 "$API/bookings/$BOOKING_ID" -H "Authorization: Bearer $OTHER" | json error.code
 
 step "11. The customer cancels (before the cutoff); the time is free again"

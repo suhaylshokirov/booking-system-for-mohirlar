@@ -7,6 +7,7 @@ from app.api.csrf import csrf_protect
 from app.api.v1 import auth, availability, bookings, health, providers, services, settings, slots
 from app.core import openapi
 from app.core.errors import register_error_handlers
+from app.core.logs import configure_app_logging
 from app.web import auth as web_auth
 from app.web import barber as web_barber
 from app.web import barber_availability as web_barber_availability
@@ -29,10 +30,11 @@ barbershop. Customers pick a service, see free time slots and book one. The
 barbers run the shop: each manages their own bookings, hours and profile, and
 any barber manages the services and settings. There is no administrator.
 
-**Try it.** Call `POST /auth/login`, copy `access_token`, press **Authorize** and
-paste it. Seeded logins (development): barber `jasur@navbat.local` with
-`change-me-barber-password`, customer `demo@navbat.local` with
-`demo-customer-password`. A guided curl walkthrough is in `docs/api.md`.
+**Try it.** There are no passwords. Call `POST /auth/login` with your email, read the
+6-digit code from the email (with no mail server configured, from the app's log), send it
+to `POST /auth/verify`, copy `access_token`, press **Authorize** and paste it. Seeded
+accounts (development): barber `jasur@navbat.local`, customer `demo@navbat.local`. A guided
+curl walkthrough is in `docs/api.md`.
 
 **Who may call what.** Public endpoints need no login; customer endpoints need an
 account (`401` without one); barber endpoints need a barber (`403` for a customer);
@@ -69,6 +71,7 @@ TAGS = [
 
 
 def create_app() -> FastAPI:
+    configure_app_logging()
     # csrf_protect is app-wide so that no endpoint can forget it (see app/api/csrf.py).
     # That includes the HTML forms of app/web/.
     app = FastAPI(

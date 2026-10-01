@@ -13,6 +13,7 @@ from app.models.availability import AvailabilityException, AvailabilityRule
 from app.models.base import Base, TimestampMixin
 from app.models.booking import Booking, BookingEvent, BookingStatus
 from app.models.business_settings import BusinessSettings
+from app.models.login_code import LoginCode
 from app.models.outbox import OutboxMessage
 from app.models.provider import Provider, ProviderService
 from app.models.service import Service
@@ -26,6 +27,7 @@ __all__ = [
     "BookingEvent",
     "BookingStatus",
     "BusinessSettings",
+    "LoginCode",
     "OutboxMessage",
     "Provider",
     "ProviderService",

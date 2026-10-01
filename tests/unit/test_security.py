@@ -1,4 +1,4 @@
-"""Password verification, JWT access tokens (P2.1) and CSRF tokens (P2.4)."""
+"""Sign-in codes, JWT access tokens (P2.1) and CSRF tokens (P2.4)."""
 
 import base64
 import json
@@ -14,8 +14,9 @@ from app.core.security import (
     csrf_tokens_match,
     decode_access_token,
     generate_csrf_token,
-    hash_password,
-    verify_password,
+    generate_login_code,
+    hash_login_code,
+    login_code_matches,
 )
 
 NOW = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
@@ -36,19 +37,37 @@ def _claims(**overrides) -> dict:
     return claims
 
 
-# --- passwords -------------------------------------------------------------
+# --- sign-in codes ---------------------------------------------------------
 
 
-def test_password_round_trip():
-    assert verify_password("correct horse", hash_password("correct horse")) is True
+def test_a_code_is_six_digits_including_leading_zeros(monkeypatch):
+    monkeypatch.setattr("app.core.security.secrets.randbelow", lambda n: 4217)
+
+    assert generate_login_code() == "004217"
 
 
-def test_wrong_password_is_rejected():
-    assert verify_password("wrong horse", hash_password("correct horse")) is False
+def test_generated_codes_are_always_six_digits_and_vary():
+    codes = {generate_login_code() for _ in range(200)}
+
+    assert all(len(c) == 6 and c.isdigit() for c in codes)
+    assert len(codes) > 150  # not a constant
 
 
-def test_unrecognised_hash_is_a_mismatch_not_an_error():
-    assert verify_password("anything", "not-a-real-hash") is False
+def test_a_code_matches_its_hash_for_the_same_email_only():
+    stored = hash_login_code("a@example.com", "123456")
+
+    assert login_code_matches("a@example.com", "123456", stored) is True
+    assert login_code_matches("a@example.com", "123457", stored) is False
+    assert login_code_matches("b@example.com", "123456", stored) is False
+
+
+def test_the_hash_does_not_contain_the_code_and_depends_on_the_secret(monkeypatch):
+    stored = hash_login_code("a@example.com", "123456")
+    assert "123456" not in stored and len(stored) == 64
+
+    other = get_settings().model_copy(update={"jwt_secret": "another-secret-entirely"})
+    monkeypatch.setattr("app.core.security.get_settings", lambda: other)
+    assert hash_login_code("a@example.com", "123456") != stored
 
 
 # --- tokens ----------------------------------------------------------------

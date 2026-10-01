@@ -24,7 +24,6 @@ erDiagram
     users {
         int id PK
         string email "unique on lower(email)"
-        string password_hash
         string full_name
         enum role "customer | barber"
         int provider_id FK "set for barbers only, unique"
@@ -99,6 +98,16 @@ erDiagram
         string reason
         timestamptz created_at
     }
+    login_codes {
+        int id PK
+        string email "lower-cased; no FK, an address may not have an account"
+        string code_hash "HMAC-SHA256, hex"
+        string full_name "set only for a sign-up"
+        timestamptz created_at
+        timestamptz expires_at "created_at + 10 minutes"
+        smallint failed_attempts "dead at 5"
+        timestamptz consumed_at "null = still usable"
+    }
     outbox_messages {
         int id PK
         string event "booking_created | booking_confirmed | booking_cancelled"
@@ -166,6 +175,8 @@ A barber runs exactly one provider: `provider_id` references `providers`, is uni
 role is `barber` (`ck_users_barber_has_provider`, `(role = 'barber') = (provider_id
 IS NOT NULL)`), so the database refuses a barber with no provider and a customer
 with one. There is no administrator role (ADR 0010).
+There is no password column: people prove their email with a code (`login_codes`,
+ADR 0013).
 `is_active = false` deactivates an account without deleting the bookings that
 reference it. Uniqueness of email is `uq_users_email_lower`, a unique index on
 `lower(email)`, so `Ali@x.uz` and `ali@x.uz` are the same address.
@@ -260,6 +271,18 @@ share `created_at` (`now()` is the transaction start), so ordering ties are
 broken by `id`. `ix_booking_events_booking_created (booking_id, created_at)`
 serves the history query. The three status columns share one Postgres enum type.
 
+### `login_codes`
+The emailed sign-in codes (ADR 0013): one row per request for a code. Only
+`code_hash` is stored, an HMAC of the address and the code under the app secret. There
+is deliberately no foreign key to `users`: a row exists for an address with no
+account (nothing is sent for it), which keeps the per-address request limit and the
+answer identical for every address, and a sign-up code is for an account that does not
+exist yet (`full_name` is the name to create it with). A code is live while
+`consumed_at IS NULL`, `expires_at` is in the future and `failed_attempts < 5`; asking
+again sets `consumed_at` on the older ones. Times come from the injected clock, not the
+database's, so tests can stand exactly on the expiry. Rows older than a day are
+deleted whenever a new code is requested.
+
 ### `outbox_messages`
 Notifications waiting for delivery (ADR 0009). A row is inserted in the same
 transaction as the booking change it announces, so a rolled-back booking leaves
@@ -300,6 +323,8 @@ Every constraint and index, with the reason it exists. Names are the real ones
 | `ck_users_barber_has_provider` | `users` | A barber has a provider, and nobody else does |
 | `uq_users_provider_id` | `users` | A provider has at most one login |
 | `ix_booking_events_booking_created` | `booking_events` | A booking's history in order |
+| `ck_login_codes_attempts_not_negative`, `ck_login_codes_expires_after_created` | `login_codes` | Sane counters and lifetimes |
+| `ix_login_codes_email_created_at` | `login_codes` | The live code of an address, and "how many codes lately?" |
 | `ck_outbox_messages_known_event` | `outbox_messages` | Only the three events the app sends |
 | `ix_outbox_messages_unsent` (partial, `sent_at IS NULL`) | `outbox_messages` | A worker's "oldest unsent first" |
 | `ix_outbox_messages_booking` | `outbox_messages` | Messages of one booking |

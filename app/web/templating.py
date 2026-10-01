@@ -58,7 +58,6 @@ class Notice:
 # Every notice a redirect can leave behind.
 FLASH_MESSAGES: dict[str, Notice] = {
     "signed_in": Notice("You're signed in.", "success"),
-    "registered": Notice("Your account is ready, and you're signed in.", "success"),
     "signed_out": Notice("You're signed out."),
     "cancelled": Notice("Booking cancelled. That time is free again.", "success"),
     "booking_confirmed": Notice("Booking confirmed.", "success"),

@@ -29,7 +29,7 @@ FRIDAY_NINE = datetime(2026, 10, 2, 4, tzinfo=UTC)  # 09:00 Tashkent
 
 
 def _user(db, email, role=UserRole.CUSTOMER, name="Test Person") -> User:
-    user = User(email=email, password_hash="x", full_name=name, role=role)
+    user = User(email=email, full_name=name, role=role)
     db.add(user)
     db.flush()
     return user

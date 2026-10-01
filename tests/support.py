@@ -86,7 +86,6 @@ def add_barber(db, email: str = "boss@example.com", name: str = "Boss", provider
     Flushed, not committed. The database refuses a barber without a provider, so
     tests that need a barber go through here instead of building a `User` by hand.
     """
-    from app.core.security import hash_password
     from app.models import Provider, User, UserRole
 
     if provider is None:
@@ -95,7 +94,6 @@ def add_barber(db, email: str = "boss@example.com", name: str = "Boss", provider
         db.flush()
     user = User(
         email=email,
-        password_hash=hash_password("x"),
         full_name=name,
         role=UserRole.BARBER,
         provider_id=provider.id,
@@ -110,3 +108,61 @@ def bearer(user, clock) -> dict[str, str]:
     from app.core.security import create_access_token
 
     return {"Authorization": f"Bearer {create_access_token(user.id, clock.now())}"}
+
+
+class Mailbox:
+    """A mailer that keeps what it was asked to send, for tests to read.
+
+    `fail` makes the next sends raise `MailError`, like a mail server that is down.
+    """
+
+    def __init__(self) -> None:
+        from app.core.mail import Mail
+
+        self.sent: list[Mail] = []
+        self.fail = False
+
+    def send(self, mail) -> None:
+        from app.core.mail import MailError
+
+        if self.fail:
+            raise MailError("The email could not be sent.")
+        self.sent.append(mail)
+
+    def to(self, email: str) -> list:
+        return [mail for mail in self.sent if mail.to == email]
+
+    def last_code(self, email: str) -> str:
+        """The 6 digits in the newest email sent to `email`."""
+        import re
+
+        mails = self.to(email)
+        assert mails, f"no email was sent to {email}"
+        return re.search(r"sign-in code is (\d{6})", mails[-1].body).group(1)
+
+
+API_AUTH = "/api/v1/auth"
+
+
+def api_sign_up(client, mailbox, email="aziza@example.com", full_name="Aziza Karimova"):
+    """Sign up through the API: request the code, read it from the mailbox, prove it.
+
+    Returns the `/auth/verify` response. The client's cookie jar then holds the
+    login and CSRF cookies.
+    """
+    sent = client.post(f"{API_AUTH}/register", json={"email": email, "full_name": full_name})
+    assert sent.status_code == 202, sent.text
+    return client.post(
+        f"{API_AUTH}/verify",
+        json={"email": email, "code": mailbox.last_code(email.strip().lower())},
+    )
+
+
+def api_sign_in(client, mailbox, email="aziza@example.com"):
+    """Sign in through the API with the code from the mailbox (the account must exist)."""
+    sent = client.post(f"{API_AUTH}/login", json={"email": email})
+    assert sent.status_code == 202, sent.text
+    return client.post(
+        f"{API_AUTH}/verify",
+        json={"email": email, "code": mailbox.last_code(email.strip().lower())},
+    )

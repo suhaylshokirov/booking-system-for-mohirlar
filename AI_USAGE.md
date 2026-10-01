@@ -686,6 +686,70 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P12 — Email codes replace passwords (owner's request, mid-P11.1)
+
+- **Asked:** while the AI was starting P11.1 (deploy), I stopped it and asked for
+  passwords to be removed: signing up and signing in should both end with typing a
+  6-digit code emailed to the person. The AI asked two questions first, because the
+  repo had no mail sender and CLAUDE.md §8 listed email-code login as out of scope:
+  how codes reach an inbox (I chose standard-library SMTP over "log it only") and how
+  a reviewer of a live demo gets in (I chose "they register their own address" over a
+  code shown on screen). I then told it not to start deployment at all, and that the
+  host would not be Render. The deploy preparation it had begun (a Render blueprint, a
+  container start script, a database-URL fix) was put in `git stash`, uncommitted,
+  and is recorded in the Deviations log.
+- **Produced:**
+  - P12.1 `app/core/mail.py` (`SmtpMailer` on `smtplib`, `ConsoleMailer`, a
+    `get_mailer` dependency), `SMTP_*` settings, and production refusing to start
+    without `SMTP_HOST`.
+  - P12.2 `login_codes` and migration `0008` (which drops `users.password_hash`),
+    `services/auth.py` rewritten around `request_*_code` / `verify_code`, the three
+    endpoints `/auth/register`, `/auth/login`, `/auth/verify`, the web pages
+    `/login`, `/register`, `/login/code`, a passwordless `create_barber` and seed,
+    `pwdlib` removed, ADR 0013, and the edge-case rows 98-105.
+- **Verified how:** unit and integration tests for every rule (expiry on the exact
+  second, once only, newest only, five tries, identical answers for known, unknown and
+  deactivated addresses, limits that trip at the same count for every address, a failed
+  send leaving no row, a wrong try surviving the request's rollback); a threaded test
+  with real commits where two requests carry one code at once; a migration test; the
+  whole suite (1231 passed). Then the part tests cannot show: the real stack was built
+  in a separate Docker project on other ports, `docs/walkthrough.sh` ran end to end
+  against it reading the codes from the app log, the browser flow was driven with curl,
+  and the three pages were screenshotted in headless Chromium at 390 px and 1280 px.
+- **Changed / rejected:**
+  - Rejected: a code shown on screen for demo accounts (the owner chose against it),
+    magic links, keeping passwords as well, sending the email after the response, and
+    keeping older codes valid after asking again (reasons in ADR 0013).
+  - Asking for a code first wrote a row only for real accounts. The AI saw while
+    designing the rate limit that this makes the sixth request answer 429 for real
+    addresses and 202 for the rest, which is exactly the enumeration the design was
+    avoiding, so a row is now written for every address and nothing is sent for the
+    unknown ones.
+  - The per-code attempt counter could not be written the usual way: a failing request
+    rolls back, so the counter would roll back too. `verify_code` commits the wrong try
+    itself, the one service that commits; recorded in ADR 0013 and the Deviations log.
+- **Bugs caught:**
+  - My first race test for two sign-ups used two different codes, but verification only
+    looks at the newest code, so one of them could never match; the test proved nothing.
+    It now tests the real race (one sign-up code used twice at once).
+  - Several tests I wrote failed for test-harness reasons, not app reasons: a cookie
+    left in the client from a previous step makes the next POST need the CSRF header, and
+    a "log in again" test had no account because only a sign-up *request* had been made.
+  - Uvicorn only configures its own loggers, so every `logger.info` in the app was being
+    dropped: the "console" mailer printed nothing. Found by trying to read a code from
+    `docker compose logs`; fixed in `app/core/logs.py` with a test.
+  - The "no mail server" note on the code page broke into columns around the `<code>` tag
+    (a `.notice` lays its children out in a row). Only the screenshot showed it.
+  - The Postgres container stopped on its own part-way through the final test run
+    (exited cleanly, not by me); 712 errors that looked like a regression were a
+    refused connection. I restarted it and the same suite passed.
+- **Not verified:** a real SMTP server. `SmtpMailer` is tested against a fake that
+  records the conversation, and the console path was run for real, but no message has
+  been sent through a real provider yet. The browser pages were not clicked through in a
+  real browser; they were screenshotted and driven with curl.
+
+---
+
 ## Summary (for the submission form)
 
 _Written in P11.5._

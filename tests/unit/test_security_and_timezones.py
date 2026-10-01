@@ -4,15 +4,7 @@ from datetime import UTC, date, datetime, time
 
 import pytest
 
-from app.core.security import hash_password
 from app.core.timezones import is_valid_timezone, local_to_utc, utc_to_local
-
-
-def test_hash_password_is_argon2_and_salted():
-    first, second = hash_password("correct horse"), hash_password("correct horse")
-    assert first.startswith("$argon2")
-    assert "correct horse" not in first
-    assert first != second  # random salt
 
 
 def test_local_to_utc_tashkent_is_five_hours_behind():

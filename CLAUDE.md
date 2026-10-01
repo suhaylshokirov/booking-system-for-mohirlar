@@ -42,7 +42,7 @@ When anything conflicts, the higher item wins:
 ## 3. Stack and commands
 
 Python 3.12 · FastAPI · Pydantic v2 · PostgreSQL 16 · SQLAlchemy 2.0 (sync,
-typed `Mapped[]`) · psycopg 3 · Alembic · Jinja2 + vanilla JS · pwdlib[argon2]
+typed `Mapped[]`) · psycopg 3 · Alembic · Jinja2 + vanilla JS
 · PyJWT · pytest · ruff · Docker Compose · GitHub Actions.
 
 Dependencies are few and pinned in `pyproject.toml`. Adding one needs a reason
@@ -58,7 +58,7 @@ written in the commit body.
 | Migrate | `alembic upgrade head` |
 | New migration | `alembic revision --autogenerate -m "..."` — then **read and edit it**; autogenerate misses exclusion constraints |
 | Seed demo data | `python -m scripts.seed` |
-| Create a barber | `python -m scripts.create_barber --email ... --password ... --name ...` (or `BARBER_EMAIL`/`BARBER_PASSWORD`) |
+| Create a barber | `python -m scripts.create_barber --email ... --name ...` (or `BARBER_EMAIL`); no password: barbers sign in with an emailed code |
 | Tests (all) | `pytest` |
 | Tests (one layer) | `pytest tests/unit` · `pytest tests/integration` · `pytest tests/concurrency` |
 | Lint + format | `ruff check . && ruff format .` |

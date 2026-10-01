@@ -12,12 +12,15 @@
 {# One labelled form control, with its hint and the server's error message.
    The input points at both through aria-describedby, and aria-invalid marks
    it for screen readers when the server rejected it. #}
-{% macro field(name, label, type="text", value="", error=none, hint=none, autocomplete=none, required=true, autofocus=false) %}
+{% macro field(name, label, type="text", value="", error=none, hint=none, autocomplete=none, required=true, autofocus=false, inputmode=none, maxlength=none, class_name=none) %}
 <div class="field{% if error %} field--invalid{% endif %}">
     <label class="field__label" for="field-{{ name }}">{{ label }}</label>
     <input id="field-{{ name }}" name="{{ name }}" type="{{ type }}"
            {%- if value is not none and value != "" %} value="{{ value }}"{% endif %}
            {%- if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}
+           {%- if inputmode %} inputmode="{{ inputmode }}"{% endif %}
+           {%- if maxlength %} maxlength="{{ maxlength }}"{% endif %}
+           {%- if class_name %} class="{{ class_name }}"{% endif %}
            {%- if required %} required{% endif %}
            {%- if autofocus %} autofocus{% endif %}
            {%- if error %} aria-invalid="true"{% endif %}

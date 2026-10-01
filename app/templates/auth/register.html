@@ -19,27 +19,20 @@
 
 {% block content %}
 <section class="auth">
-    {# The cursor starts in the first field that needs fixing. #}
-    {% set focus = "full_name" if errors.full_name or not errors else ("email" if errors.email else "password") %}
     <form class="form auth-form" method="post" action="/register" novalidate data-submit-once>
         {{ ui.csrf_field(csrf_token) }}
         <input type="hidden" name="next" value="{{ next }}">
 
-        {{ ui.field("full_name", "Your name", value=values.full_name, error=errors.full_name,
-                    autocomplete="name", autofocus=focus == "full_name") }}
-        {{ ui.field("email", "Email", type="email", value=values.email, error=errors.email,
-                    autocomplete="email", autofocus=focus == "email") }}
-        {% if email_taken %}
-        <p class="auth-alt">
-            Is it yours?
-            <a href="/login?{{ {'next': next}|urlencode }}">Sign in instead</a>.
-        </p>
-        {% endif %}
-        {{ ui.field("password", "Password", type="password", error=errors.password,
-                    hint="At least 8 characters.", autocomplete="new-password",
-                    autofocus=focus == "password") }}
+        {% if problem %}<p class="notice notice--error" role="alert">{{ problem }}</p>{% endif %}
 
-        <button type="submit" class="btn btn--block" data-busy-label="Creating your account…">Create account</button>
+        {# The cursor starts in the first field that needs fixing. #}
+        {{ ui.field("full_name", "Your name", value=values.full_name, error=errors.full_name,
+                    autocomplete="name", autofocus=errors.full_name or not errors) }}
+        {{ ui.field("email", "Email", type="email", value=values.email, error=errors.email,
+                    hint="We email you a 6-digit code to finish. There is no password.",
+                    autocomplete="email", autofocus=errors.email) }}
+
+        <button type="submit" class="btn btn--block" data-busy-label="Sending the code…">Email me a code</button>
     </form>
 </section>
 {% endblock %}

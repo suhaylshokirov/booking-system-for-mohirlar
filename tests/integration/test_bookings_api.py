@@ -8,7 +8,7 @@ from datetime import time, timedelta
 
 import pytest
 
-from app.core.security import create_access_token, hash_password
+from app.core.security import create_access_token
 from app.models import AvailabilityRule, Provider, ProviderService, Service, User, UserRole
 from tests.support import add_barber
 
@@ -31,7 +31,7 @@ def setup(db):
 
 
 def login_as(db, clock, email, role=UserRole.CUSTOMER) -> dict[str, str]:
-    user = User(email=email, password_hash=hash_password("x"), full_name=email, role=role)
+    user = User(email=email, full_name=email, role=role)
     db.add(user)
     db.flush()
     return {"Authorization": f"Bearer {create_access_token(user.id, clock.now())}"}

@@ -46,7 +46,7 @@ def rejected(db: Session, sqlstate: str, constraint: str):
 
 
 def make_user(db: Session, email: str = "ali@example.uz") -> User:
-    user = User(email=email, password_hash="x", full_name="Ali")
+    user = User(email=email, full_name="Ali")
     db.add(user)
     db.flush()
     return user
@@ -355,7 +355,7 @@ def test_second_business_settings_row_is_rejected(db):
 def test_duplicate_email_differing_only_in_case_is_rejected(db):
     make_user(db, "Ali@Example.uz")
     with rejected(db, UNIQUE_VIOLATION, "uq_users_email_lower"):
-        db.add(User(email="ali@example.UZ", password_hash="x", full_name="Other"))
+        db.add(User(email="ali@example.UZ", full_name="Other"))
 
 
 # --- history is protected ---------------------------------------------------

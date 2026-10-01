@@ -189,7 +189,7 @@ def test_blank_reason_becomes_none(client, barber, db):
 
 def test_an_exception_on_a_date_with_bookings_keeps_the_bookings(client, barber, db):
     provider = barber.provider
-    customer = User(email="c@example.com", password_hash="x", full_name="C")
+    customer = User(email="c@example.com", full_name="C")
     service = Service(name="Haircut", duration_minutes=30, price=60000)
     db.add_all([customer, service])
     db.flush()

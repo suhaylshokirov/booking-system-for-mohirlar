@@ -42,7 +42,7 @@ def _provider(db: Session, service: Service, name: str, start: int, end: int) ->
 
 
 def _user(db: Session, email: str) -> User:
-    user = User(email=email, password_hash="x", full_name="Aziza Karimova", role=UserRole.CUSTOMER)
+    user = User(email=email, full_name="Aziza Karimova", role=UserRole.CUSTOMER)
     db.add(user)
     db.flush()
     return user

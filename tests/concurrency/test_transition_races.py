@@ -27,7 +27,6 @@ def make_barber(committing_db, clock, provider_id: int) -> dict[str, str]:
     with committing_db() as db:
         user = User(
             email="boss@example.com",
-            password_hash="x",
             full_name="Boss",
             role=UserRole.BARBER,
             provider_id=provider_id,

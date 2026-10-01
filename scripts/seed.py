@@ -7,8 +7,8 @@ overwrites edits made in the barber UI (a changed price stays changed).
 Creates business settings (Asia/Tashkent, UZS, 15-minute slots), four
 services, three barbers with different service sets, weekly hours, a phone
 number and a photo, one day off, a login for each barber (the first is
-BARBER_EMAIL, all share BARBER_PASSWORD), a demo customer, and four bookings
-in different statuses with their history events.
+BARBER_EMAIL), a demo customer, and four bookings in different statuses with
+their history events. Nobody has a password: everyone signs in with an emailed code.
 
 The bookings are inserted directly rather than through the booking service:
 the seed is trusted data, and it must not depend on the lead-time and horizon
@@ -25,7 +25,6 @@ from sqlalchemy.orm import Session
 from app.core.clock import Clock, SystemClock
 from app.core.config import Settings, get_settings
 from app.core.db import SessionLocal
-from app.core.security import hash_password
 from app.core.timezones import local_to_utc, utc_to_local
 from app.models import (
     AvailabilityException,
@@ -45,7 +44,6 @@ from app.services.provider_photo import image_type
 Status = BookingStatus  # short alias: the histories below stay readable
 
 DEMO_CUSTOMER_EMAIL = "demo@navbat.local"
-DEMO_CUSTOMER_PASSWORD = "demo-customer-password"
 BUSINESS_NAME = "Navbat Barbershop"
 TIMEZONE = "Asia/Tashkent"
 
@@ -168,7 +166,6 @@ def seed_day_off(db: Session, provider: Provider, today: date) -> None:
 def seed_user(
     db: Session,
     email: str,
-    password: str,
     full_name: str,
     role: UserRole,
     provider: Provider | None = None,
@@ -181,7 +178,6 @@ def seed_user(
     if user is None:
         user = User(
             email=email.lower(),
-            password_hash=hash_password(password),
             full_name=full_name,
             role=role,
             provider_id=provider.id if provider else None,
@@ -198,9 +194,7 @@ def seed_barbers(
     barbers = {}
     for index, (name, provider) in enumerate(providers.items()):
         email = settings.barber_email if index == 0 else f"{name.lower()}@navbat.local"
-        barbers[name] = seed_user(
-            db, email, settings.barber_password, name, UserRole.BARBER, provider
-        )
+        barbers[name] = seed_user(db, email, name, UserRole.BARBER, provider)
     return barbers
 
 
@@ -328,9 +322,7 @@ def seed(db: Session, settings: Settings, clock: Clock) -> None:
     providers = seed_providers(db, services)
     seed_day_off(db, providers["Bekzod"], today)
     barbers = seed_barbers(db, settings, providers)
-    customer = seed_user(
-        db, DEMO_CUSTOMER_EMAIL, DEMO_CUSTOMER_PASSWORD, "Demo Customer", UserRole.CUSTOMER
-    )
+    customer = seed_user(db, DEMO_CUSTOMER_EMAIL, "Demo Customer", UserRole.CUSTOMER)
     seed_bookings(db, today, customer, barbers, providers, services)
 
 

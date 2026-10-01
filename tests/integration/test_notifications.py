@@ -30,7 +30,7 @@ NINE = datetime(2026, 10, 2, 4, 0, tzinfo=UTC)  # 09:00 Tashkent
 
 
 def _user(db: Session, email: str, role=UserRole.CUSTOMER) -> User:
-    user = User(email=email, password_hash="x", full_name=email.split("@")[0], role=role)
+    user = User(email=email, full_name=email.split("@")[0], role=role)
     db.add(user)
     db.flush()
     return user

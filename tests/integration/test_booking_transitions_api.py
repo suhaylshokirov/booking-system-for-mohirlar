@@ -9,7 +9,7 @@ from datetime import datetime, time, timedelta
 
 import pytest
 
-from app.core.security import create_access_token, hash_password
+from app.core.security import create_access_token
 from app.models import AvailabilityRule, Provider, ProviderService, Service, User, UserRole
 from tests.support import add_barber
 
@@ -20,7 +20,7 @@ BASE = "/api/v1/bookings"
 
 
 def make_user(db, email, role=UserRole.CUSTOMER) -> User:
-    user = User(email=email, password_hash=hash_password("x"), full_name=email, role=role)
+    user = User(email=email, full_name=email, role=role)
     db.add(user)
     db.flush()
     return user

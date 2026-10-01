@@ -11,7 +11,14 @@ import re
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StringConstraints,
+)
 
 from app.models.user import UserRole
 
@@ -35,32 +42,67 @@ EmailInput = Annotated[str, Field(min_length=3, max_length=254), AfterValidator(
 
 
 class RegisterRequest(BaseModel):
+    """Start signing up: where to send the code, and the name for the new account."""
+
     email: EmailInput
-    # 128 caps the work Argon2 does on one request; 8 is the usual floor.
-    password: str = Field(min_length=8, max_length=128)
     full_name: FullNameInput
 
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [
-                {
-                    "email": "aziza@example.com",
-                    "password": "a long passphrase",
-                    "full_name": "Aziza Karimova",
-                }
-            ]
+            "examples": [{"email": "aziza@example.com", "full_name": "Aziza Karimova"}]
         }
     )
 
 
 class LoginRequest(BaseModel):
+    """Start signing in: where to send the code."""
+
     email: EmailInput
-    # No minimum: a wrong password of any length is just "incorrect".
-    password: str = Field(min_length=1, max_length=128)
+
+    model_config = ConfigDict(json_schema_extra={"examples": [{"email": "aziza@example.com"}]})
+
+
+def _digits_only(value: object) -> object:
+    """Accept "123 456" and "123-456" as people paste them from an email."""
+    if isinstance(value, str):
+        return value.replace(" ", "").replace("-", "")
+    return value
+
+
+# Exactly 6 digits, checked after removing the spaces and dashes above.
+CodeInput = Annotated[
+    str,
+    BeforeValidator(_digits_only),
+    StringConstraints(pattern=r"^\d{6}$"),
+]
+
+
+class VerifyRequest(BaseModel):
+    """Finish signing up or in: the address and the 6-digit code emailed to it."""
+
+    email: EmailInput
+    code: CodeInput
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"email": "aziza@example.com", "code": "482913"}]}
+    )
+
+
+class CodeSentResponse(BaseModel):
+    """The answer to asking for a code. It is the same whether or not the address has
+    an account, on purpose: the endpoint cannot be used to find out who is registered."""
+
+    message: str
+    expires_in_minutes: int
 
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [{"email": "aziza@example.com", "password": "a long passphrase"}]
+            "examples": [
+                {
+                    "message": "If this address can sign in, a 6-digit code is on its way.",
+                    "expires_in_minutes": 10,
+                }
+            ]
         }
     )
 
