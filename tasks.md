@@ -717,8 +717,8 @@ reviewers of a live demo register their own address, no code is ever shown on sc
 ## P11 — Ship
 
 ### P11.1 — Deploy
-- [ ] Status
-- **Resumed (owner, 2026-10-01):** the host is **Vercel** with **Neon** Postgres (ADR 0014). Deployed to https://navbat-pi.vercel.app; migrated and seeded; health, home, static files, the services API and the sign-in-code request (`202`) were checked on the live URL. **Still to verify by hand:** that the emailed code arrives and signs the owner in, and one booking made on the live site (then tick this task).
+- [x] Status
+- **Resumed (owner, 2026-10-01):** the host is **Vercel** with **Neon** Postgres (ADR 0014). Deployed to https://navbat-pi.vercel.app; migrated and seeded; health, home, static files, the services API and the sign-in-code request (`202`) were checked on the live URL. **Verified by the owner by hand (2026-10-01):** the emailed code arrives and signs them in, and a booking made on the live site works.
 - Goal: a live demo URL.
 - Requirement(s) served: Deployed / demo URL
 - Acceptance criteria: Vercel project (FastAPI function from `app/main.py`) + Neon Postgres with `btree_gist` available; `APP_ENV=production` (Secure cookies), secrets set in Vercel's environment only; migrations applied (by hand, ADR 0014); **free-tier limits checked and noted** (must outlive the review window). Changed from "Render (or Railway) from the Dockerfile, migrations on start": see the Deviations log.
@@ -727,7 +727,7 @@ reviewers of a live demo register their own address, no code is ever shown on sc
 - Edge cases covered: —
 
 ### P11.2 — Demo data on the live instance
-- [ ] Status
+- [x] Status
 - Goal: a reviewer can log in and see a realistic week.
 - Requirement(s) served: working application
 - Acceptance criteria: seed run against the live database; README says how a reviewer signs in. There are no passwords (ADR 0013): the first barber is the owner's real email, and a reviewer signs up as a customer with their own address.
@@ -763,8 +763,8 @@ reviewers of a live demo register their own address, no code is ever shown on sc
 - Edge cases covered: —
 
 ### P11.6 — Clean-clone verification
-- [ ] Status
-- **Done so far (2026-10-01):** a fresh `git clone` (no `.env`, no untracked files) was brought up with the README's Docker quick start (`DB_HOST_PORT=5436`, because 5433 was in use): migrations and seed ran, health was ok, 4 services were served, `/` and `/docs` returned 200. In the same clone a new venv, `pip install -e ".[dev]"`, `ruff check`, `ruff format --check` and `pytest` all passed (1241 passed, 1 skipped). **Still to do:** tag `v1.0.0` and the final push, after the owner has checked the live sign-in email (P11.1/P11.2).
+- [x] Status
+- **Done so far (2026-10-01):** a fresh `git clone` (no `.env`, no untracked files) was brought up with the README's Docker quick start (`DB_HOST_PORT=5436`, because 5433 was in use): migrations and seed ran, health was ok, 4 services were served, `/` and `/docs` returned 200. In the same clone a new venv, `pip install -e ".[dev]"`, `ruff check`, `ruff format --check` and `pytest` all passed (1241 passed, 1 skipped). Tagged `v1.0.0` and pushed after the owner confirmed the live sign-in email and a live booking.
 - Goal: what the reviewer runs, works.
 - Requirement(s) served: working application; README setup
 - Acceptance criteria: fresh clone → follow README quick start verbatim → app up, seeded, tests pass; tag `v1.0.0`; final push. The owner submits.
