@@ -81,6 +81,11 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     role: UserRole
+    provider_id: int | None = Field(
+        default=None,
+        description="The provider a barber runs (use it in `/providers/{id}/...`); "
+        "`null` for customers.",
+    )
     created_at: datetime
 
     model_config = ConfigDict(
@@ -92,6 +97,7 @@ class UserResponse(BaseModel):
                     "email": "aziza@example.com",
                     "full_name": "Aziza Karimova",
                     "role": "customer",
+                    "provider_id": None,
                     "created_at": "2026-10-01T07:00:00Z",
                 }
             ]

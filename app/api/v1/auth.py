@@ -115,4 +115,6 @@ def logout(response: Response) -> None:
     responses={401: {"model": ErrorResponse, "description": "Not logged in."}},
 )
 def me(user: CurrentUser) -> UserResponse:
+    """The account behind the token or cookie: id, email, name and role (`customer` or
+    `barber`). A barber's `provider_id` is the provider they run."""
     return UserResponse.model_validate(user)

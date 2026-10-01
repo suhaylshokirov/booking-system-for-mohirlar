@@ -542,10 +542,11 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
-## P10 — Bonuses (in progress: P10.4 is still to do)
+## P10 — Bonuses
 
 - **Asked:** one task at a time: the calendar file (P10.1), a notifier with an
-  outbox (P10.2), timezone display polish (P10.3). Before P10.4 I changed the
+  outbox (P10.2), timezone display polish (P10.3), the API documentation pass
+  (P10.4). Before P10.4 I changed the
   product: **remove the admin and let the barbers manage client requests**
   (P10.5, ADR 0010). The AI asked me four design questions before touching code
   (how barbers log in, who manages shared setup, how accounts are created, what
@@ -561,6 +562,10 @@ in [`CLAUDE.md`](CLAUDE.md).
   - P10.3 `local_start` / `local_end` / `timezone` in booking and slot
     responses, a per-instant UTC offset beside every time on the pages, and a
     device-timezone note; ADR 0006 addendum. Commit `78c0e50`.
+  - P10.4 `app/core/error_catalog.py` (one list of error codes), `app/core/openapi.py`
+    (finishing the Swagger document), examples and descriptions on every endpoint,
+    `tests/unit/test_openapi_docs.py` (about 190 checks), `docs/walkthrough.sh`, and the
+    docs/api.md updates.
   - P10.5 the barber role: migration `0005`, `require_barber` and
     `require_own_provider`, scoped bookings, dashboard, hours and profile,
     `/admin` renamed to `/barber`, `create_barber`, a seed login per barber;
@@ -568,11 +573,14 @@ in [`CLAUDE.md`](CLAUDE.md).
 - **Verified how:** a test file or test group per task (including a Berlin
   business across the 25 October clock change, a rolled-back booking leaving no
   notification, and "another barber's booking is a 404" through the API and the
-  web); the whole suite after each task (866, 881, 897, then 906 tests);
+  web); the whole suite after each task (866, 881, 897, 906, then 1101 tests, most of
+  the increase being the per-endpoint documentation checks);
   `alembic check` for model/migration drift; a test that migration `0005`
   converts an existing admin; for P10.5 also a real server against the
   migrated and seeded dev database, signing in as a barber and fetching every
-  barber page. The device-timezone script was checked against real `Intl` in
+  barber page. For P10.4 the guide's flow was **run**, not just read: the walkthrough
+  script against a fresh `docker compose up` (a separate project and ports, so my dev
+  database was untouched) ended with `WALKTHROUGH OK`. The device-timezone script was checked against real `Intl` in
   Node, **not** in a browser, and the new CSS was not looked at by eye.
 - **Changed / rejected:**
   - The AI considered an environment switch for the notifiers and kept a plain
@@ -582,7 +590,7 @@ in [`CLAUDE.md`](CLAUDE.md).
   - Barbers' own pages dropped the provider id from the address entirely rather
     than checking it, so there is nothing to tamper with.
   - Not built, on purpose: a notification to the barber, a delivery worker for
-    the outbox, a browser test for the timezone note.
+    the outbox, a browser test for the timezone note, the walkthrough in CI.
 - **Bugs caught:**
   - The full-suite run after P10.2 failed a concurrency test that is not about
     the change. Reproducing it on the previous commit (4 failures in 25 runs)
@@ -605,6 +613,14 @@ in [`CLAUDE.md`](CLAUDE.md).
     admin; the migration now creates a provider per admin first, and a test
     proves it. Tests that expected 404 for another provider's hours now expect
     403 on purpose (that is a public provider, not a private booking).
+  - P10.4: the new docs test found that five booking-transition codes had never been
+    in the error table, so the "complete" table was not complete. FastAPI's generated
+    422 documented `{"detail": [...]}`, which this API never sends. I wrote in an
+    endpoint docstring that `/auth/me` returns `provider_id` when it did not; running
+    the walkthrough exposed that a barber had no way to learn their provider id, so the
+    field was added (and tested) rather than the claim removed. The walkthrough's first
+    run booked with one barber and then signed in as another, correctly seeing nothing:
+    the script was wrong, the API was right.
 
 ---
 

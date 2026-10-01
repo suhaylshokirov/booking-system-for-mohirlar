@@ -29,7 +29,7 @@ _EXAMPLE = {
                 },
             ],
         },
-        {"provider": {"id": 2, "name": "Aziz"}, "slots": []},
+        {"provider": {"id": 2, "name": "Bekzod"}, "slots": []},
     ],
 }
 

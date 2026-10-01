@@ -12,7 +12,7 @@ from app.api.deps import IncludeInactive, OptionalUser, OwnProvider, is_barber
 from app.core.db import DbSession
 from app.core.pagination import PageParamsDep
 from app.schemas.errors import ErrorResponse
-from app.schemas.pagination import Page
+from app.schemas.pagination import Page, page_response
 from app.schemas.provider import (
     OfferedServices,
     ProviderResponse,
@@ -37,6 +37,7 @@ _NOT_FOUND = {404: {"model": ErrorResponse, "description": "`NOT_FOUND`: no such
     response_model=Page[ProviderResponse],
     summary="List providers (public)",
     responses={
+        **page_response(ProviderResponse),
         401: {"model": ErrorResponse, "description": "`include_inactive` without logging in."},
         403: {"model": ErrorResponse, "description": "`include_inactive` by a non-barber."},
     },
@@ -82,6 +83,8 @@ def read_provider(provider_id: int, db: DbSession, user: OptionalUser) -> Provid
 def update_provider(
     provider_id: int, body: ProviderUpdate, db: DbSession, barber: OwnProvider
 ) -> ProviderResponse:
+    """Change your own name or bio. Send only the fields to change. Another barber's
+    provider id is `403 FORBIDDEN`."""
     view = provider_catalog.update_provider(db, provider_id, body.model_dump(exclude_unset=True))
     return ProviderResponse.from_view(view)
 
@@ -105,6 +108,7 @@ def deactivate_provider(provider_id: int, db: DbSession, barber: OwnProvider) ->
     responses={**_BARBER_ERRORS, **_NOT_FOUND},
 )
 def activate_provider(provider_id: int, db: DbSession, barber: OwnProvider) -> ProviderResponse:
+    """Show yourself to customers again after hiding. Repeating it is harmless."""
     view = provider_catalog.set_provider_active(db, provider_id, active=True)
     return ProviderResponse.from_view(view)
 

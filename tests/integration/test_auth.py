@@ -256,3 +256,11 @@ def test_a_valid_token_stops_working_once_the_user_is_deactivated(client, db):
 def test_registered_users_are_customers_in_the_database(client, db):
     _register(client)
     assert db.scalar(select(User.role)) == UserRole.CUSTOMER
+
+
+def test_me_gives_a_barber_their_provider_id_and_a_customer_none(client, barber, customer):
+    """A barber needs their provider id for `/providers/{id}/...` (found by the walkthrough)."""
+    assert client.get("/api/v1/auth/me", headers=customer).json()["provider_id"] is None
+    me = client.get("/api/v1/auth/me", headers=barber).json()
+    assert me["role"] == "barber"
+    assert me["provider_id"] == barber.provider.id

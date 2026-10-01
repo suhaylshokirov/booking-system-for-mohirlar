@@ -52,6 +52,25 @@ class CancelRequest(BaseModel):
         return value or None
 
 
+_BOOKING_EXAMPLE = {
+    "id": 7,
+    "customer_id": 3,
+    "provider_id": 1,
+    "service_id": 1,
+    "start_at": "2026-10-05T05:00:00Z",
+    "end_at": "2026-10-05T05:30:00Z",
+    "local_start": "2026-10-05T10:00:00+05:00",
+    "local_end": "2026-10-05T10:30:00+05:00",
+    "timezone": "Asia/Tashkent",
+    "status": "pending",
+    "price_amount": 60000,
+    "duration_minutes": 30,
+    "notes": "Short back and sides, please.",
+    "cancel_reason": None,
+    "created_at": "2026-10-01T07:00:00Z",
+}
+
+
 class BookingResponse(BaseModel):
     id: int
     customer_id: int
@@ -71,6 +90,8 @@ class BookingResponse(BaseModel):
     notes: str | None
     cancel_reason: str | None
     created_at: dt.datetime
+
+    model_config = ConfigDict(json_schema_extra={"examples": [_BOOKING_EXAMPLE]})
 
     @classmethod
     def from_booking(cls, booking: Any, timezone: str, **extra: Any) -> Self:
@@ -107,9 +128,27 @@ class BookingEventResponse(BaseModel):
     reason: str | None
     created_at: dt.datetime
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "from_status": "pending",
+                    "to_status": "confirmed",
+                    "actor": {"id": 1, "role": "barber", "name": "Jasur"},
+                    "reason": None,
+                    "created_at": "2026-10-01T09:12:00Z",
+                }
+            ]
+        }
+    )
+
 
 class ClientBookingResponse(BookingResponse):
     stale_pending: bool = Field(
         description="Still `pending` although its start has passed. Cancel it "
         "(`POST /bookings/{id}/cancel`); it can no longer be confirmed."
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{**_BOOKING_EXAMPLE, "stale_pending": False}]}
     )

@@ -114,6 +114,9 @@ def update_rule(
     barber: OwnProvider,
     clock: ClockDep,
 ) -> RuleWriteResponse:
+    """Change a weekly window of your own. The result is checked as a whole (grid,
+    end after start, no overlap on that weekday). Bookings that no longer fit are
+    listed in `details.conflicts`; none is touched."""
     rule = availability.update_rule(db, provider_id, rule_id, body.changes())
     return _rule_write(db, rule, clock)
 

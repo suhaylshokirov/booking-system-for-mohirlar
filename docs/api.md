@@ -94,7 +94,7 @@ someone applies to their existing token immediately.
 | `POST /auth/register` | 201 user | Email is trimmed and lower-cased; password 8–128 characters; full name 1–100. `409 EMAIL_TAKEN` if the email exists in any letter case. |
 | `POST /auth/login` | 200 `{access_token, token_type}` + cookie | Unknown email and wrong password give the same `401 INVALID_CREDENTIALS`. Rate limited: see below. |
 | `POST /auth/logout` | 204 | Clears both cookies (needs the CSRF header if sent by cookie). Tokens are stateless, so a Bearer token you copied stays valid until it expires. |
-| `GET /auth/me` | 200 user | `401` without valid credentials. |
+| `GET /auth/me` | 200 user | `401` without valid credentials. `provider_id` is the provider a barber runs (what to put in `/providers/{id}/...`), `null` for a customer. |
 
 Email addresses are checked with a simple `name@domain.tld` pattern, not a full
 RFC validator (that would need an extra dependency); an address that passes but
@@ -259,7 +259,26 @@ booking). Note that the deletes return `200` with a body rather than `204`, so t
 warning has somewhere to go.
 
 ## Walkthrough: book an appointment with curl
-_Built up step by step: slots (P5.3), booking (P6.3), cancelling (P7.3); verified end to end in P10.4._
+_Built up step by step: slots (P5.3), booking (P6.3), cancelling (P7.3). The whole flow is
+also a script, [`docs/walkthrough.sh`](walkthrough.sh), run end to end against a fresh
+`docker compose up` in P10.4._
+
+**Run it yourself.** With the stack up (`docker compose up --build -d`, which migrates and
+seeds the demo barbershop):
+
+```bash
+bash docs/walkthrough.sh                            # against http://localhost:8000
+BASE=http://localhost:18000 bash docs/walkthrough.sh   # another host or port
+```
+
+It needs only bash, curl and python3. It registers a customer, signs in as the seeded
+barber (`BARBER_EMAIL` / `BARBER_PASSWORD`, defaults `jasur@navbat.local` /
+`change-me-barber-password`), finds a free slot, books it, checks that the same time is
+`409 SLOT_TAKEN`, a time without an offset is `422`, a customer cannot confirm (`403`),
+that the barber sees the booking and confirms it, reads the history and the `.ics`
+file, that another customer gets `404`, then cancels and sees the time offered again.
+It prints `WALKTHROUGH OK`, or stops at the first step that does not behave as written
+here. The commands below are the same calls, one at a time.
 
 **Step: see free slots** (public, no login). Pick a service id from
 `GET /services`, then ask for a date. Omit `provider_id` to get every provider
@@ -279,7 +298,7 @@ curl 'localhost:8000/api/v1/slots?service_id=1&date=2026-10-05&provider_id=1'
     {"provider": {"id": 1, "name": "Jasur"},
      "slots": [{"start_at": "2026-10-05T04:00:00Z", "end_at": "2026-10-05T04:30:00Z",
                 "local_start": "2026-10-05T09:00:00+05:00", "local_end": "2026-10-05T09:30:00+05:00"}]},
-    {"provider": {"id": 2, "name": "Aziz"}, "slots": []}
+    {"provider": {"id": 2, "name": "Bekzod"}, "slots": []}
   ]
 }
 ```
@@ -443,7 +462,7 @@ rejected the input, the route doesn't exist, or something crashed:
   the details are in the server log, never in the response.
 
 ## Error codes
-_One row per code, added by the task that introduces it._
+_The complete list. It is `app/core/error_catalog.py`; a test keeps this table identical to it and checks that every code the app raises is here._
 
 | Code | HTTP | Meaning |
 |---|---|---|
@@ -473,6 +492,11 @@ _One row per code, added by the task that introduces it._
 | `OUTSIDE_AVAILABILITY` | 422 | Booking: the provider is not working for the whole service at that time (weekly rules and exceptions applied) |
 | `NOT_ALIGNED` | 422 | Booking: the start is not on the slot grid measured from the window start |
 | `BOOKING_NOT_FOUND` | 404 | No such booking, or it belongs to someone else (a barber sees the ones made with them) |
+| `INVALID_TRANSITION` | 409 | Booking: that status change is not allowed (not the booking's barber or customer, the wrong current status, or it has already started); `details.from`, `details.to` |
+| `CANCELLATION_CUTOFF_PASSED` | 409 | Booking: too late for a customer to cancel (a confirmed booking after `start - cutoff`, a pending one after it started); `details.cutoff_at` |
+| `REASON_REQUIRED` | 422 | Booking: a barber cancelling a confirmed booking must give a reason |
+| `TOO_EARLY_TO_COMPLETE` | 409 | Booking: it can only be completed once `end_at` has passed; `details.end_at` |
+| `BOOKING_STATE_CHANGED` | 409 | Booking: someone changed it at the same moment (ADR 0008); reload and try again |
 | `SLOT_TAKEN` | 409 | Booking: the provider already has a pending or confirmed booking overlapping that time |
 | `CUSTOMER_OVERLAP` | 409 | Booking: you already have a pending or confirmed booking overlapping that time |
 | `DATE_IN_PAST` | 422 | Availability exception: the date is before today in the business timezone; `details.today` |
@@ -485,6 +509,19 @@ _One row per code, added by the task that introduces it._
 | `TOO_MANY_REQUESTS` | 429 | Generic framework 429 |
 | `INTERNAL_ERROR` | 500 | Unexpected failure on our side |
 | `DATABASE_UNAVAILABLE` | 503 | `GET /health` could not reach the database |
+| `INVALID_SLOT` | 422 | Web booking form only (an HTML page, not JSON): the chosen time is not one of the offered slots |
+| `INVALID_PROVIDER` | 422 | Web booking form only (an HTML page, not JSON): the chosen person is not one of the offered providers |
+
+## Reading the Swagger document
+
+`/docs` is generated from the code, then finished in `app/core/openapi.py`: every endpoint
+has a summary, a description, a request example and a success example, and lists the errors
+it can return, each with an example body in the real envelope. Path parameters are
+described, FastAPI's default `{"detail": [...]}` 422 is replaced by the real
+`VALIDATION_ERROR` envelope, and every operation also lists `500 INTERNAL_ERROR`. A test
+(`tests/unit/test_openapi_docs.py`) fails when a new endpoint is added without these, when
+a documented code is missing from the table above, or when the table drifts from
+`app/core/error_catalog.py`.
 
 ## Health check
 `GET /api/v1/health` → `200 {"status": "ok", "database": "ok"}`; it runs

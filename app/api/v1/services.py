@@ -6,7 +6,7 @@ from app.api.deps import BarberUser, IncludeInactive, OptionalUser, is_barber
 from app.core.db import DbSession
 from app.core.pagination import PageParamsDep
 from app.schemas.errors import ErrorResponse
-from app.schemas.pagination import Page
+from app.schemas.pagination import Page, page_response
 from app.schemas.service import ServiceCreate, ServiceResponse, ServiceUpdate
 from app.services import service_catalog
 
@@ -31,6 +31,7 @@ _NOT_ALIGNED = {
     response_model=Page[ServiceResponse],
     summary="List services (public)",
     responses={
+        **page_response(ServiceResponse),
         401: {"model": ErrorResponse, "description": "`include_inactive` without logging in."},
         403: {"model": ErrorResponse, "description": "`include_inactive` by a non-barber."},
     },
@@ -70,6 +71,8 @@ def read_service(service_id: int, db: DbSession, user: OptionalUser) -> ServiceR
     responses={**_BARBER_ERRORS, **_NOT_ALIGNED},
 )
 def create_service(body: ServiceCreate, db: DbSession, barber: BarberUser) -> ServiceResponse:
+    """Any barber may add a service. The duration must be a multiple of the slot
+    granularity (`DURATION_NOT_ALIGNED` otherwise); the price is a whole number of UZS."""
     service = service_catalog.create_service(db, body.model_dump())
     return ServiceResponse.model_validate(service)
 
@@ -108,5 +111,7 @@ def deactivate_service(service_id: int, db: DbSession, barber: BarberUser) -> Se
     responses={**_BARBER_ERRORS, **_NOT_FOUND, **_NOT_ALIGNED},
 )
 def activate_service(service_id: int, db: DbSession, barber: BarberUser) -> ServiceResponse:
+    """Show a deactivated service to customers again. It must still fit the slot grid
+    (`DURATION_NOT_ALIGNED` if the granularity changed while it was hidden)."""
     service = service_catalog.set_service_active(db, service_id, active=True)
     return ServiceResponse.model_validate(service)

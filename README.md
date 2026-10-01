@@ -48,7 +48,7 @@ implemented once it exists.
 ### Bonuses
 
 - [ ] Tests (unit, integration, concurrency)
-- [ ] API documentation (Swagger + guide)
+- [x] API documentation (Swagger with examples and errors on every endpoint, a curl guide, a runnable walkthrough, a complete error-code table)
 - [ ] Docker
 - [ ] Barber dashboard (each barber's own bookings, hours and queue)
 - [x] Timezone support (business timezone; UTC storage; local time and offset in API and pages)

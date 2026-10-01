@@ -167,6 +167,22 @@ class ConflictResponse(BaseModel):
         "the booking."
     )
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "booking_id": 12,
+                    "status": "confirmed",
+                    "start_at": "2026-10-05T11:00:00Z",
+                    "end_at": "2026-10-05T11:30:00Z",
+                    "customer_id": 3,
+                    "service_id": 1,
+                    "reason": "outside_hours",
+                }
+            ]
+        }
+    )
+
     @classmethod
     def from_conflict(cls, conflict: Any) -> "ConflictResponse":
         booking = conflict.booking
@@ -199,3 +215,7 @@ class ExceptionWriteResponse(ExceptionResponse):
 class DeleteResponse(BaseModel):
     id: int = Field(description="The id of the removed rule or exception.")
     details: ConflictDetails
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"id": 4, "details": {"conflicts": []}}]}
+    )

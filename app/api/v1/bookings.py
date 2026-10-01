@@ -19,7 +19,7 @@ from app.schemas.booking import (
     EventActor,
 )
 from app.schemas.errors import ErrorResponse
-from app.schemas.pagination import Page
+from app.schemas.pagination import Page, page_response
 from app.services import booking as booking_service
 from app.services.booking_state import is_stale_pending
 from app.services.calendar import booking_ics
@@ -68,7 +68,7 @@ def create_booking(
     "",
     response_model=Page[BookingResponse],
     summary="List my bookings",
-    responses=_UNAUTHENTICATED,
+    responses={**_UNAUTHENTICATED, **page_response(BookingResponse)},
 )
 def list_bookings(
     db: DbSession,
@@ -101,6 +101,7 @@ def list_bookings(
     response_model=Page[ClientBookingResponse],
     summary="List the bookings made with me (barber)",
     responses={
+        **page_response(ClientBookingResponse),
         **_UNAUTHENTICATED,
         403: {"model": ErrorResponse, "description": "`FORBIDDEN`: not a barber."},
     },
@@ -156,6 +157,9 @@ def list_client_bookings(
 def read_booking(
     booking_id: int, db: DbSession, user: CurrentUser, tz: BusinessTimezone
 ) -> BookingResponse:
+    """Your own booking, or one made with you if you are a barber. Another person's
+    booking is `404 BOOKING_NOT_FOUND`, the same as a missing one. Times are given in
+    UTC (`start_at`) and on the business's clock (`local_start`)."""
     return BookingResponse.from_booking(booking_service.get_booking(db, user, booking_id), tz)
 
 
@@ -264,6 +268,8 @@ def cancel_booking(
 def confirm_booking(
     booking_id: int, db: DbSession, barber: BarberUser, clock: ClockDep, tz: BusinessTimezone
 ) -> BookingResponse:
+    """Moves a `pending` booking to `confirmed`. Only the barber the booking was made
+    with may do this, and only before it starts; another barber gets `404`."""
     booking = booking_service.transition(
         db, barber, booking_id, BookingStatus.CONFIRMED, clock.now()
     )
@@ -282,6 +288,8 @@ def confirm_booking(
 def complete_booking(
     booking_id: int, db: DbSession, barber: BarberUser, clock: ClockDep, tz: BusinessTimezone
 ) -> BookingResponse:
+    """Moves a `confirmed` booking to `completed`, once its `end_at` has passed. Only the
+    barber the booking was made with may do this."""
     booking = booking_service.transition(
         db, barber, booking_id, BookingStatus.COMPLETED, clock.now()
     )
