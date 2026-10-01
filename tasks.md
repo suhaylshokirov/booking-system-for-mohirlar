@@ -764,6 +764,7 @@ reviewers of a live demo register their own address, no code is ever shown on sc
 
 ### P11.6 — Clean-clone verification
 - [ ] Status
+- **Done so far (2026-10-01):** a fresh `git clone` (no `.env`, no untracked files) was brought up with the README's Docker quick start (`DB_HOST_PORT=5436`, because 5433 was in use): migrations and seed ran, health was ok, 4 services were served, `/` and `/docs` returned 200. In the same clone a new venv, `pip install -e ".[dev]"`, `ruff check`, `ruff format --check` and `pytest` all passed (1241 passed, 1 skipped). **Still to do:** tag `v1.0.0` and the final push, after the owner has checked the live sign-in email (P11.1/P11.2).
 - Goal: what the reviewer runs, works.
 - Requirement(s) served: working application; README setup
 - Acceptance criteria: fresh clone → follow README quick start verbatim → app up, seeded, tests pass; tag `v1.0.0`; final push. The owner submits.
