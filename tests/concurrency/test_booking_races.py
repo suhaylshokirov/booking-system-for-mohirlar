@@ -127,7 +127,11 @@ def test_same_customer_two_providers_overlapping_one_rejected(
     responses = fire_together(app, requests)
 
     assert sorted(r.status_code for r in responses) == [201, 409]
-    assert error_codes(responses) == ["CUSTOMER_OVERLAP"]
+    # Usually the customer constraint fires. Sometimes the two inserts wait on each
+    # other's constraint check and Postgres aborts one with a deadlock, which the
+    # service also maps to a 409 (`_map_overlap_error`). Both mean "that time is
+    # taken"; what must hold is that exactly one booking exists.
+    assert error_codes(responses)[0] in {"CUSTOMER_OVERLAP", "SLOT_TAKEN"}
     assert count_bookings(committing_db) == 1
 
 
