@@ -282,8 +282,8 @@ history row as the API; a 409 re-renders the booking with the reason.
 dependency as the API; forms carry the token in a `csrf_token` hidden field.
 
 **Visual language ("tile and ticket").** Page titles sit on a band of cobalt
-glaze with a faint girih lattice, after Tashkent's tilework; content sits on
-porcelain white. A booking is drawn as a *navbat* ticket (the queue number you
+glaze, after Tashkent's tilework; the page itself is plain white (plain black in
+dark mode), with no background pattern. A booking is drawn as a *navbat* ticket (the queue number you
 take and wait to hear called): paper, a perforation, a torn edge and the time
 printed large, on the confirm step and the booking's page. Saffron
 means *committed or selected*: the chosen slot, a Confirmed status, the step

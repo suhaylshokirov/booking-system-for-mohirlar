@@ -4,9 +4,10 @@
    One design system for the whole site. Two things from the business's own
    world give it its look:
 
-   - Tashkent glazed tile. The page is porcelain white, headings sit on a band
-     of cobalt glaze with a faint girih lattice, like the tilework on the
+   - Tashkent glazed tile. The page is plain white (plain black in dark),
+     headings sit on a flat band of cobalt glaze, like the tilework on the
      city's old madrasas. Cobalt is the brand: links, the main buttons.
+     No patterns: the lattice that used to sit on the band was removed.
    - The navbat ticket. "Navbat" is the queue number you take from a machine
      and wait to hear called. A booking here is that ticket, printed: paper,
      a perforation, a torn edge and the time printed large.
@@ -36,7 +37,7 @@
        --cobalt 8.1 / 6.9 · --danger 6.1 / 5.6
      --saffron is a FILL (1.8:1 on white): it always carries --ink-on-saffron
      text (10.9:1) or sits next to an ink outline, never alone as a mark. */
-  --porcelain: light-dark(#f2f4f9, #0a1029);
+  --porcelain: light-dark(#ffffff, #000000);
   --paper: light-dark(#ffffff, #131b3d);
   --tile: light-dark(#e7ecf6, #1a2450);
   --rule: light-dark(#d6ddec, #27325f);
@@ -71,11 +72,6 @@
   --band-ink: #f5f7ff;
   --band-muted: #bfcaf1;
   --band-rule: rgb(255 255 255 / 0.18);
-
-  /* The girih lattice: an eight-pointed star per tile, joined corner to
-     corner. Drawn in white at low opacity so it reads as glaze, not as a
-     picture. */
-  --girih: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.1'%3E%3Crect x='20' y='20' width='24' height='24'/%3E%3Crect x='20' y='20' width='24' height='24' transform='rotate(45 32 32)'/%3E%3Cpath d='M20 20L0 0M44 20L64 0M20 44L0 64M44 44L64 64M32 15V0M32 49V64M15 32H0M49 32H64'/%3E%3C/g%3E%3C/svg%3E");
 
   /* The barber pole: red, white and blue at 45 degrees. Shown only while
      something is loading. */
@@ -293,28 +289,14 @@ svg {
   padding-block: var(--space-6) var(--space-8);
 }
 
-/* The glazed band. The lattice fades in from the right so the title always
-   sits on plain glaze. */
+/* The glazed band: one flat colour. */
 .masthead {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: linear-gradient(160deg, var(--band) 0%, var(--band-deep) 100%);
+  background: var(--band);
   color: var(--band-ink);
   padding-block: var(--space-6) var(--space-7);
-}
-
-.masthead::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image: var(--girih);
-  background-size: 64px 64px;
-  background-position: right -8px top -8px;
-  opacity: 0.16;
-  -webkit-mask-image: linear-gradient(100deg, transparent 30%, #000 85%);
-  mask-image: linear-gradient(100deg, transparent 30%, #000 85%);
 }
 
 /* A darker strip where glaze meets porcelain, like the grout line at the
@@ -629,16 +611,6 @@ html.has-js .theme-toggle {
   background: var(--band-deep);
   color: var(--band-muted);
   font-size: var(--text-sm);
-}
-
-.site-footer::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image: var(--girih);
-  background-size: 64px 64px;
-  opacity: 0.08;
 }
 
 .footer-row {
