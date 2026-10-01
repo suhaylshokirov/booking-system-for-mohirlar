@@ -736,10 +736,10 @@ reviewers of a live demo register their own address, no code is ever shown on sc
 - Edge cases covered: —
 
 ### P11.3 — Screenshots
-- [ ] Status
+- [x] Status
 - Goal: README shows the product in five seconds.
 - Requirement(s) served: README
-- Acceptance criteria: `docs/screenshots/` — services list, slot picker with a selected slot, my bookings, admin dashboard, dark mode.
+- Acceptance criteria: `docs/screenshots/` — services list, slot picker with a selected slot, my bookings, barber bookings (there is no administrator, ADR 0010), dark mode. Taken with a throwaway Playwright script (not a project dependency) against the local seeded app; the live site needs an emailed code, so it was not used.
 - Tests: —
 - Docs to update: README §2.
 - Edge cases covered: —
