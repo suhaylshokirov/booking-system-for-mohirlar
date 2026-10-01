@@ -2,6 +2,7 @@
 
     GET  /me/bookings                     Upcoming / Past tabs (`?tab=past`)
     GET  /me/bookings/{id}                one booking, its history, and Cancel
+    GET  /me/bookings/{id}/ics            the booking as a calendar file
     POST /me/bookings/{id}/cancel         cancel it: `booking.transition`
 
 Everything here needs a signed-in user (a visitor is sent to log in and back).
@@ -33,6 +34,7 @@ from app.services import booking as booking_service
 from app.services.booking import Scope
 from app.services.booking_state import can_cancel, cancellation_cutoff_at
 from app.services.business_settings import get_business_settings
+from app.services.calendar import booking_ics
 from app.web.paging import MAX_PAGE, make_pager, page_params
 from app.web.templating import render, set_flash
 
@@ -141,6 +143,20 @@ def my_booking(
 ) -> HTMLResponse:
     """Raises: 404 `BOOKING_NOT_FOUND` for a missing booking or someone else's."""
     return _render_detail(request, db, user, clock.now(), booking_id)
+
+
+@router.get("/me/bookings/{booking_id}/ics", name="my_booking_ics")
+def my_booking_ics(booking_id: int, db: DbSession, user: CurrentUser) -> Response:
+    """The booking as a `.ics` download ("Add to calendar").
+
+    Raises: 404 `BOOKING_NOT_FOUND` for a missing booking or someone else's.
+    """
+    booking = booking_service.get_own_booking(db, user, booking_id)
+    return Response(
+        booking_ics(db, booking),
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="booking-{booking.id}.ics"'},
+    )
 
 
 @router.post("/me/bookings/{booking_id}/cancel", name="my_booking_cancel")

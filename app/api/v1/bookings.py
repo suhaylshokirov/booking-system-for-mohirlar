@@ -3,7 +3,7 @@
 import datetime as dt
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import AdminUser, CurrentUser
 from app.core.clock import Clock, get_clock
@@ -22,6 +22,7 @@ from app.schemas.errors import ErrorResponse
 from app.schemas.pagination import Page
 from app.services import booking as booking_service
 from app.services.booking_state import is_stale_pending
+from app.services.calendar import booking_ics
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -183,6 +184,32 @@ def booking_history(
         )
         for event, actor in booking_service.list_history(db, user, booking_id)
     ]
+
+
+@router.get(
+    "/{booking_id}/ics",
+    response_class=Response,
+    responses={
+        200: {"content": {"text/calendar": {}}, "description": "An iCalendar file."},
+        **_UNAUTHENTICATED,
+        404: {
+            "model": ErrorResponse,
+            "description": "`BOOKING_NOT_FOUND`: no such booking, or it is someone else's.",
+        },
+    },
+    summary="Add a booking to a calendar (.ics)",
+)
+def booking_calendar_file(booking_id: int, db: DbSession, user: CurrentUser) -> Response:
+    """The booking as an RFC 5545 `.ics` file (`text/calendar`), times in UTC.
+
+    Same visibility as `GET /bookings/{id}`. A cancelled booking still downloads,
+    marked `STATUS:CANCELLED`, so a calendar that already has it updates itself."""
+    booking = booking_service.get_booking(db, user, booking_id)
+    return Response(
+        booking_ics(db, booking),
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="booking-{booking.id}.ics"'},
+    )
 
 
 _TRANSITION_ERRORS = {

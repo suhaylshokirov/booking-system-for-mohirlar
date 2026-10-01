@@ -609,3 +609,7 @@
     align-items: center;
   }
 }
+
+.booking-calendar {
+  margin-top: var(--space-3);
+}

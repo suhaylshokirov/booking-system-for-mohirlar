@@ -364,6 +364,41 @@ first (not paginated; a booking has a handful):
 `actor` is `null` when the system acted. Same visibility as the booking: someone
 else's is `404 BOOKING_NOT_FOUND`; admins can read any.
 
+**Calendar: `GET /bookings/{id}/ics`** downloads the booking as an RFC 5545
+file (`Content-Type: text/calendar`, `Content-Disposition: attachment;
+filename="booking-7.ics"`) that any calendar app can import:
+
+```bash
+curl localhost:8000/api/v1/bookings/7/ics -H "Authorization: Bearer $TOKEN" -o booking-7.ics
+```
+
+```text
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Navbat//Booking//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:booking-7@navbat
+DTSTAMP:20261001T070005Z
+DTSTART:20261005T050000Z
+DTEND:20261005T053000Z
+SUMMARY:Haircut with Jasur
+LOCATION:Navbat Barbers
+DESCRIPTION:Haircut with Jasur\nNote: Short\, on the sides
+STATUS:TENTATIVE
+END:VEVENT
+END:VCALENDAR
+```
+
+Times are UTC (`Z`); the calendar shows them in the viewer's own zone. Lines
+end in CRLF, text is escaped and long lines are folded. `STATUS` is `TENTATIVE`
+(pending), `CONFIRMED` (confirmed or completed) or `CANCELLED`; `UID` stays the
+same, so importing again updates the entry instead of duplicating it. Same
+visibility as the booking: someone else's is `404 BOOKING_NOT_FOUND`, no token
+is `401`. In the browser the booking page (`/me/bookings/{id}`) has an "Add to
+calendar" link to the same file.
+
 **Admin: `GET /bookings/all`** lists everyone's bookings, soonest start first,
 paginated. Filters: `status`, `provider_id`, `customer_id`, and `date_from` /
 `date_to` (calendar days on the business's clock, both inclusive; a booking

@@ -53,7 +53,7 @@ implemented once it exists.
 - [ ] Admin dashboard
 - [ ] Timezone support
 - [ ] Cancellation policy: customers can cancel a confirmed booking until a cutoff (default 2 hours before it starts, set in business settings); admins are exempt but must give a reason
-- [ ] Calendar integration (`.ics`)
+- [x] Calendar integration (`.ics`)
 - [ ] Email notification (pluggable notifier)
 
 ## Quick start (Docker)

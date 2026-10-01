@@ -177,6 +177,14 @@ every request app-wide: unsafe methods authenticated by the cookie, without a
 Bearer header, must echo the CSRF cookie in `X-CSRF-Token` or a form field, else
 403 `CSRF_FAILED`. Reasoning and trade-offs are in ADR 0005.
 
+**Calendar file (`services/calendar.py`, P10.1).** `render_ics` is pure: it
+turns a booking, its service and provider names and the business name into an
+RFC 5545 `VEVENT`. Both the API route (`GET /api/v1/bookings/{id}/ics`) and the
+web route (`GET /me/bookings/{id}/ics`) authorise with the usual
+`get_booking` / `get_own_booking` and then call `booking_ics`, so the file
+format lives in one place. No library: the format is small and the tricky
+parts (escaping, 75-octet folding) are unit-tested.
+
 **Login rate limiting (`app/core/rate_limit.py`, `services/auth.login`, P2.5).**
 A sliding window of failed attempts per (client IP, email), checked before the
 password is verified. The store is an in-process dictionary behind a

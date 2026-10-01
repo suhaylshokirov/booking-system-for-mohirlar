@@ -611,7 +611,7 @@ checklist (P11.4) is verified against this table.
 ## P10 — Bonuses
 
 ### P10.1 — Calendar file (.ics)
-- [ ] Status
+- [x] Status
 - Goal: add a booking to any calendar.
 - Requirement(s) served: Bonus 7
 - Acceptance criteria: `GET /bookings/{id}/ics` → `text/calendar` RFC 5545 VEVENT (UID, DTSTAMP, DTSTART/DTEND in UTC `Z`, SUMMARY, LOCATION = business name, STATUS mapped; CRLF line endings; text escaping), same visibility rules; "Add to calendar" link in UI. No new dependency.

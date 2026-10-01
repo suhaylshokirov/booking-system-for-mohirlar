@@ -54,6 +54,10 @@
             {% endif %}
         </article>
 
+        {% if booking.status.value != "cancelled" %}
+        <p class="booking-calendar"><a href="/me/bookings/{{ booking.id }}/ics" download>Add to calendar</a></p>
+        {% endif %}
+
         {% if cancellable %}
         <section class="panel booking-cancel" aria-labelledby="cancel-title">
             <h2 class="panel__title" id="cancel-title">Can't make it?</h2>
