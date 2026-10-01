@@ -721,7 +721,7 @@ reviewers of a live demo register their own address, no code is ever shown on sc
 - **Resumed (owner, 2026-10-01):** the host is **Vercel** with **Neon** Postgres (ADR 0014). Deployed to https://navbat-pi.vercel.app; migrated and seeded; health, home, static files, the services API and the sign-in-code request (`202`) were checked on the live URL. **Verified by the owner by hand (2026-10-01):** the emailed code arrives and signs them in, and a booking made on the live site works.
 - Goal: a live demo URL.
 - Requirement(s) served: Deployed / demo URL
-- Acceptance criteria: Vercel project (FastAPI function from `app/main.py`) + Neon Postgres with `btree_gist` available; `APP_ENV=production` (Secure cookies), secrets set in Vercel's environment only; migrations applied (by hand, ADR 0014); **free-tier limits checked and noted** (must outlive the review window). Changed from "Render (or Railway) from the Dockerfile, migrations on start": see the Deviations log.
+- Acceptance criteria: Vercel project (FastAPI function from `app/main.py`) + Neon Postgres with `btree_gist` available; `APP_ENV=production` (Secure cookies), secrets set in Vercel's environment only; migrations applied (by hand, ADR 0014); **free-tier limits checked and noted** (must outlive the review window): done, in ADR 0014 and the README's known limitations. Changed from "Render (or Railway) from the Dockerfile, migrations on start": see the Deviations log.
 - Tests: smoke — health, login, book a slot on the live URL.
 - Docs to update: README demo URL; known limitations (cold starts).
 - Edge cases covered: —

@@ -777,9 +777,10 @@ in [`CLAUDE.md`](CLAUDE.md).
   later, in P11.3 to P11.5 below.
   The AI also saw that a seeded `*.local` barber could never receive a code in
   production and seeded the first barber with my real address instead.
-- **Not verified:** the email actually arriving and a booking made on the live site. The
-  AI cannot read my inbox; the request was accepted by Gmail's SMTP server. Neon's plan
-  limits were not checked.
+- **Not verified at the time:** the email actually arriving and a booking made on the live site (the
+  AI cannot read my inbox; Gmail's SMTP server had accepted the request), and Neon's plan
+  limits. I checked the first two by hand later (see P11.3 to P11.5); the limits were looked
+  up from the Neon and Vercel documentation and are in the README's known limitations.
 
 ---
 
@@ -819,8 +820,9 @@ in [`CLAUDE.md`](CLAUDE.md).
     skeleton, an edge-case row named a test that does not exist (`#98`), another still
     said "planned" for something that was done (`#37`), and ADR 0009 said there was no
     SMTP. The new test now stops the edge-case table drifting again.
-- **Not verified:** the emailed code arriving at a real inbox and a booking made on the
-  live site. The AI cannot read my inbox, so P11.1 and P11.2 stay unticked until I do it.
+- **Verified by me, not by the AI:** the emailed code arriving at my real inbox and a booking made on the
+  live site (the AI cannot read my inbox). Both worked, and P11.1 and P11.2 were ticked after that.
+  The AI had ticked P11.1 first without the free-tier limits it requires, noticed, and looked them up.
 
 ---
 
@@ -860,6 +862,6 @@ proved nothing; and, at the end, tests that passed in CI but failed on my machin
 they read my real mail settings. Each is described in the phase entry where it happened.
 
 **What is not AI-proven.** The emailed code arriving at a real inbox and a booking on
-the live site are checked by hand, not by tests. Booking notification emails are not sent
+the live site were checked by hand by me, not by tests. Booking notification emails are not sent
 (they are stored in an outbox with no delivery worker). The login rate limiter is
 per-process, so it is weaker on Vercel.

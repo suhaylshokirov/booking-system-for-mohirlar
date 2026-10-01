@@ -55,6 +55,12 @@ with `btree_gist` (ADR 0001), so SQLite-style shortcuts were never an option.
   proxy's address instead of the visitor's, which makes the IP half of that key coarser.
 - **Cold starts.** The first request after idle time starts a function, and Neon's
   compute may be asleep too, so it can take a second or two longer.
+- **Free-tier limits** (from the providers' docs, 2026-10-01). Neon Free: 0.5 GB storage,
+  100 compute-hours a month per project, compute suspends after 5 minutes idle, no
+  deletion for inactivity mentioned. Vercel Hobby: 1,000,000 function invocations and 4
+  active-CPU hours a month, non-commercial use, a feature pauses up to 30 days when its
+  limit is passed. The demo is far below each, and `vercel.json`'s 30 s function limit is
+  under Hobby's 300 s maximum.
 - **Postgres version drift.** Neon runs PostgreSQL 18; tests and Docker Compose run 16.
   The constraints and migrations ran unchanged on 18, but CI does not test it.
 - Each deploy is immutable and the app is stateless, so rolling back is picking an older

@@ -318,6 +318,13 @@ real commits and threads, and the author reads and can explain every line.
   Neon's compute, so it can be a few seconds slower.
 - **Neon runs PostgreSQL 18; tests and Docker Compose run 16.** The migrations and
   constraints applied unchanged, but CI does not run against 18.
+- **Free-tier limits** (read from the providers' docs on 2026-10-01; plans change, so recheck before relying on them):
+  Neon Free gives 0.5 GB of storage and 100 compute-hours a month per project, suspends the
+  compute after 5 minutes idle, and its docs state no deletion for inactivity; the demo's data
+  is a few hundred KB, so storage is not a concern (photos are capped at 2 MB each). Vercel
+  Hobby includes 1,000,000 function invocations and 4 active-CPU hours a month, and is for
+  non-commercial use only; past its limits a feature pauses for up to 30 days. A demo for
+  reviewers is far below all of these.
 - **Email goes through one Gmail account** (about 500 messages a day). If Gmail
   refuses, sign-in requests fail and nobody can log in.
 - **Booking emails are not sent.** Requested, confirmed and cancelled messages are

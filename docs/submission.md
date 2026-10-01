@@ -11,8 +11,8 @@ submitted by an agent.
 - **Signing in on the demo:** there are no passwords. Choose *Sign up*, enter your own email,
   and type the 6-digit code that arrives (check spam).
 
-> Before submitting: confirm the repository is **public**, the live URL opens, and one code
-> email reaches your own inbox. Those are the two checks no test can do (see P11.1).
+> Before submitting: confirm the repository is **public** and the live URL opens. The code
+> email and a live booking were checked by hand on 2026-10-01 (P11.1).
 
 ## Product description (at least 100 characters)
 
