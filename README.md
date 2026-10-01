@@ -152,6 +152,17 @@ ruff check . && ruff format --check .
 pytest
 ```
 
+A `Makefile` wraps the common steps; `make help` lists them. The ones you will use:
+
+| Command | What it does |
+|---|---|
+| `make` | The whole app and Postgres in Docker (same as `docker compose up --build`) |
+| `make dev` | Postgres in Docker, migrated and seeded; the app on your machine with auto-reload |
+| `make test` | Starts Postgres if needed and runs the whole suite |
+| `make lint` / `make format` | `ruff check` and `ruff format --check`, or fix them |
+| `make barber EMAIL=you@x.com NAME="Jasur"` | Create a barber |
+| `make reset` | Stop the containers and **delete the database** |
+
 ### Database migrations
 
 ```bash

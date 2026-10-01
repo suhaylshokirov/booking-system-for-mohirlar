@@ -53,6 +53,7 @@ written in the commit body.
 |---|---|
 | Run everything (app + db) | `docker compose up --build` |
 | App URL / API reference | http://localhost:8000 · http://localhost:8000/docs |
+| One-word shortcuts for the commands below | `make help` (`make dev`, `make test`, `make lint`, …) |
 | Local venv setup | `python3.12 -m venv .venv && . .venv/bin/activate && pip install -e ".[dev]"` |
 | Run the app locally | `uvicorn app.main:app --reload` |
 | Start only Postgres | `docker compose up -d db` |
