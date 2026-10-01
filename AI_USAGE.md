@@ -750,6 +750,38 @@ in [`CLAUDE.md`](CLAUDE.md).
 
 ---
 
+## P11.1 — Deploy on Vercel (resumed after P12)
+
+- **Asked:** "Time to finally deploy. We will deploy the project to Vercel, not any
+  other platform." The AI asked two questions it could not decide itself: which
+  Postgres (I chose Neon through the Vercel Marketplace) and how production sends the
+  sign-in codes (I chose a Gmail app password).
+- **Produced:** a Vercel project, a Neon database, `vercel.json`, `.vercelignore`, a
+  `postgres://` to psycopg 3 URL rewrite in `config.py` (with unit tests), prepared
+  statements switched off in `db.py` for Neon's PgBouncer, ADR 0014, README
+  deployment steps. The AI ran the migrations and the seed against Neon and set the
+  production variables from the command line.
+- **Verified how:** the Vercel docs were read first (entrypoint detection, static
+  files, bundle rules) instead of trusting memory. On the live URL: `/api/v1/health`
+  reports the database as reachable, the home page and `/static/css/app.css` load,
+  `/api/v1/services` returns the seeded rows, and a sign-in code request returned
+  `202`. On Neon, all 8 migrations ran and the three exclusion constraints exist.
+- **Changed/rejected:** the stashed Render files were not used. Vercel's link step added
+  `.env*` to `.gitignore`, which would have ignored `.env.example`; the AI replaced it with
+  `.vercel`. Neon's installer dropped `.agents/` and `skills-lock.json` into the repo
+  (agent skills I did not ask for); they are not part of the project and were left for
+  me to delete, because the AI's attempt to delete them was blocked.
+- **Bugs caught:** five tests fail in my checkout, before and after the AI's change,
+  because my local `.env` has real SMTP settings and the tests read it. With the SMTP
+  variables blanked all 1235 pass. Found by stashing the change and re-running; not fixed.
+  The AI also saw that a seeded `*.local` barber could never receive a code in
+  production and seeded the first barber with my real address instead.
+- **Not verified:** the email actually arriving and a booking made on the live site. The
+  AI cannot read my inbox; the request was accepted by Gmail's SMTP server. Neon's plan
+  limits were not checked.
+
+---
+
 ## Summary (for the submission form)
 
 _Written in P11.5._

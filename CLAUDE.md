@@ -43,7 +43,8 @@ When anything conflicts, the higher item wins:
 
 Python 3.12 · FastAPI · Pydantic v2 · PostgreSQL 16 · SQLAlchemy 2.0 (sync,
 typed `Mapped[]`) · psycopg 3 · Alembic · Jinja2 + vanilla JS
-· PyJWT · pytest · ruff · Docker Compose · GitHub Actions.
+· PyJWT · pytest · ruff · Docker Compose · GitHub Actions · deployed on Vercel
+with Neon Postgres (ADR 0014).
 
 Dependencies are few and pinned in `pyproject.toml`. Adding one needs a reason
 written in the commit body.

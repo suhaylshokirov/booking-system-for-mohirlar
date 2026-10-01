@@ -9,8 +9,8 @@ working hours and every booking's lifecycle (Pending → Confirmed → Completed
 or Cancelled). Double booking is prevented by the database itself, not just by
 application code.
 
-- **Live demo:** _TBD (P11)_
-- **Demo credentials:** _TBD (P11)_ — barber and customer
+- **Live demo:** https://navbat-pi.vercel.app (Vercel + Neon Postgres; the first request after idle can take a few seconds)
+- **Signing in:** there are no passwords. Choose *Sign up*, enter your own email and type the 6-digit code that arrives (check spam). You get a customer account and can book at once. The barber account belongs to the owner.
 - **CI:** [![CI](https://github.com/suhaylshokirov/booking-system-for-mohirlar/actions/workflows/ci.yml/badge.svg)](https://github.com/suhaylshokirov/booking-system-for-mohirlar/actions/workflows/ci.yml)
 
 > Status: in development. Progress is tracked task by task in [`tasks.md`](tasks.md).
@@ -203,6 +203,21 @@ which must be replaced in production (and `SMTP_HOST`, which production requires
 | `BARBER_EMAIL` | `jasur@navbat.local` | Email of the first barber (`scripts/create_barber.py`; the seed's first barber and the demo button). |
 | `SEED_DEMO_DATA` | `false` (`true` in `docker-compose.yml`) | Run the seed script on container start. Safe to leave on; see below. |
 
+### Deploying to Vercel
+
+The live site runs on Vercel with a Neon Postgres (decision: [ADR 0014](docs/decisions/0014-vercel-and-neon.md)).
+The Dockerfile and Compose file are for local use only.
+
+1. `npx vercel link` creates the project; `npx vercel integration add neon` adds the
+   database and injects `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`.
+2. In the project's environment (Production) set `APP_ENV=production`, a fresh
+   `JWT_SECRET`, `BARBER_EMAIL` (a real address: the first barber signs in by code),
+   and the `SMTP_*` settings. Production refuses to start without `SMTP_HOST`.
+3. Migrate and seed **once, by hand**, with the unpooled URL (they do not run on deploy):
+   `DATABASE_URL=<unpooled url> alembic upgrade head`, then the same with
+   `BARBER_EMAIL=<real address> python -m scripts.seed`. A later schema change repeats the `alembic` step before its deploy.
+4. `npx vercel deploy --prod` (or push to `main`; the project is connected to GitHub).
+
 ## Architecture in brief
 
 _Diagram + summary. Full write-up: [`docs/architecture.md`](docs/architecture.md)._
@@ -227,4 +242,12 @@ _Filled in as they are discovered._
   reset on restart and are not shared across several instances. A per-IP limit
   is also bypassed by rotating addresses. Behind a reverse proxy, run uvicorn
   with `--proxy-headers` so the limiter sees real client addresses. A shared
-  store (for example Redis) would drop in behind the same interface.
+  store (for example Redis) would drop in behind the same interface. **On Vercel
+  every function instance has its own counters**, so this limit is only a
+  best-effort extra there; the 5-tries-per-code cap is in the database and holds.
+- **Cold starts.** After idle time the first request starts the function and wakes
+  Neon's compute, so it can be a few seconds slower.
+- **Neon runs PostgreSQL 18; tests and Docker Compose run 16.** The migrations and
+  constraints applied unchanged, but CI does not run against 18.
+- **Email goes through one Gmail account** (about 500 messages a day). If Gmail
+  refuses, sign-in requests fail and nobody can log in.

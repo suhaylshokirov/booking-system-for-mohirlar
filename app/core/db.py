@@ -19,7 +19,17 @@ from app.core.config import get_settings
 
 # pool_pre_ping drops connections the server closed (e.g. after a DB restart)
 # instead of failing the next request with a stale-connection error.
-engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+# prepare_threshold=None turns off psycopg's server-side prepared statements.
+# Hosted Postgres (Neon on Vercel) is reached through PgBouncer in transaction
+# mode, which hands each transaction to any server connection, so a statement
+# prepared on one can be missing on the next. Our queries are not hot enough
+# for preparing them to matter. Every transaction here is a single request, so
+# nothing relies on session state (no session-level locks or SET).
+engine = create_engine(
+    get_settings().database_url,
+    pool_pre_ping=True,
+    connect_args={"prepare_threshold": None},
+)
 # expire_on_commit=False: objects stay readable after the commit at the end of
 # the request, when FastAPI serialises the response.
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)

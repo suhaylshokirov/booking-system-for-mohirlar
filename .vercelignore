@@ -1,0 +1,23 @@
+# What `vercel deploy` does not upload. With this file present Vercel stops
+# reading .gitignore, so the secret and cache entries are repeated here.
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.git/
+.claude/
+
+# Not needed to serve the app.
+tests/
+docs/
+docker/
+initial_prompt.md
+tasks.md
+AI_USAGE.md
+Dockerfile
+docker-compose.yml
+Makefile

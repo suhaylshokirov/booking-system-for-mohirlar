@@ -8,7 +8,7 @@ must override the secrets, and refuses to start if it doesn't.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The placeholder shipped in .env.example. Anyone can read it in the repo, so a
@@ -46,6 +46,17 @@ class Settings(BaseSettings):
 
     # Docker entrypoint: run `python -m scripts.seed` before starting the app.
     seed_demo_data: bool = False
+
+    @field_validator("database_url", "test_database_url")
+    @classmethod
+    def _use_psycopg3_driver(cls, url: str) -> str:
+        """Hosts such as Neon hand out `postgres://` / `postgresql://` URLs.
+        SQLAlchemy reads those as the psycopg2 driver, which is not installed, so
+        name psycopg 3 explicitly. A URL that already names a driver is untouched."""
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix) :]
+        return url
 
     @model_validator(mode="after")
     def _reject_placeholder_secret_in_production(self) -> "Settings":

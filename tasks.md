@@ -718,10 +718,10 @@ reviewers of a live demo register their own address, no code is ever shown on sc
 
 ### P11.1 — Deploy
 - [ ] Status
-- **Paused (owner, 2026-10-01):** deployment is on hold until P12 is done, and the host will **not** be Render; the host is undecided. Whatever is chosen needs real SMTP credentials (P12.1: production refuses to start without `SMTP_HOST`) because nobody can sign in without an emailed code. The first attempt (a Render blueprint and a container start script) is not used; see the Deviations log.
+- **Resumed (owner, 2026-10-01):** the host is **Vercel** with **Neon** Postgres (ADR 0014). Deployed to https://navbat-pi.vercel.app; migrated and seeded; health, home, static files, the services API and the sign-in-code request (`202`) were checked on the live URL. **Still to verify by hand:** that the emailed code arrives and signs the owner in, and one booking made on the live site (then tick this task).
 - Goal: a live demo URL.
 - Requirement(s) served: Deployed / demo URL
-- Acceptance criteria: Render (or Railway) web service from the Dockerfile + managed Postgres 16 (with `btree_gist` available); `APP_ENV=production` (Secure cookies), secrets set in the dashboard only; migrations on start; **free-tier expiry checked and noted** (must outlive the review window).
+- Acceptance criteria: Vercel project (FastAPI function from `app/main.py`) + Neon Postgres with `btree_gist` available; `APP_ENV=production` (Secure cookies), secrets set in Vercel's environment only; migrations applied (by hand, ADR 0014); **free-tier limits checked and noted** (must outlive the review window). Changed from "Render (or Railway) from the Dockerfile, migrations on start": see the Deviations log.
 - Tests: smoke — health, login, book a slot on the live URL.
 - Docs to update: README demo URL; known limitations (cold starts).
 - Edge cases covered: —
@@ -730,7 +730,7 @@ reviewers of a live demo register their own address, no code is ever shown on sc
 - [ ] Status
 - Goal: a reviewer can log in and see a realistic week.
 - Requirement(s) served: working application
-- Acceptance criteria: seed run on deploy; demo admin + customer credentials in README (demo-only passwords).
+- Acceptance criteria: seed run against the live database; README says how a reviewer signs in. There are no passwords (ADR 0013): the first barber is the owner's real email, and a reviewer signs up as a customer with their own address.
 - Tests: manual login with both.
 - Docs to update: README.
 - Edge cases covered: —
@@ -831,3 +831,4 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-10-01 | P12.2 | The login page's demo-barber button now signs in with no code (outside production only); the password and the `BARBER_PASSWORD` / `demo-customer-password` defaults are gone | The seeded `*.local` addresses cannot receive mail, so a developer could otherwise only reach the barber dashboard by reading the app log. The button is a development convenience under the same production guard as before. Rule 15 (no secrets in the repo) has nothing left to relax: there are no demo passwords |
 | 2026-10-01 | P12.2 | `app/core/logs.py` gives the `navbat.*` loggers a handler (`create_app` calls it) | Uvicorn only configures its own loggers, so every `logger.info` from the app (the console view of the code email, and the booking notifier's) was being dropped; found while checking that a developer could read a code in `docker compose logs` |
 | 2026-10-01 | P12.2 | The old `PLACEHOLDER_BARBER_PASSWORD` setting and the create-barber `--password` flag, `BARBER_PASSWORD` env and `docker-compose.yml` variable are removed; compose gains optional `SMTP_*` pass-through | There is no password to set. The compose variables default to empty, which keeps the console mailer |
+| 2026-10-01 | P11.1 / P11.2 | Deploy target is Vercel + Neon, not Render/Railway from the Dockerfile (ADR 0014). Migrations and the seed are run by hand against the unpooled URL instead of "on start"; the seed runs with `BARBER_EMAIL` set to the owner's real address, so the first barber can receive a code. `config.py` rewrites `postgres://` URLs to the psycopg 3 driver and `db.py` turns off prepared statements for PgBouncer. The stashed Render files are not used | Owner's choice of host. A serverless function has no start-up step to migrate in, and migrating in the build would let preview builds change the production schema. Barbers sign in by emailed code, so a `*.local` barber could never get in |
