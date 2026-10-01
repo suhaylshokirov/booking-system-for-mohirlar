@@ -116,6 +116,16 @@ def test_a_barbers_phone_is_a_tap_to_call_link_on_their_card(client, db, haircut
     assert html.count('class="staff-card__phone') == 1
 
 
+def test_a_barber_with_a_photo_is_shown_in_an_arch_and_one_without_by_initial(client, db, haircut):
+    jasur = _provider(db, "Jasur", [haircut], photo=b"\xff\xd8\xff", photo_type="image/jpeg")
+    _provider(db, "Bekzod", [haircut])
+
+    html = client.get(f"/services/{haircut.id}").text
+
+    assert f'<img src="/api/v1/providers/{jasur.id}/photo?v=' in html
+    assert '<span class="arch__initial" aria-hidden="true">B</span>' in html
+
+
 def test_inactive_staff_are_not_offered(client, db, haircut):
     _provider(db, "Jasur", [haircut])
     _provider(db, "Bekzod", [haircut], is_active=False)

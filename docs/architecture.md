@@ -285,7 +285,10 @@ dependency as the API; forms carry the token in a `csrf_token` hidden field.
 glaze, after Tashkent's tilework; the page itself is plain white (plain black in
 dark mode), with no background pattern. A booking is drawn as a *navbat* ticket (the queue number you
 take and wait to hear called): paper, a perforation, a torn edge and the time
-printed large, on the confirm step and the booking's page. Saffron
+printed large, on the confirm step and the booking's page. Every photo (a
+barber's portrait, the shop) is framed as an *iwan*, the pointed arch of the
+niches around a madrasa courtyard, with a thin cobalt rim (`.arch` in
+`app.css`); a barber without a photo shows their initial in the same arch. Saffron
 means *committed or selected*: the chosen slot, a Confirmed status, the step
 and page you're on, the button that books; red is only for cancelling and
 errors; a barber-pole stripe only means "loading". Status chips always spell

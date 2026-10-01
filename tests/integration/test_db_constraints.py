@@ -242,6 +242,25 @@ def test_a_provider_without_a_phone_is_allowed(db):
     db.flush()  # no exception
 
 
+def test_a_photo_needs_its_type_and_a_type_needs_a_photo(db):
+    with rejected(db, CHECK_VIOLATION, "ck_providers_photo_with_type"):
+        db.add(Provider(name="Jasur", photo=b"\xff\xd8\xff", photo_type=None))
+    with rejected(db, CHECK_VIOLATION, "ck_providers_photo_with_type"):
+        db.add(Provider(name="Jasur", photo=None, photo_type="image/jpeg"))
+
+
+def test_only_jpeg_png_and_webp_photos_can_be_stored(db):
+    with rejected(db, CHECK_VIOLATION, "ck_providers_photo_type_known"):
+        db.add(Provider(name="Jasur", photo=b"<svg/>", photo_type="image/svg+xml"))
+
+
+def test_a_photo_over_2_mb_cannot_be_stored(db):
+    with rejected(db, CHECK_VIOLATION, "ck_providers_photo_size"):
+        db.add(
+            Provider(name="Jasur", photo=b"\x00" * (2 * 1024 * 1024 + 1), photo_type="image/png")
+        )
+
+
 def test_free_service_is_allowed(db):
     db.add(Service(name="Consultation", duration_minutes=15, price=0))
     db.flush()  # no exception

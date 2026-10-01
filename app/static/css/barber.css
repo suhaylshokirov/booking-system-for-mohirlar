@@ -79,3 +79,34 @@ fieldset.field {
   gap: var(--space-3);
   margin: 0 0 var(--space-5);
 }
+
+/* The profile's photo: how customers will see it (in its arch), and the file
+   picker beside it. */
+.photo-field {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: end;
+}
+
+.photo-field__controls {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.photo-field input[type="file"] {
+  max-width: 100%;
+  font-size: var(--text-sm);
+}
+
+.photo-field input[type="file"]::file-selector-button {
+  margin-right: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border: 1.5px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}

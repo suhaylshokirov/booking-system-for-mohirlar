@@ -979,8 +979,8 @@ a.chip:hover {
 }
 
 /* Text-like controls only: a radio or checkbox inside a field (the booking
-   page's "With" list) keeps its own size. */
-.field input:not([type="radio"], [type="checkbox"]),
+   page's "With" list) keeps its own size, and a file input its own button. */
+.field input:not([type="radio"], [type="checkbox"], [type="file"]),
 .field textarea,
 .field select {
   width: 100%;
@@ -1411,6 +1411,65 @@ th.num {
     opacity: 0;
     transform: translateY(8px) scale(0.98);
   }
+}
+
+/* --- The arch ------------------------------------------------------------------------------------
+   Every photo on the site (a barber, the shop) is framed as an iwan: the
+   pointed arch of the niches that line a Tashkent madrasa courtyard, the same
+   tilework the band comes from. A photo is a window into the shop, so it gets
+   the shape the city gives its openings.
+
+   Markup: <span class="arch"><span class="arch__frame"><img ...></span></span>.
+   Each box is a size container for the one inside it, so each can be cut in
+   two layers: the arch's crown (an SVG twice as wide as it is tall, so 50cqi
+   high) and a plain rectangle under it. Any width and height work; the crown
+   keeps its shape. The frame is cut from cobalt and the photo from inside it,
+   a few pixels in, which leaves a glazed rim: without it a photo on a white
+   wall would lose its arch against the white page. Without a photo the frame
+   shows the barber's initial on cobalt. */
+
+.arch {
+  --arch-crown: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 50'%3E%3Cpath d='M0 50C0 24 26 9 50 0c24 9 50 24 50 50z'/%3E%3C/svg%3E");
+  display: block;
+  container-type: inline-size;
+}
+
+.arch__frame,
+.arch__frame img {
+  -webkit-mask:
+    var(--arch-crown) top / 100% auto no-repeat,
+    linear-gradient(#000 0 0) bottom / 100% calc(100% - 50cqi + 1px) no-repeat;
+  mask:
+    var(--arch-crown) top / 100% auto no-repeat,
+    linear-gradient(#000 0 0) bottom / 100% calc(100% - 50cqi + 1px) no-repeat;
+}
+
+.arch__frame {
+  display: grid;
+  place-items: center;
+  container-type: inline-size;
+  aspect-ratio: var(--arch-ratio, 4 / 5);
+  padding: max(3px, 1.5cqi) max(3px, 1.5cqi) 0;
+  background: var(--cobalt);
+  color: var(--on-cobalt);
+}
+
+.arch__frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* No photo: the initial sits in the lower part, below the crown. (Its cqi is
+   the frame's width, a few pixels less than the arch's.) */
+.arch__initial {
+  padding-top: 30cqi;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 118%;
+  font-size: 45cqi;
+  line-height: 1;
 }
 
 /* --- The ticket ------------------------------------------------------------------------------

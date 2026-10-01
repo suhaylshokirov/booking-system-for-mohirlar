@@ -53,6 +53,8 @@ erDiagram
         string name
         string bio
         string phone "E.164, optional"
+        bytea photo "optional, at most 2 MB"
+        string photo_type "image/jpeg, png or webp"
         bool is_active
     }
     provider_services {
@@ -191,7 +193,11 @@ deactivation via `is_active`: a barber can hide themselves from customers.
 `ck_providers_phone_e164` (migration `0006`) refuses spaces, a missing country
 code and more than 15 digits, so every number shown is a working `tel:` link.
 The API accepts the usual spellings and normalises them first
-(`app/schemas/types.PhoneNumber`).
+(`app/schemas/types.PhoneNumber`). `photo` is the barber's picture (`bytea`,
+migration `0007`, ADR 0012) and `photo_type` its media type: both set or both
+NULL (`ck_providers_photo_with_type`), only JPEG, PNG or WebP
+(`ck_providers_photo_type_known`), at most 2 MB (`ck_providers_photo_size`).
+The model marks `photo` as deferred, so listing providers never reads it.
 
 ### `provider_services`
 Which provider offers which service. Composite primary key
@@ -278,6 +284,7 @@ Every constraint and index, with the reason it exists. Names are the real ones
 | `ck_services_duration_positive`, `ck_services_price_not_negative` | `services` | A zero-length or negatively priced service is nonsense |
 | `ck_*_name_not_blank` | `services`, `providers`, `business_settings` | Names made only of spaces |
 | `ck_providers_phone_e164` | `providers` | A phone number is `+` and 8-15 digits, country code first, or NULL |
+| `ck_providers_photo_with_type`, `ck_providers_photo_type_known`, `ck_providers_photo_size` | `providers` | A photo always has its type, is a JPEG, PNG or WebP, and is at most 2 MB |
 | `ck_availability_rules_weekday_range` | `availability_rules` | Weekday is 0–6 |
 | `ck_availability_rules_end_after_start` | `availability_rules` | A window needs positive length |
 | `ck_availability_exceptions_day_off_or_valid_hours` | `availability_exceptions` | Both times NULL (day off) or both set with end after start |

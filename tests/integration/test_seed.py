@@ -100,3 +100,16 @@ def test_every_seeded_barber_has_a_phone_number(db, frozen_clock):
 
     phones = db.scalars(select(Provider.phone)).all()
     assert phones and all(phone and phone.startswith("+998") for phone in phones)
+
+
+def test_every_seeded_barber_has_a_photo_and_a_removed_one_stays_removed(db, frozen_clock):
+    seed(db, Settings(), frozen_clock)
+    assert all(db.scalars(select(Provider.photo_type)).all())
+
+    jasur = db.scalar(select(Provider).where(Provider.name == "Jasur"))
+    jasur.photo, jasur.photo_type = None, None
+    db.flush()
+    seed(db, Settings(), frozen_clock)  # Docker runs the seed on every start
+
+    db.refresh(jasur)
+    assert jasur.photo_type is None

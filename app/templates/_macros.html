@@ -118,3 +118,15 @@
     {% endif %}
 </div>
 {% endmacro %}
+
+{# A barber's photo in an arch frame (app.css, "The arch"), or their initial
+   when they have none. Decorative: the name is always printed next to it.
+   `preview` marks the one app.js swaps a newly chosen file into. #}
+{% macro portrait(person, class="", preview=false) %}
+<span class="arch{% if class %} {{ class }}{% endif %}"{% if preview %} data-photo-preview{% endif %}>
+    <span class="arch__frame">
+        {%- if person.photo_type %}<img src="{{ person|photo_url }}" alt="" width="480" height="600" loading="lazy" decoding="async">
+        {%- else %}<span class="arch__initial" aria-hidden="true">{{ person.name[:1]|upper }}</span>{% endif -%}
+    </span>
+</span>
+{% endmacro %}

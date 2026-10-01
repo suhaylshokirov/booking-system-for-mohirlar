@@ -76,7 +76,12 @@ def test_every_error_response_uses_the_envelope_and_shows_an_example(method, pat
 @pytest.mark.parametrize(("method", "path", "op"), OPERATIONS, ids=IDS)
 def test_request_bodies_and_success_responses_have_examples(method, path, op):
     body = op.get("requestBody")
-    if body:
+    if body and "multipart/form-data" in body["content"]:
+        # A file upload has no JSON example to show; each field must say what it takes.
+        ref = body["content"]["multipart/form-data"]["schema"]["$ref"]
+        for name, field in SCHEMAS[ref.split("/")[-1]]["properties"].items():
+            assert field.get("description"), f"describe the {name} upload field"
+    elif body:
         schema = _schema_of(body["content"])
         assert schema.get("examples") or schema.get("example"), "add an example to the schema"
     for status, response in op["responses"].items():

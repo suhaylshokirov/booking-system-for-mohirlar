@@ -179,7 +179,8 @@ Deliberately not built (Theoria features that serve no requirement here):
 
 - AI assistant / chat widget
 - i18n and the language switcher (the UI is English only)
-- Poster galleries, image uploads
+- Poster galleries, and image uploads other than a barber's own photo (that one
+  was added on 2026-10-01 at the owner's request, ADR 0012)
 - Charts (the barber dashboard uses a plain `.stats` row)
 - Email-code (passwordless) login
 - The Θ brand mark — Navbat gets its own mark

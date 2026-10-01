@@ -457,6 +457,28 @@
     }
   }
 
+  /* --- Photo preview ------------------------------------------------------
+     On the barber's profile, a chosen photo appears in the arch at once, so
+     they see how customers will see it before saving. Without JS the file is
+     simply uploaded on save. The server still checks type and size. */
+
+  function initPhotoPreview() {
+    var input = document.querySelector("[data-photo-input]");
+    var frame = document.querySelector("[data-photo-preview] .arch__frame");
+    if (!input || !frame || !window.URL) return;
+    var url = null;
+    input.addEventListener("change", function () {
+      var file = input.files && input.files[0];
+      if (!file || !/^image\/(jpeg|png|webp)$/.test(file.type)) return;
+      if (url) URL.revokeObjectURL(url);
+      url = URL.createObjectURL(file);
+      var img = document.createElement("img");
+      img.alt = "";
+      img.src = url;
+      frame.replaceChildren(img);
+    });
+  }
+
   function init() {
     initThemeToggle();
     initNavToggle();
@@ -468,6 +490,7 @@
     initSlotSummary();
     initShopClock();
     initTimezoneNote();
+    initPhotoPreview();
   }
 
   if (document.readyState === "loading") {

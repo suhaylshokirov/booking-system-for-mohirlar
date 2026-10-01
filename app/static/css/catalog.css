@@ -217,6 +217,8 @@
 }
 
 .staff-list {
+  --icon-phone: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z'/%3E%3C/svg%3E");
+
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
   gap: var(--space-4);
@@ -237,18 +239,9 @@
   box-shadow: var(--shadow-sm);
 }
 
-.staff-card__tile {
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius);
-  background: var(--cobalt);
-  color: var(--on-cobalt);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-stretch: 118%;
-  font-size: 1.75rem;
+/* The barber in an arch (app.css), the height of their name and bio. */
+.staff-card__photo {
+  width: 5.5rem;
 }
 
 .staff-card__name {
@@ -266,7 +259,8 @@
 }
 
 /* A number is data, so it is set in the mono face like every price and time.
-   The handset is drawn in CSS: a rounded receiver tilted on its side. */
+   The handset is Feather's "phone" icon (MIT), used as a mask so it takes the
+   link's colour. */
 .staff-card__phone {
   display: inline-flex;
   align-items: center;
@@ -280,12 +274,11 @@
 .staff-card__phone::before {
   content: "";
   flex: none;
-  width: 0.55em;
-  height: 1.05em;
-  border: 2px solid currentColor;
-  border-inline-start-width: 4px;
-  border-radius: 3px 2px 2px 3px;
-  rotate: -30deg;
+  width: 1em;
+  height: 1em;
+  background: currentColor;
+  -webkit-mask: var(--icon-phone) center / contain no-repeat;
+  mask: var(--icon-phone) center / contain no-repeat;
 }
 
 .staff-card__phone:hover {

@@ -5,10 +5,10 @@ it is already there, so running the seed twice leaves the same rows and never
 overwrites edits made in the barber UI (a changed price stays changed).
 
 Creates business settings (Asia/Tashkent, UZS, 15-minute slots), four
-services, three barbers with different service sets and weekly hours, one
-day off, a login for each barber (the first is BARBER_EMAIL, all share
-BARBER_PASSWORD), a demo customer, and
-four bookings in different statuses with their history events.
+services, three barbers with different service sets, weekly hours, a phone
+number and a photo, one day off, a login for each barber (the first is
+BARBER_EMAIL, all share BARBER_PASSWORD), a demo customer, and four bookings
+in different statuses with their history events.
 
 The bookings are inserted directly rather than through the booking service:
 the seed is trusted data, and it must not depend on the lead-time and horizon
@@ -17,6 +17,7 @@ apply. Dates are relative to today so the demo always has upcoming bookings.
 """
 
 from datetime import date, time, timedelta
+from pathlib import Path
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -39,6 +40,7 @@ from app.models import (
     User,
     UserRole,
 )
+from app.services.provider_photo import image_type
 
 Status = BookingStatus  # short alias: the histories below stay readable
 
@@ -79,6 +81,19 @@ BARBERS = {
 # barber is first created, like everything else on their profile.
 PHONES = {"Jasur": "+998900000001", "Bekzod": "+998900000002", "Dilshod": "+998900000003"}
 
+# One portrait per barber (`<name>.jpg`, free stock photos: see the README in
+# that folder). Also set only on creation, so a barber who removed theirs does
+# not get it back the next time the seed runs (Docker runs it on every start).
+SEED_PHOTOS = Path(__file__).resolve().parent / "seed_photos"
+
+
+def _portrait(name: str) -> tuple[bytes, str]:
+    data = (SEED_PHOTOS / f"{name.lower()}.jpg").read_bytes()
+    media_type = image_type(data)
+    if media_type is None:
+        raise RuntimeError(f"seed photo for {name} is not a JPEG, PNG or WebP image")
+    return data, media_type
+
 
 def _count(db: Session, model) -> int:
     return db.scalar(select(func.count()).select_from(model)) or 0
@@ -101,12 +116,14 @@ def seed_services(db: Session) -> dict[str, Service]:
 
 
 def seed_providers(db: Session, services: dict[str, Service]) -> dict[str, Provider]:
-    """Providers with a phone number, the services each offers, and their weekly hours."""
+    """Providers with a phone number and a photo, the services each offers, and their
+    weekly hours."""
     providers: dict[str, Provider] = {}
     for name, (offered, weekdays, windows) in BARBERS.items():
         provider = db.scalar(select(Provider).where(Provider.name == name))
         if provider is None:
-            provider = Provider(name=name, phone=PHONES[name])
+            photo, photo_type = _portrait(name)
+            provider = Provider(name=name, phone=PHONES[name], photo=photo, photo_type=photo_type)
             db.add(provider)
             db.flush()
             for service_name in offered:

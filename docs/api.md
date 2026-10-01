@@ -167,6 +167,9 @@ another barber's provider id (or an unknown one) and for customers.
 | `PATCH /providers/{id}` | that barber | 200 provider | Partial. `bio: null` clears it; `name` cannot be null; an empty body is `422`. `phone` needs the country code; spaces, dashes, dots and brackets are dropped (`"+998 90 123-45-67"` is stored and returned as `"+998901234567"`); `""` or `null` clears it; without a country code it is `422 VALIDATION_ERROR`. |
 | `POST /providers/{id}/deactivate` | that barber | 200 provider | Hides them from customers. No hard delete exists. Repeating it is a no-op. |
 | `POST /providers/{id}/activate` | that barber | 200 provider | |
+| `GET /providers/{id}/photo` | public | 200 image | The photo itself (`image/jpeg`, `image/png` or `image/webp`). `404 NOT_FOUND` if there is none, and for a hidden provider unless you are a barber. Use the provider's `photo_url`: its `v=` changes with the provider, so the day of caching never shows an old photo. |
+| `PUT /providers/{id}/photo` | that barber | 200 provider | `multipart/form-data`, field `photo`. JPEG, PNG or WebP judged by the file's content, not its name: anything else is `415 UNSUPPORTED_PHOTO`. Over 2 MB is `413 PHOTO_TOO_LARGE`. Replaces any earlier photo; on an error nothing changes. |
+| `DELETE /providers/{id}/photo` | that barber | 200 provider | `photo_url` becomes `null`. Repeating it is harmless. |
 | `PUT /providers/{id}/services` | that barber | 200 provider | Body `{"service_ids": [1, 2]}` **replaces** the whole set; `[]` means "offers nothing"; repeated ids count once. Any id that is not an existing, active service is `422 UNKNOWN_SERVICE` (`details.service_ids` lists them) and nothing is changed. |
 
 Customers only ever see **active** services inside a provider; the barber also
@@ -180,6 +183,9 @@ curl -X POST localhost:8000/api/v1/providers -H "Authorization: Bearer $BARBER_T
 curl -X PUT localhost:8000/api/v1/providers/1/services -H "Authorization: Bearer $BARBER_TOKEN" \
   -H 'Content-Type: application/json' -d '{"service_ids": [1, 2]}'
 curl 'localhost:8000/api/v1/providers?service_id=1'
+curl -X PUT localhost:8000/api/v1/providers/1/photo -H "Authorization: Bearer $BARBER_TOKEN" \
+  -F photo=@me.jpg
+curl -o jasur.jpg 'localhost:8000/api/v1/providers/1/photo'
 ```
 
 ## Availability rules
@@ -511,6 +517,8 @@ _The complete list. It is `app/core/error_catalog.py`; a test keeps this table i
 | `DATABASE_UNAVAILABLE` | 503 | `GET /health` could not reach the database |
 | `INVALID_SLOT` | 422 | Web booking form only (an HTML page, not JSON): the chosen time is not one of the offered slots |
 | `INVALID_PROVIDER` | 422 | Web booking form only (an HTML page, not JSON): the chosen person is not one of the offered providers |
+| `PHOTO_TOO_LARGE` | 413 | Provider photo: larger than 2 MB (`details.max_bytes`); nothing is changed |
+| `UNSUPPORTED_PHOTO` | 415 | Provider photo: the file is not a JPEG, PNG or WebP image (judged by its content, not its name); nothing is changed |
 
 ## Reading the Swagger document
 

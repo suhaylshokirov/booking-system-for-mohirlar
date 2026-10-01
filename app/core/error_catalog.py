@@ -194,4 +194,12 @@ ERROR_CATALOG: dict[str, tuple[int, str]] = {
         422,
         "Web booking form only (an HTML page, not JSON): the chosen person is not one of the offered providers",
     ),
+    "PHOTO_TOO_LARGE": (
+        413,
+        "Provider photo: larger than 2 MB (`details.max_bytes`); nothing is changed",
+    ),
+    "UNSUPPORTED_PHOTO": (
+        415,
+        "Provider photo: the file is not a JPEG, PNG or WebP image (judged by its content, not its name); nothing is changed",
+    ),
 }

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as ui %}
 {% set active_nav = "services" %}
 
 {% block title %}{{ service.name }} · {{ business.name }}{% endblock %}
@@ -41,9 +42,7 @@
     <ul class="staff-list">
         {% for person in staff %}
         <li class="staff-card">
-            {# The barber's initial on a glazed tile: no photos to upload
-               (out of scope), and a letter still tells people apart. #}
-            <span class="staff-card__tile" aria-hidden="true">{{ person.name[:1]|upper }}</span>
+            {{ ui.portrait(person, "staff-card__photo") }}
             <div class="staff-card__text">
                 <p class="staff-card__name">{{ person.name }}</p>
                 {% if person.bio %}<p class="staff-card__bio">{{ person.bio }}</p>{% endif %}

@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.models.provider import Provider
 from app.schemas.service import ServiceResponse
 from app.schemas.types import PhoneNumber
 
@@ -17,6 +18,18 @@ _EXAMPLE = {
     "bio": "Ten years of classic cuts and fades.",
     "phone": "+998901234567",
 }
+
+
+def photo_url(provider: Provider) -> str | None:
+    """Where pages and API clients fetch a provider's photo, or None if there is none.
+
+    The `v` query changes whenever the provider row does, so a browser that
+    cached the old picture asks again after a new one is uploaded.
+    """
+    if provider.photo_type is None:
+        return None
+    version = int(provider.updated_at.timestamp() * 1_000_000)
+    return f"/api/v1/providers/{provider.id}/photo?v={version}"
 
 
 def _blank_to_none(value: str | None) -> str | None:
@@ -73,6 +86,10 @@ class ProviderResponse(BaseModel):
     name: str
     bio: str | None
     phone: str | None = Field(description="E.164, such as `+998901234567`; `null` if not given.")
+    photo_url: str | None = Field(
+        description="Where to fetch the photo (`GET /providers/{id}/photo`); `null` if none. "
+        "The `v` query changes when the provider does, so it is safe to cache."
+    )
     is_active: bool
     services: list[ServiceResponse] = Field(
         description="What this provider offers. Customers see only active services."
@@ -86,6 +103,7 @@ class ProviderResponse(BaseModel):
                 {
                     "id": 1,
                     **_EXAMPLE,
+                    "photo_url": "/api/v1/providers/1/photo?v=1790845200000000",
                     "is_active": True,
                     "services": [],
                     "created_at": "2026-10-01T07:00:00Z",
@@ -104,6 +122,7 @@ class ProviderResponse(BaseModel):
             name=provider.name,
             bio=provider.bio,
             phone=provider.phone,
+            photo_url=photo_url(provider),
             is_active=provider.is_active,
             services=[ServiceResponse.model_validate(s) for s in view.services],
             created_at=provider.created_at,

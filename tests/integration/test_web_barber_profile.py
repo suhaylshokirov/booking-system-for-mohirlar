@@ -50,6 +50,19 @@ def _service(db, name, active=True) -> Service:
     return service
 
 
+JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+
+
+def _post_with_photo(client, data, name="me.jpg", **fields):
+    """The profile form as a browser posts it: multipart, the file part included."""
+    return client.post(
+        "/barber/profile",
+        data={"csrf_token": CSRF, "name": "Jasur", **fields},
+        files={"photo": (name, data, "image/jpeg")},
+        follow_redirects=False,
+    )
+
+
 def _offered(db, provider) -> set[int]:
     rows = db.query(ProviderService).filter_by(provider_id=provider.id)
     return {row.service_id for row in rows}
@@ -137,6 +150,58 @@ def test_a_phone_without_a_country_code_is_shown_back_with_the_error(client, db,
     assert 'value="90 123 45 67"' in response.text
     db.refresh(jasur)
     assert jasur.phone == "+998901234567"
+
+
+def test_the_form_uploads_a_photo_and_shows_it_in_the_arch(client, db, staff, jasur):
+    _sign_in(client, staff)
+    html = client.get("/barber/profile").text
+    assert 'enctype="multipart/form-data"' in html
+    assert 'class="arch__initial"' in html  # no photo yet: the initial
+    assert "Remove my photo" not in html
+
+    response = _post_with_photo(client, JPEG)
+
+    assert response.status_code == 303
+    db.refresh(jasur)
+    assert (jasur.photo, jasur.photo_type) == (JPEG, "image/jpeg")
+    html = client.get("/barber/profile").text
+    assert f'src="/api/v1/providers/{jasur.id}/photo?v=' in html
+    assert "Remove my photo" in html
+
+
+def test_saving_without_choosing_a_file_keeps_the_photo(client, db, staff, jasur):
+    jasur.photo, jasur.photo_type = JPEG, "image/jpeg"
+    db.flush()
+    _sign_in(client, staff)
+
+    # A browser sends an empty, unnamed file part when nothing was chosen.
+    _post_with_photo(client, b"", name="", bio="New bio")
+
+    db.refresh(jasur)
+    assert (jasur.bio, jasur.photo) == ("New bio", JPEG)
+
+
+def test_a_file_that_is_not_an_image_is_refused_and_nothing_is_saved(client, db, staff, jasur):
+    _sign_in(client, staff)
+
+    response = _post_with_photo(client, b"<svg/>", name="me.svg", bio="Changed")
+
+    assert response.status_code == 422
+    assert 'id="field-photo-error"' in response.text
+    assert "JPEG, PNG or WebP" in response.text
+    db.refresh(jasur)
+    assert (jasur.bio, jasur.photo_type) == ("Fades.", None)
+
+
+def test_ticking_remove_takes_the_photo_away(client, db, staff, jasur):
+    jasur.photo, jasur.photo_type = JPEG, "image/jpeg"
+    db.flush()
+    _sign_in(client, staff)
+
+    _post(client, "/barber/profile", name="Jasur", remove_photo="true")
+
+    db.refresh(jasur)
+    assert (jasur.photo, jasur.photo_type) == (None, None)
 
 
 def test_unticking_everything_offers_nothing(client, db, staff, jasur):

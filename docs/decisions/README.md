@@ -16,3 +16,4 @@ Short records of the decisions that shape this project. Format for each:
 | [0009](0009-transactional-outbox.md) | Transactional outbox for notifications | accepted (P10.2) |
 | [0010](0010-barbers-replace-the-admin.md) | Barbers run the shop; there is no administrator | accepted (2026-10-01) |
 | [0011](0011-calendar-file.md) | The calendar file is built by hand, in UTC, with a stable UID | accepted (P10.1) |
+| [0012](0012-photos-in-postgres.md) | A barber's photo is uploaded and stored in Postgres | accepted (P10.7) |

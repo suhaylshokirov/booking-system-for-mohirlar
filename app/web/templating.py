@@ -29,6 +29,7 @@ from fastapi.templating import Jinja2Templates
 from app.api.cookies import CSRF_COOKIE, set_csrf_cookie
 from app.core.config import get_settings
 from app.core.security import generate_csrf_token
+from app.schemas.provider import photo_url
 from app.web import formatting
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -38,6 +39,7 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 templates.env.filters["money"] = formatting.money
 templates.env.filters["duration"] = formatting.duration
 templates.env.filters["phone"] = formatting.phone
+templates.env.filters["photo_url"] = photo_url
 templates.env.filters["local_time"] = formatting.local_time
 templates.env.filters["local_date"] = formatting.local_date
 templates.env.filters["day_label"] = formatting.day_label

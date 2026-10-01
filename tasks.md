@@ -665,6 +665,15 @@ checklist (P11.4) is verified against this table.
 - Docs updated: `docs/database.md`, `docs/api.md`, `docs/edge-cases.md` (row 91), README.
 - Edge cases covered: 91.
 
+### P10.7 — Barber photos (owner's request)
+- [x] Status
+- Goal: customers see who they are booking; each barber manages their own photo.
+- Requirement(s) served: product thinking; basic validation. Decision (asked, answered): barbers upload a file, stored in Postgres (ADR 0012), rather than paste a link. This lifts "image uploads" from CLAUDE.md §8 for this one case.
+- Acceptance criteria: `providers.photo` / `photo_type` (migration `0007`) with CHECKs for both-or-neither, the three types and 2 MB; `services/provider_photo` judges the type by the file's first bytes and refuses SVG, empty files and anything over 2 MB (`415 UNSUPPORTED_PHOTO`, `413 PHOTO_TOO_LARGE`, nothing changed); `GET`, `PUT`, `DELETE /providers/{id}/photo` (public read, own-barber write); `photo_url` with a version on every provider response; the profile form uploads, previews (JS) and removes it in the same savepoint as the rest; staff cards show the photo in an arch, or the initial; the photo bytes are never loaded when listing; the seed loads three stock portraits on creation only.
+- Tests: `tests/unit/test_provider_photo.py`; `tests/integration/test_provider_photo.py`; `tests/integration/test_db_constraints.py` (photo CHECKs); `test_web_barber_profile.py`, `test_web_catalog.py`, `test_seed.py` (photo tests); `tests/unit/test_openapi_docs.py` now accepts a multipart body when every field is described.
+- Docs updated: ADR 0012, CLAUDE.md §8, `docs/database.md`, `docs/api.md` (routes and the two error codes), `docs/architecture.md`, `docs/edge-cases.md` (rows 92-95), README, `scripts/seed_photos/README.md`.
+- Edge cases covered: 92-95.
+
 ---
 
 ## P11 — Ship
@@ -772,3 +781,5 @@ Record every departure from `CLAUDE.md` or this plan: date · task · what chang
 | 2026-10-01 | P10.4 | `GET /auth/me` now also returns `provider_id` (the provider a barber runs; `null` for customers) | Found by the walkthrough: after ADR 0010 a barber had no way to learn the provider id that `/providers/{id}/...` and `/availability` need. An additive field; tested |
 | 2026-10-01 | UI (post-P10) | The girih lattice is removed everywhere (page band, footer, barber tile) and its `--girih` token deleted; the band is one flat `--band` colour instead of a gradient; the page colour (`--porcelain`) is plain white in light and plain black in dark. Cobalt, saffron and the cards (`--paper`) are unchanged | The owner asked for no background pattern on the home page, plain white / plain black, keeping the blue. The band and footer are shared components (app.css contract), so the pattern goes from every page rather than the home page alone; the tile in the staff card used the same token and the next step puts barber photos there. The blue band stays as the accent: it is the one judgement call in this change |
 | 2026-10-01 | P10.6 | Barber phone numbers added after P10 (not in the original plan); stored as E.164 only, and only Uzbek (`+998`) numbers are grouped for display | Owner's request. One stored shape makes every number a working `tel:` link and lets the database check it; grouping rules differ per country, so other numbers are shown as stored rather than grouped wrongly |
+| 2026-10-01 | P10.7 | Image uploads, listed as out of scope in CLAUDE.md §8, are added for a barber's own photo; stored in Postgres, not on disk; no resizing | Owner's request and choice (upload over a pasted link). Postgres needs no volume, bucket or credentials on any host and is already backed up (ADR 0012); resizing would need Pillow, a dependency not worth it for a few small photos shown at thumbnail size |
+| 2026-10-01 | P10.7 | `tests/unit/test_openapi_docs.py`: a `multipart/form-data` request body needs a description on every field instead of a JSON example | A file has no meaningful JSON example; the rule still fails a new upload endpoint whose fields say nothing |
