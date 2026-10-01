@@ -42,11 +42,12 @@ copy `access_token`, press **Authorize** and paste it.
 **The code.** 6 digits, valid for 10 minutes, usable once. Asking again replaces it
 (only the newest code works) and the email carries it in the subject too. After 5 wrong
 tries the code is dead; ask for a new one. At most 5 codes can be requested per address
-per 10 minutes (`429 TOO_MANY_CODES`, `Retry-After`). `POST /auth/register` and
-`POST /auth/login` answer `202` with the same body for every address, with or without
-an account (or with a deactivated one), and send mail only when there is a real account
-to sign in to, so the endpoints cannot be used to learn who is registered. Signing up
-with an address that already has an account just sends it a sign-in code.
+per 10 minutes (`429 TOO_MANY_CODES`, `Retry-After`). `POST /auth/login` answers `202`
+only for an address with an active account; an unknown address is `404 ACCOUNT_NOT_FOUND`
+and a deactivated one `401 ACCOUNT_INACTIVE`, and nothing is sent. So a mistyped address is
+told at once, and the endpoint can be used to learn who is registered (a deliberate trade,
+ADR 0013). `POST /auth/register` always answers `202`; signing up with an address that
+already has an account just sends it a sign-in code.
 If the mail server refuses the message: `503 EMAIL_SEND_FAILED`, and no code is kept.
 
 **CSRF (cookie requests only).** A browser attaches cookies to requests that
@@ -80,7 +81,9 @@ the right code**, get `429 TOO_MANY_ATTEMPTS` with a `Retry-After` header (and
   cannot lock *you* out of the counter. They do use up that code's own five tries, so
   you ask for a new code (which they can only do five times per ten minutes).
 - Emails are compared normalised (case, padding), and unknown emails are limited the
-  same way as real ones, so the 429 does not reveal who has an account.
+  same way as real ones. (Asking for a sign-in code for an unknown address is a `404` since
+  2026-10-01, so the *request* endpoint does reveal who has an account; this counter
+  covers the verify step.)
 - Only wrong codes count. Blocked attempts do not extend the block. Malformed bodies
   (422) do not count.
 - A successful sign-in clears the counter.
@@ -108,8 +111,8 @@ someone applies to their existing token immediately.
 
 | Endpoint | Success | Notes |
 |---|---|---|
-| `POST /auth/register` | 202 `{message, expires_in_minutes}` | Sign up, step 1: emails a code. Email is trimmed and lower-cased; full name 1–100. Same answer for every address. `429 TOO_MANY_CODES`, `503 EMAIL_SEND_FAILED`. |
-| `POST /auth/login` | 202 `{message, expires_in_minutes}` | Sign in, step 1: emails a code if the address has an active account; same answer if not. `429 TOO_MANY_CODES`, `503 EMAIL_SEND_FAILED`. |
+| `POST /auth/register` | 202 `{message, expires_in_minutes}` | Sign up, step 1: emails a code. Email is trimmed and lower-cased; full name 1–100. Always `202`, even for an address that already has an account. `429 TOO_MANY_CODES`, `503 EMAIL_SEND_FAILED`. |
+| `POST /auth/login` | 202 `{message, expires_in_minutes}` | Sign in, step 1: emails a code to an address that has an active account. `404 ACCOUNT_NOT_FOUND` if it has none, `401 ACCOUNT_INACTIVE` if deactivated, `429 TOO_MANY_CODES`, `503 EMAIL_SEND_FAILED`. |
 | `POST /auth/verify` | 200 `{access_token, token_type}` + cookie | Step 2 of both: `{email, code}`. Creates the customer after a sign-up. Wrong, expired, used and replaced codes give the same `401 INVALID_CODE`. Rate limited: see above. |
 | `POST /auth/logout` | 204 | Clears both cookies (needs the CSRF header if sent by cookie). Tokens are stateless, so a Bearer token you copied stays valid until it expires. |
 | `GET /auth/me` | 200 user | `401` without valid credentials. `provider_id` is the provider a barber runs (what to put in `/providers/{id}/...`), `null` for a customer. |
@@ -500,7 +503,8 @@ _The complete list. It is `app/core/error_catalog.py`; a test keeps this table i
 | `TOO_MANY_CODES` | 429 | Sign-in: too many codes were requested for this email; wait `Retry-After` seconds |
 | `EMAIL_SEND_FAILED` | 503 | Sign-in: the mail server did not accept the email carrying the code; try again |
 | `CSRF_FAILED` | 403 | Cookie-authenticated unsafe request without a matching `X-CSRF-Token` header / `csrf_token` field (Bearer requests are exempt) |
-| `ACCOUNT_INACTIVE` | 401 | The account was deactivated (at sign-in only once the code was right; on any request with a token) |
+| `ACCOUNT_NOT_FOUND` | 404 | Sign-in: asking for a code for an email address that has no account; nothing is sent |
+| `ACCOUNT_INACTIVE` | 401 | The account was deactivated (when asking for a sign-in code, when a code is proven, and on any request with a token) |
 | `INVALID_TIMEZONE` | 422 | Settings: the timezone is not an IANA name such as `Asia/Tashkent` |
 | `GRANULARITY_CONFLICT` | 409 | Settings: an active service's duration is not a multiple of the new slot granularity; `details.services` lists them |
 | `DURATION_NOT_ALIGNED` | 422 | A service's duration is not a multiple of the slot granularity; `details` has both numbers |

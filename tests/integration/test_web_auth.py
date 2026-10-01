@@ -185,11 +185,24 @@ def test_login_emails_a_code_and_opens_the_code_page(client, aziza, mailbox):
     assert len(mailbox.to("aziza@example.com")) == 1
 
 
-def test_an_unknown_email_gets_the_same_redirect_and_no_email(client, mailbox):
+def test_an_unknown_email_is_told_so_in_red_under_the_field_and_gets_no_email(client, mailbox):
     response = _ask_login(client, "nobody@example.com")
 
-    assert response.status_code == 303
-    assert response.headers["location"].startswith("/login/code?")
+    assert response.status_code == 422
+    assert 'class="field__error"' in response.text
+    assert "No account with this email address." in response.text
+    assert 'value="nobody@example.com"' in response.text  # what was typed is kept
+    assert mailbox.sent == []
+
+
+def test_a_deactivated_account_is_told_so_and_gets_no_email(client, db, mailbox):
+    add_barber(db, "off@example.com", "Off").is_active = False
+    db.flush()
+
+    response = _ask_login(client, "off@example.com")
+
+    assert response.status_code == 401
+    assert "This account has been deactivated." in response.text
     assert mailbox.sent == []
 
 

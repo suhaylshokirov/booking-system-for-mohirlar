@@ -13,15 +13,18 @@ Rules:
 - Signing up creates a `customer` and only when the code is proven, so an
   address nobody controls never gets an account. Barbers come from the
   create-barber CLI (`ensure_barber`), never from an endpoint.
-- Asking for a code answers the same whether or not the address has an account
-  (or the account is deactivated): the request endpoints cannot be used to find
-  out who is registered. Signing up with an address that already has an account
-  just sends it a sign-in code. See `_issue_code` for how the limit stays equal.
+- Asking for a sign-in code for an address with no account is refused with
+  `ACCOUNT_NOT_FOUND`, and for a deactivated one with `ACCOUNT_INACTIVE`, so a
+  person who mistyped their address is told at once (owner's request, ADR 0013
+  amended 2026-10-01). The cost is that the sign-in form reveals which addresses
+  have accounts. Signing up with an address that already has an account still
+  just sends it a sign-in code.
 - Guessing is limited three ways: per code (5 tries), per (client IP, email) in
   memory, and per email on how many codes may be requested.
 
 Errors raised: `INVALID_CODE` (401), `TOO_MANY_ATTEMPTS` (429, wrong codes),
 `TOO_MANY_CODES` (429, codes requested), `EMAIL_SEND_FAILED` (503),
+`ACCOUNT_NOT_FOUND` (404, sign-in code for an unknown address),
 `ACCOUNT_INACTIVE` (401), `INVALID_TOKEN` (401, user no longer exists).
 """
 
@@ -89,15 +92,8 @@ def _issue_code(
     deliver_to: User | None,
     now: datetime,
 ) -> None:
-    """Record a new code for `email` and, if `deliver_to` is given or this is a
-    sign-up (`full_name`), email it.
-
-    A row is written even when nothing is sent (an address with no account, or a
-    deactivated one). Rows are what the per-address limit counts, so the limit
-    trips after the same number of requests for every address; if only real
-    accounts were counted, the sixth request would answer 429 for them and 202
-    for the rest, and that difference would tell a stranger who has an account.
-    The code of such a row is never shown to anyone.
+    """Record a new code for `email` and email it: to the account `deliver_to`
+    (a sign-in) or to the address of a sign-up (`full_name`).
 
     Raises:
         AppError: 429 `TOO_MANY_CODES` (with `Retry-After`) after too many
@@ -145,8 +141,6 @@ def _issue_code(
     )
     db.flush()
 
-    if full_name is None and deliver_to is None:
-        return  # no (active) account to sign in to: nothing is sent
     mail = compose_code_mail(
         to=email,
         code=code,
@@ -165,17 +159,24 @@ def _issue_code(
 
 
 def request_login_code(db: Session, mailer: Mailer, *, email: str, now: datetime) -> None:
-    """Email a sign-in code to `email` if it belongs to an active account.
-
-    Returns normally either way (see the module docstring).
+    """Email a sign-in code to `email`, which must belong to an active account.
 
     Raises:
-        AppError: `TOO_MANY_CODES`, `EMAIL_SEND_FAILED` (see `_issue_code`).
+        AppError: 404 `ACCOUNT_NOT_FOUND` (no account with this address; nothing is
+            written or sent), 401 `ACCOUNT_INACTIVE` (deactivated), and
+            `TOO_MANY_CODES`, `EMAIL_SEND_FAILED` (see `_issue_code`).
     """
     email = normalize_email(email)
     user = _find_by_email(db, email)
-    active = user if user is not None and user.is_active else None
-    _issue_code(db, mailer, email=email, full_name=None, deliver_to=active, now=now)
+    if user is None:
+        raise AppError(
+            "ACCOUNT_NOT_FOUND",
+            "No account with this email address. Check the spelling, or create an account.",
+            status_code=404,
+        )
+    if not user.is_active:
+        raise AppError("ACCOUNT_INACTIVE", "This account has been deactivated.", status_code=401)
+    _issue_code(db, mailer, email=email, full_name=None, deliver_to=user, now=now)
 
 
 def request_registration_code(

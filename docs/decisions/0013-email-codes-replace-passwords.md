@@ -31,7 +31,8 @@ published.
   email) on wrong codes (the existing in-memory limiter, now at `/auth/verify`), and per
   address on how many codes may be requested (5 per 10 minutes, counted in the database,
   so it holds across instances).
-- **No account enumeration.** Asking for a code answers 202 with the same body for every
+- **No account enumeration.** _Amended 2026-10-01: see "Amendment" below; sign-in requests no longer
+  work this way._ Asking for a code answers 202 with the same body for every
   address. For an address with no account (or a deactivated one) a row is written and
   nothing is sent; the row is what the request limit counts, so the sixth request is 429
   for every address alike. Signing up with an address that has an account sends it an
@@ -86,3 +87,24 @@ published.
 - Production needs real SMTP credentials before anyone can sign in.
 - Old password hashes are gone after the migration; downgrading restores an empty column,
   not the passwords.
+
+## Amendment (2026-10-01): sign-in says when the address has no account
+
+The owner tried the live site, typed an address with no account and got the code page as if
+a code had been sent. A person who mistyped their address waits for an email that never comes.
+At the owner's request, `POST /auth/login` (and the web sign-in form) now refuses an address
+with no account: `404 ACCOUNT_NOT_FOUND`, shown in red under the email field ("No account with
+this email address. Check the spelling, or create an account."), and a deactivated account gets
+`401 ACCOUNT_INACTIVE`. Nothing is written or sent for either.
+
+- **What it costs.** Anyone can now ask the sign-in form whether an address has an account.
+  For a barbershop's customer list that is a small leak, accepted for a clear message.
+  Sign-up is unchanged: signing up with an address that already has an account still sends it a
+  sign-in code, so the sign-up form does not reveal it (and it stays the way to try an address
+  without being told).
+- **Mail abuse is not widened.** Mail is only sent to addresses that already have an account,
+  as before, and the 5-codes-per-10-minutes limit per address is unchanged.
+- **The limit rows.** Unknown addresses no longer write a `login_codes` row, so the request
+  limit counts only real accounts; the "limit trips equally for every address" reasoning in the
+  list above no longer applies to sign-in requests.
+- **Not changed:** a wrong, expired, used or never-issued *code* is still one `INVALID_CODE`.

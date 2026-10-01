@@ -54,9 +54,13 @@ ERROR_CATALOG: dict[str, tuple[int, str]] = {
         403,
         "Cookie-authenticated unsafe request without a matching `X-CSRF-Token` header / `csrf_token` field (Bearer requests are exempt)",
     ),
+    "ACCOUNT_NOT_FOUND": (
+        404,
+        "Sign-in: asking for a code for an email address that has no account; nothing is sent",
+    ),
     "ACCOUNT_INACTIVE": (
         401,
-        "The account was deactivated (at sign-in only once the code was right; on any request with a token)",
+        "The account was deactivated (when asking for a sign-in code, when a code is proven, and on any request with a token)",
     ),
     "INVALID_TIMEZONE": (
         422,

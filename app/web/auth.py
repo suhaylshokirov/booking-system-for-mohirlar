@@ -137,7 +137,12 @@ def login(
     try:
         auth_service.request_login_code(db, mailer, email=body.email, now=clock.now())
     except AppError as error:
-        # TOO_MANY_CODES or EMAIL_SEND_FAILED: the message is written for a person.
+        if error.code == "ACCOUNT_NOT_FOUND":
+            # A wrong address belongs under the email field, in red, like any
+            # other mistake in that field.
+            return form_again(422, {"email": error.message})
+        # ACCOUNT_INACTIVE, TOO_MANY_CODES or EMAIL_SEND_FAILED: the message is
+        # written for a person.
         return _with_retry_after(form_again(error.status_code, {}, error.message), error)
     return _code_page_redirect(body.email, next_path)
 

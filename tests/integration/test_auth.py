@@ -131,40 +131,55 @@ def test_signing_up_with_an_address_that_has_an_account_sends_a_sign_in_code(cli
     assert client.get(ME).json()["full_name"] == "Aziza Karimova"
 
 
-def test_asking_for_a_code_answers_the_same_for_everyone(client, db, mailbox):
-    """An unknown address and a deactivated account look exactly like a real one."""
-    api_sign_up(client, mailbox)
-    client.cookies.clear()
+def test_asking_for_a_code_for_an_unknown_address_says_so_and_sends_nothing(client, db, mailbox):
+    """Owner's request: a mistyped address is told at once, not given a code page."""
+    response = client.post(LOGIN, json={"email": "nobody@example.com"})
+
+    assert (response.status_code, response.json()["error"]["code"]) == (404, "ACCOUNT_NOT_FOUND")
+    assert "No account with this email address" in response.json()["error"]["message"]
+    assert mailbox.sent == []
+    assert _codes(db) == []  # the refused request wrote nothing
+
+
+def test_asking_for_a_code_for_a_deactivated_account_says_so_and_sends_nothing(client, db, mailbox):
     inactive = add_barber(db, "off@example.com", "Off")
     inactive.is_active = False
     db.flush()
 
-    known = client.post(LOGIN, json={"email": EMAIL})
-    unknown = client.post(LOGIN, json={"email": "nobody@example.com"})
-    deactivated = client.post(LOGIN, json={"email": "off@example.com"})
+    response = client.post(LOGIN, json={"email": "off@example.com"})
 
-    assert known.status_code == unknown.status_code == deactivated.status_code == 202
-    assert known.json() == unknown.json() == deactivated.json()
-    assert mailbox.to("nobody@example.com") == [] and mailbox.to("off@example.com") == []
+    assert (response.status_code, response.json()["error"]["code"]) == (401, "ACCOUNT_INACTIVE")
+    assert mailbox.sent == []
 
 
-def test_the_request_limit_trips_after_the_same_count_for_every_address(client, mailbox):
-    """If only real accounts were counted, the 6th request would reveal who has one."""
+def test_asking_for_a_code_for_a_known_address_is_accepted(client, mailbox):
     api_sign_up(client, mailbox)
     client.cookies.clear()
-    for email in (EMAIL, "nobody@example.com"):
-        sent = 1 if email == EMAIL else 0  # the sign-up above was the first for EMAIL
-        for _ in range(auth_service.MAX_CODES_PER_WINDOW - sent):
-            assert client.post(LOGIN, json={"email": email}).status_code == 202
 
-        blocked = client.post(LOGIN, json={"email": email})
+    response = client.post(LOGIN, json={"email": EMAIL})
 
-        assert blocked.status_code == 429, email
-        assert blocked.json()["error"]["code"] == "TOO_MANY_CODES"
-        assert blocked.headers["Retry-After"] == "600"
+    assert response.status_code == 202
+    assert len(mailbox.to(EMAIL)) == 2  # the sign-up's code and this one
 
 
-def test_the_request_limit_lifts_when_the_oldest_request_leaves_the_window(client, frozen_clock):
+def test_the_request_limit_trips_after_five_codes_in_ten_minutes(client, mailbox):
+    api_sign_up(client, mailbox)  # the first of the five
+    client.cookies.clear()
+    for _ in range(auth_service.MAX_CODES_PER_WINDOW - 1):
+        assert client.post(LOGIN, json={"email": EMAIL}).status_code == 202
+
+    blocked = client.post(LOGIN, json={"email": EMAIL})
+
+    assert blocked.status_code == 429
+    assert blocked.json()["error"]["code"] == "TOO_MANY_CODES"
+    assert blocked.headers["Retry-After"] == "600"
+
+
+def test_the_request_limit_lifts_when_the_oldest_request_leaves_the_window(
+    client, db, frozen_clock
+):
+    add_barber(db, EMAIL, "Aziza")  # codes are only issued to an existing account
+    db.flush()
     for _ in range(auth_service.MAX_CODES_PER_WINDOW):
         client.post(LOGIN, json={"email": EMAIL})
     frozen_clock.advance(timedelta(minutes=10) - timedelta(seconds=1))
@@ -200,6 +215,8 @@ def test_a_failed_send_leaves_no_code_behind(db, mailbox, frozen_clock):
 
 
 def test_old_code_rows_are_cleared_out_when_a_new_one_is_asked_for(client, db, frozen_clock):
+    add_barber(db, EMAIL, "Aziza")  # codes are only issued to an existing account
+    db.flush()
     client.post(LOGIN, json={"email": EMAIL})
     frozen_clock.advance(auth_service.KEEP_CODES_FOR + timedelta(seconds=1))
 
@@ -387,11 +404,20 @@ def test_a_deactivated_account_is_refused_once_the_code_is_right(client, db, mai
     assert (response.status_code, response.json()["error"]["code"]) == (401, "ACCOUNT_INACTIVE")
 
 
-def test_a_sign_in_code_for_an_address_without_an_account_proves_nothing(client, db, mailbox):
-    """Even if the code were somehow right, a sign-in (no name) must not create an account."""
-    client.post(LOGIN, json={"email": "nobody@example.com"})
-    row = _codes(db)[0]
-    row.code_hash = hash_login_code("nobody@example.com", "123456")  # as if it had been known
+def test_a_sign_in_code_for_an_address_without_an_account_proves_nothing(client, db, frozen_clock):
+    """Even a right code, with no name on it (a sign-in), must not create an account.
+
+    Requesting such a code is refused now, so the row is made by hand, as if the
+    account had been removed after the code was issued."""
+    now = frozen_clock.now()
+    db.add(
+        LoginCode(
+            email="nobody@example.com",
+            code_hash=hash_login_code("nobody@example.com", "123456"),
+            created_at=now,
+            expires_at=now + auth_service.CODE_LIFETIME,
+        )
+    )
     db.flush()
 
     response = _verify(client, "123456", email="nobody@example.com")

@@ -26,7 +26,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 _SENT = CodeSentResponse(
-    message="If this address can sign in, a 6-digit code is on its way.",
+    message="A 6-digit code is on its way.",
     expires_in_minutes=int(auth_service.CODE_LIFETIME.total_seconds() // 60),
 )
 
@@ -77,7 +77,17 @@ def register(
     response_model=CodeSentResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Sign in: email a code",
-    responses=_SEND_ERRORS,
+    responses={
+        **_SEND_ERRORS,
+        404: {
+            "model": ErrorResponse,
+            "description": "`ACCOUNT_NOT_FOUND`: no account has this email address.",
+        },
+        401: {
+            "model": ErrorResponse,
+            "description": "`ACCOUNT_INACTIVE`: the account was deactivated.",
+        },
+    },
 )
 def login(
     body: LoginRequest,
@@ -85,8 +95,9 @@ def login(
     clock: Annotated[Clock, Depends(get_clock)],
     mailer: Annotated[Mailer, Depends(get_mailer)],
 ) -> CodeSentResponse:
-    """Step 1 of 2. Sends a 6-digit code if the address has an active account, and
-    answers the same if it does not. Prove the code with `POST /auth/verify`."""
+    """Step 1 of 2. Sends a 6-digit code to an address that has an active account;
+    `404 ACCOUNT_NOT_FOUND` if it has none (the sign-up endpoint is for new people).
+    Prove the code with `POST /auth/verify`."""
     auth_service.request_login_code(db, mailer, email=body.email, now=clock.now())
     return _SENT
 

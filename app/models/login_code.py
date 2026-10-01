@@ -5,10 +5,9 @@ One row per request for a code. Only a keyed hash of the code is stored
 consumed, not expired and has fewer than the allowed wrong tries; asking for a
 new one consumes the old ones, so at most one code per address works at a time.
 
-A row is also written for an address that has no (active) account, and then no
-email is sent. The caller sees the same answer either way, and the per-address
-limit on requests counts these rows too, so neither the response nor the limit
-reveals who has an account (ADR 0013).
+A sign-in request for an address with no account, or a deactivated one, is
+refused before any row is written (ADR 0013, amended 2026-10-01), so every row
+is a code that was emailed.
 
 `full_name` is set only for a sign-up request: the account is created when the
 code is proven, from that name, so an address nobody controls never gets one.
