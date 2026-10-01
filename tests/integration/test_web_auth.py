@@ -290,3 +290,72 @@ def test_a_page_that_needs_sign_in_sends_a_visitor_to_login_and_back(
     after = _login(client, next="/test/private?x=1")
     assert after.headers["location"] == "/test/private?x=1"
     assert client.get("/test/private?x=1").json() == {"id": aziza.id}
+
+
+# --- The demo admin shortcut -------------------------------------------------------------
+
+
+def _demo_settings(monkeypatch, app_env="development"):
+    from app.core.config import Settings
+    from app.web import auth as web_auth
+
+    settings = Settings(
+        app_env=app_env,
+        jwt_secret="a-real-secret-for-this-test",
+        admin_email="boss@example.com",
+        admin_password=PASSWORD,
+    )
+    monkeypatch.setattr(web_auth, "get_settings", lambda: settings)
+
+
+@pytest.fixture
+def boss(db: Session) -> User:
+    user = User(
+        email="boss@example.com",
+        password_hash=hash_password(PASSWORD),
+        full_name="Boss",
+        role=UserRole.ADMIN,
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
+def test_the_login_page_offers_the_demo_admin_outside_production(client, monkeypatch):
+    _demo_settings(monkeypatch)
+
+    html = client.get("/login").text
+
+    assert "/login/demo-admin" in html
+    assert "boss@example.com" in html
+
+
+def test_the_demo_button_signs_in_the_admin_and_opens_the_panel(client, monkeypatch, boss):
+    _demo_settings(monkeypatch)
+
+    response = client.post(
+        "/login/demo-admin", data={"csrf_token": _csrf(client)}, follow_redirects=False
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin"
+    assert client.get("/admin").status_code == 200  # the cookie works
+
+
+def test_the_demo_button_explains_a_missing_admin(client, monkeypatch):
+    _demo_settings(monkeypatch)
+
+    response = client.post("/login/demo-admin", data={"csrf_token": _csrf(client)})
+
+    assert response.status_code == 401
+    assert "scripts.seed" in response.text
+
+
+def test_production_has_no_demo_admin(client, monkeypatch, boss):
+    _demo_settings(monkeypatch, "production")
+
+    assert "demo-admin" not in client.get("/login").text
+    response = client.post(
+        "/login/demo-admin", data={"csrf_token": _csrf(client)}, follow_redirects=False
+    )
+    assert response.status_code == 404

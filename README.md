@@ -93,10 +93,10 @@ Compose runs it on start while `SEED_DEMO_DATA=true`.
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | `ADMIN_EMAIL` (`admin@navbat.local`) | `ADMIN_PASSWORD` |
+| Admin | `ADMIN_EMAIL` (`admin@navbat.local`) | `ADMIN_PASSWORD` (default `change-me-admin-password`) |
 | Customer | `demo@navbat.local` | `demo-customer-password` |
 
-The demo customer's password is public on purpose and is not a secret. Log in
+Outside production, the sign-in page also has an **Open the admin panel (demo)** button that signs in as that admin and opens `/admin`; in production it does not exist. The demo passwords are public on purpose and are not secrets. Log in
 with either through `POST /api/v1/auth/login` (see [`docs/api.md`](docs/api.md)).
 
 ### Create the first admin

@@ -41,3 +41,10 @@
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
+
+/* The demo-admin shortcut under the sign-in form (development only). */
+.demo-admin {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px dashed var(--rule-strong);
+}

@@ -25,6 +25,7 @@ from app.api.cookies import clear_login_cookies, set_access_cookie, set_csrf_coo
 from app.api.csrf import require_csrf
 from app.api.deps import get_login_limiter
 from app.core.clock import Clock, get_clock
+from app.core.config import get_settings
 from app.core.db import DbSession
 from app.core.errors import AppError
 from app.core.rate_limit import LoginAttemptLimiter
@@ -56,6 +57,19 @@ _REGISTER_MESSAGES = {
 }
 
 
+def _demo_admin() -> dict[str, str] | None:
+    """The demo admin's credentials, for the login page's shortcut; `None` in production.
+
+    A convenience for trying the project (owner's decision, see the Deviations
+    log): the credentials are the repo's public defaults, so a production
+    deployment must never offer them. `demo_admin_login` enforces the same.
+    """
+    settings = get_settings()
+    if settings.app_env == "production":
+        return None
+    return {"email": settings.admin_email, "password": settings.admin_password}
+
+
 def _signed_in_redirect(user_id: int, clock: Clock, next_path: str, flash: str) -> Response:
     response = RedirectResponse(next_path, status_code=303)
     set_access_cookie(response, create_access_token(user_id, clock.now()))
@@ -70,7 +84,8 @@ def login_page(request: Request, user: WebUser, next: str | None = None) -> Resp
     next_path = safe_next_path(next)
     if user is not None:
         return RedirectResponse(next_path, status_code=303)
-    return render(request, "auth/login.html", {"next": next_path, "values": {}, "errors": {}})
+    context = {"next": next_path, "values": {}, "errors": {}, "demo_admin": _demo_admin()}
+    return render(request, "auth/login.html", context)
 
 
 @router.post("/login", dependencies=[Depends(require_csrf)])
@@ -86,7 +101,12 @@ def login(
     next_path = safe_next_path(next)
 
     def form_again(status_code: int, errors: dict[str, str], problem: str | None = None):
-        context = {"next": next_path, "values": {"email": email}, "errors": errors}
+        context = {
+            "next": next_path,
+            "values": {"email": email},
+            "errors": errors,
+            "demo_admin": _demo_admin(),
+        }
         return render(
             request, "auth/login.html", {**context, "problem": problem}, status_code=status_code
         )
@@ -114,6 +134,51 @@ def login(
         return response
 
     return _signed_in_redirect(user.id, clock, next_path, "signed_in")
+
+
+@router.post("/login/demo-admin", dependencies=[Depends(require_csrf)])
+def demo_admin_login(
+    request: Request,
+    db: DbSession,
+    clock: Annotated[Clock, Depends(get_clock)],
+    limiter: Annotated[LoginAttemptLimiter, Depends(get_login_limiter)],
+) -> Response:
+    """Sign in as the demo admin and open the admin panel: the login page's shortcut button.
+
+    The same `auth_service.login` as the form, with the configured admin
+    credentials, so the password check and rate limit still apply.
+
+    Raises: 404 `NOT_FOUND` in production, where the shortcut does not exist. A
+    failed login (admin not seeded, password changed) shows the login page again.
+    """
+    demo = _demo_admin()
+    if demo is None:
+        raise AppError("NOT_FOUND", "Page not found.", status_code=404)
+    try:
+        user = auth_service.login(
+            db,
+            limiter,
+            email=demo["email"],
+            password=demo["password"],
+            client_ip=request.client.host if request.client else "unknown",
+            now=clock.now(),
+        )
+    except AppError as error:
+        problem = (
+            "The demo admin could not sign in. Run `python -m scripts.seed` "
+            "(or `make seed`) to create it."
+            if error.code == "INVALID_CREDENTIALS"
+            else error.message
+        )
+        context = {
+            "next": "/",
+            "values": {},
+            "errors": {},
+            "demo_admin": demo,
+            "problem": problem,
+        }
+        return render(request, "auth/login.html", context, status_code=error.status_code)
+    return _signed_in_redirect(user.id, clock, "/admin", "signed_in")
 
 
 @router.get("/register", response_class=HTMLResponse, name="register")

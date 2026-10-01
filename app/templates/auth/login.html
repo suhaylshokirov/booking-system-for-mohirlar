@@ -36,5 +36,17 @@
 
         <button type="submit" class="btn btn--block" data-busy-label="Signing in…">Sign in</button>
     </form>
+
+    {% if demo_admin %}
+    {# Only outside production (app/web/auth.py). Its own form: one click signs
+       in as the demo admin and opens the admin panel. #}
+    <form class="form auth-form demo-admin" method="post" action="/login/demo-admin" data-submit-once>
+        {{ ui.csrf_field(csrf_token) }}
+        <button type="submit" class="btn btn--quiet btn--block" data-busy-label="Opening…">Open the admin panel (demo)</button>
+        <p class="field__hint">
+            Demo admin: <span class="mono">{{ demo_admin.email }}</span> / <span class="mono">{{ demo_admin.password }}</span>
+        </p>
+    </form>
+    {% endif %}
 </section>
 {% endblock %}
