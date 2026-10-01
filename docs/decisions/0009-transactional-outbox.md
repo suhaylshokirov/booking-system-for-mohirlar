@@ -8,7 +8,9 @@ The customer should be told when their booking is requested, confirmed or
 cancelled. Two things must never happen: telling someone about a booking that
 was rolled back (it lost a race, or the commit failed), and committing a
 booking whose message is lost because the process died between the two steps.
-We also have no SMTP server and do not want the dependency.
+We also had no SMTP server and did not want to add a dependency. (Since ADR 0013 the
+app can send email over SMTP using only the standard library, but only for sign-in
+codes; booking messages still go to the outbox, and no worker sends them.)
 
 ## Decision
 

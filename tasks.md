@@ -55,7 +55,7 @@ checklist (P11.4) is verified against this table.
 | 1 | Tests (treated as mandatory) | every task; P0.5, P0.6 |
 | 2 | API documentation (Swagger + examples + guide) | P0.3, examples in every API task, P10.4 |
 | 3 | Docker | P0.4 |
-| 4 | Admin dashboard | P9.1–P9.6 |
+| 4 | Admin dashboard → the barber dashboard (no administrator, ADR 0010) | P9.1–P9.6 |
 | 5 | Timezone support | P4.1, P10.3 |
 | 6 | Cancellation policy | P7.4 |
 | 7 | Calendar integration (`.ics`) | P10.1 |
@@ -745,11 +745,11 @@ reviewers of a live demo register their own address, no code is ever shown on sc
 - Edge cases covered: —
 
 ### P11.4 — Final documentation pass
-- [ ] Status
+- [x] Status
 - Goal: every doc is true and complete.
 - Requirement(s) served: README; architecture; edge cases
 - Acceptance criteria: README sections 1–10 complete; feature checklist verified one-to-one against the Requirement coverage table, each linking to code; every `docs/edge-cases.md` row links to an existing test (`pytest --collect-only` check); architecture/database docs match the final schema; ADR index complete.
-- Tests: full suite green in CI.
+- Tests: full suite green in CI; `tests/unit/test_edge_case_docs.py` fails if an edge-case row names a test that does not exist (it found one wrong name and one stale "planned" note).
 - Docs to update: all.
 - Edge cases covered: —
 

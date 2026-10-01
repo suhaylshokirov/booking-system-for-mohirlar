@@ -67,7 +67,7 @@ violated constraint *name* to `409 SLOT_TAKEN` or `409 CUSTOMER_OVERLAP`.
   safe for fixed-length slots, but a 45-minute service must claim three
   15-minute rows atomically, changing granularity or hours means regenerating
   rows, and the table must be kept in sync with availability. Slots are
-  computed instead (planned ADR 0002), so there is nothing to lock.
+  computed instead ([ADR 0002](0002-computed-slots.md)), so there is nothing to lock.
 
 ## Consequences
 

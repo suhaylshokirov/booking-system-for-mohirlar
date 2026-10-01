@@ -1,6 +1,8 @@
 # Architecture
 
-_Skeleton — each section is filled in by the task noted beside it._
+How Navbat is built and why. Decisions are recorded one by one in
+[`decisions/`](decisions/); the schema is in [`database.md`](database.md) and every
+risk handled is in [`edge-cases.md`](edge-cases.md).
 
 ## Layers and why
 Routers (`app/api/v1`, `app/web`) → services (`app/services`) → models
@@ -417,4 +419,30 @@ The harness (`tests/conftest.py`, `tests/support.py`):
   `DATABASE_URL`, since the harness resets the test schema.
 
 ## Trade-offs accepted
-_Filled in as they are made._
+
+What was chosen over something else, and what that costs. The reasoning for each is
+in the ADR named.
+
+- **Slots are computed on every request, not stored** (ADR 0002). Nothing to keep in
+  sync when hours or durations change, and nothing to lock; the price is recomputing a
+  day's grid per request. At one shop's scale that is a few queries.
+- **Synchronous SQLAlchemy** (ADR 0003). Simpler to read and to test with real
+  transactions; throughput per process is lower than with async. Not a bottleneck here.
+- **Server-rendered pages with a little JavaScript** (ADR 0004). Every form works without
+  JavaScript; there is no client-side state to get out of step with the server.
+- **The database, not Python, stops double booking** (ADR 0001). The cost is that the
+  guarantee needs PostgreSQL with `btree_gist`, so the tests run on PostgreSQL too and
+  there is no SQLite shortcut.
+- **Guarded `UPDATE`s instead of row locks for status changes** (ADR 0008). Losing a
+  race is a clean `409`, never a wait; the caller must be ready to retry or reload.
+- **Booking messages go to an outbox that nothing sends yet** (ADR 0009). The messages
+  are durable and never describe a rolled-back booking, but no worker delivers them;
+  only sign-in codes (ADR 0013) are actually emailed.
+- **No passwords, no administrator** (ADR 0013, ADR 0010). Fewer secrets to leak and
+  fewer roles to get wrong; signing in depends on a working mail account, and any barber
+  can change the shared services and settings.
+- **A barber's photo lives in Postgres** (ADR 0012). One backup, no object store; the
+  rows are bigger (2 MB cap) and the column is deferred so lists never read it.
+- **Vercel + Neon** (ADR 0014). A free live URL with no server to run; cold starts, a
+  per-instance login rate limiter and PostgreSQL 18 in production against 16 in tests
+  (see the README's known limitations).

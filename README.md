@@ -3,17 +3,19 @@
 > *Navbat* is Uzbek for "turn" or "queue".
 
 Navbat is an appointment booking system for a small service business such as a
-barbershop or clinic. Customers pick a service, see the free time slots of the
-staff who offer it, and book one; the owner manages services, providers,
-working hours and every booking's lifecycle (Pending → Confirmed → Completed,
-or Cancelled). Double booking is prevented by the database itself, not just by
-application code.
+barbershop or clinic. A customer picks a service, sees the free times of the
+barbers who offer it, and books one. The barbers run the shop themselves: each
+manages their own bookings (Pending → Confirmed → Completed, or Cancelled), weekly
+hours and profile, and any barber manages the shared services and settings. There is
+no administrator ([ADR 0010](docs/decisions/0010-barbers-replace-the-admin.md)).
+Double booking is prevented by the database itself, not just by application code.
 
 - **Live demo:** https://navbat-pi.vercel.app (Vercel + Neon Postgres; the first request after idle can take a few seconds)
 - **Signing in:** there are no passwords. Choose *Sign up*, enter your own email and type the 6-digit code that arrives (check spam). You get a customer account and can book at once. The barber account belongs to the owner.
 - **CI:** [![CI](https://github.com/suhaylshokirov/booking-system-for-mohirlar/actions/workflows/ci.yml/badge.svg)](https://github.com/suhaylshokirov/booking-system-for-mohirlar/actions/workflows/ci.yml)
 
-> Status: in development. Progress is tracked task by task in [`tasks.md`](tasks.md).
+> Status: feature-complete. The work was done task by task; the queue, with every
+> decision and deviation, is in [`tasks.md`](tasks.md).
 
 ## Screenshots
 
@@ -32,33 +34,33 @@ Taken from the seeded app (`docs/screenshots/`). Times are the shop's local time
 
 ## Features
 
-Mapped one-to-one to the assignment. Each item links to where it's
-implemented once it exists.
+Mapped one-to-one to the assignment, each with where it is implemented and the test
+that proves it.
 
 ### Minimum requirements
 
-- [ ] Create a service with name, description, duration, price
-- [ ] Create providers / employees
-- [ ] Set availability
-- [ ] See available time slots
-- [ ] Book
-- [ ] Booking statuses: Pending, Confirmed, Cancelled, Completed
-- [ ] No double booking
-- [ ] Backend API
-- [ ] Authentication
-- [ ] Basic validation
-- [ ] Booking history
+- [x] **Create a service** with name, description, duration, price: [`app/services/service_catalog.py`](app/services/service_catalog.py), `POST /api/v1/services`, the barber's *Services* page. Price is an integer in UZS; the duration must fit the slot grid (`tests/integration/test_services.py`).
+- [x] **Create providers / employees**: [`app/services/provider_catalog.py`](app/services/provider_catalog.py), [`scripts/create_barber.py`](scripts/create_barber.py); a barber is a login plus the provider record customers book (`tests/integration/test_providers.py`, `test_create_barber.py`).
+- [x] **Set availability**: weekly hours and days off, overlapping windows refused by the database: [`app/services/availability.py`](app/services/availability.py) (`tests/integration/test_availability_*.py`).
+- [x] **See available time slots**: computed, never stored, by the pure function [`app/services/slots.py`](app/services/slots.py) (`tests/unit/test_slots.py`), served by `GET /api/v1/slots` and the live slot picker.
+- [x] **Book**: [`app/services/booking.py`](app/services/booking.py) `create_booking` (`tests/integration/test_create_booking.py`).
+- [x] **Booking statuses** Pending, Confirmed, Cancelled, Completed: one state machine, [`app/services/booking_state.py`](app/services/booking_state.py), applied with a guarded `UPDATE` (`tests/unit/test_booking_state.py`, `tests/concurrency/test_transition_races.py`).
+- [x] **No double booking**: PostgreSQL exclusion constraints `no_provider_overlap` and `no_customer_overlap` in [`migrations/versions/0003_booking_exclusion_constraints.py`](migrations/versions/0003_booking_exclusion_constraints.py), mapped to `409 SLOT_TAKEN` / `CUSTOMER_OVERLAP`. Ten simultaneous customers on one slot give exactly one booking: `tests/concurrency/test_booking_races.py`.
+- [x] **Backend API**: versioned JSON under `/api/v1`, one error envelope, [`docs/api.md`](docs/api.md) and `/docs`.
+- [x] **Authentication**: passwordless sign-in with an emailed 6-digit code, JWT in an HttpOnly cookie or as a Bearer token, CSRF double-submit: [`app/services/auth.py`](app/services/auth.py), [ADR 0005](docs/decisions/0005-jwt-cookie-bearer-csrf.md), [ADR 0013](docs/decisions/0013-email-codes-replace-passwords.md).
+- [x] **Basic validation**: Pydantic schemas for shape ([`app/schemas/`](app/schemas/)), business rules in one place ([`app/services/booking_rules.py`](app/services/booking_rules.py): past, lead time, horizon, grid, working hours), database CHECKs behind both.
+- [x] **Booking history**: every status change writes a `booking_events` row in the same transaction; customers see their own bookings (someone else's is a `404`), barbers see theirs: `GET /api/v1/bookings/{id}/history`, *My bookings*, the barber's *Bookings* page.
 
 ### Bonuses
 
-- [ ] Tests (unit, integration, concurrency)
-- [x] API documentation (Swagger with examples and errors on every endpoint, a curl guide, a runnable walkthrough, a complete error-code table)
-- [ ] Docker
-- [ ] Barber dashboard (each barber's own bookings, hours and queue)
-- [x] Timezone support (business timezone; UTC storage; local time and offset in API and pages)
-- [ ] Cancellation policy: customers can cancel a confirmed booking until a cutoff (default 2 hours before it starts, set in business settings); the barber is exempt but must give a reason
-- [x] Calendar integration (`.ics`)
-- [x] Email notification (pluggable notifier; messages go to a transactional outbox, no SMTP yet: ADR 0009)
+- [x] **Tests**: unit, integration (real PostgreSQL, never SQLite) and concurrency tests with real commits and threads, run in [CI](.github/workflows/ci.yml); see *Running tests*.
+- [x] **API documentation**: Swagger at `/docs` with examples and errors on every endpoint, a curl guide, a runnable walkthrough ([`docs/walkthrough.sh`](docs/walkthrough.sh)) and a complete error-code table ([`docs/api.md`](docs/api.md)).
+- [x] **Docker**: `docker compose up --build` runs the app and PostgreSQL, migrates and seeds.
+- [x] **Barber dashboard**: each barber's own bookings, hours and profile, today's queue and a plain stats row ([`app/web/barber*.py`](app/web/)); it replaces the usual admin dashboard ([ADR 0010](docs/decisions/0010-barbers-replace-the-admin.md)).
+- [x] **Timezone support**: the business timezone (default Asia/Tashkent) decides what "10:00" means; storage is UTC `timestamptz`; the API rejects naive datetimes; DST gaps and overlaps are handled in one module, [`app/core/timezones.py`](app/core/timezones.py) (`tests/unit/test_timezones.py`).
+- [x] **Cancellation policy**: customers can cancel a confirmed booking until a cutoff (default 2 hours before it starts, set in business settings); a barber is exempt but must give a reason.
+- [x] **Calendar integration**: an `.ics` file for each booking ([ADR 0011](docs/decisions/0011-calendar-file.md)).
+- [x] **Email**: sign-in codes are emailed over SMTP ([`app/core/mail.py`](app/core/mail.py)). Booking messages (requested, confirmed, cancelled) are written to a transactional outbox and logged but **no worker sends them yet** ([ADR 0009](docs/decisions/0009-transactional-outbox.md)).
 
 ## Quick start (Docker)
 
@@ -110,7 +112,7 @@ and asks you to type the code (ADR 0013). These seeded `.local` addresses cannot
 mail, so with no mail server configured the app writes each email to its log instead:
 
 ```bash
-docker compose logs -f app     # or the terminal running `make dev`
+docker compose logs -f app     # or the terminal running uvicorn
 # INFO:     [navbat.mail] email to demo@navbat.local: Navbat Barbershop: your sign-in code is 482913
 ```
 
@@ -224,23 +226,75 @@ The Dockerfile and Compose file are for local use only.
 
 ## Architecture in brief
 
-_Diagram + summary. Full write-up: [`docs/architecture.md`](docs/architecture.md)._
+```mermaid
+flowchart LR
+    B[Browser pages<br/>Jinja2 + vanilla JS] --> W[app/web<br/>HTML routers]
+    C[API clients] --> A[app/api/v1<br/>JSON routers]
+    W --> S[app/services<br/>all business rules]
+    A --> S
+    S --> M[app/models<br/>SQLAlchemy]
+    M --> DB[(PostgreSQL<br/>exclusion constraints)]
+    S -.-> K[app/core<br/>clock, timezones, mail, errors]
+```
+
+Routers are thin and never touch the database; both entry points call the same
+services, so each rule (double-booking protection, validation, status transitions)
+lives in exactly one place. Slots are computed from weekly hours and existing bookings,
+never stored. Every timestamp is UTC `timestamptz`; "10:00" means the business's local
+time, converted in one module. The database, not Python, is the double-booking guarantee:
+two `EXCLUDE USING gist` constraints on `tstzrange(start_at, end_at, '[)')`, one per
+barber and one per customer, whose violation (SQLSTATE `23P01`) becomes `409 SLOT_TAKEN`
+or `CUSTOMER_OVERLAP`. Full write-up, with the booking and state-machine diagrams:
+[`docs/architecture.md`](docs/architecture.md); the schema: [`docs/database.md`](docs/database.md).
 
 ## Key decisions
 
-See [`docs/decisions/`](docs/decisions/) for the ADRs.
+Each is a short record with the alternatives that were rejected: [`docs/decisions/`](docs/decisions/).
+
+| ADR | Decision |
+|---|---|
+| [0001](docs/decisions/0001-exclusion-constraints.md) | PostgreSQL exclusion constraints, not application checks, prevent double booking |
+| [0002](docs/decisions/0002-computed-slots.md) | Slots are computed, not stored |
+| [0003](docs/decisions/0003-sync-sqlalchemy.md) | Synchronous SQLAlchemy 2.0 |
+| [0004](docs/decisions/0004-server-rendered-ui.md) | Server-rendered UI with vanilla JS; every form works without JavaScript |
+| [0005](docs/decisions/0005-jwt-cookie-bearer-csrf.md) | JWT in an HttpOnly cookie or a Bearer token, with CSRF double-submit |
+| [0006](docs/decisions/0006-half-open-ranges-and-utc.md) | Half-open ranges (back-to-back bookings are fine) and UTC storage |
+| [0007](docs/decisions/0007-booking-snapshots.md) | A booking keeps the price and duration it was made with |
+| [0008](docs/decisions/0008-guarded-status-updates.md) | Status changes are guarded `UPDATE`s, not row locks |
+| [0009](docs/decisions/0009-transactional-outbox.md) | Booking notifications go through a transactional outbox |
+| [0010](docs/decisions/0010-barbers-replace-the-admin.md) | Barbers run the shop; there is no administrator |
+| [0011](docs/decisions/0011-calendar-file.md) | The `.ics` file is built by hand, in UTC |
+| [0012](docs/decisions/0012-photos-in-postgres.md) | A barber's photo is stored in Postgres |
+| [0013](docs/decisions/0013-email-codes-replace-passwords.md) | Emailed codes replace passwords |
+| [0014](docs/decisions/0014-vercel-and-neon.md) | Deploy on Vercel with a Neon Postgres |
 
 ## Edge cases
 
-Top five here; the full table is in [`docs/edge-cases.md`](docs/edge-cases.md).
+The full table (105 rows, each with where it is enforced and the test that proves it,
+checked by `tests/unit/test_edge_case_docs.py`) is in [`docs/edge-cases.md`](docs/edge-cases.md).
+Five that matter most:
+
+1. **Two people book the same slot at the same instant** (#1): both pass the "is it free?"
+   check; the exclusion constraint lets exactly one insert commit and the other gets
+   `409 SLOT_TAKEN`. Ten simultaneous customers, one winner: `tests/concurrency/test_booking_races.py`.
+2. **One customer in two places at once** (#3): a second constraint, per customer, gives `409 CUSTOMER_OVERLAP`.
+3. **A barber confirms while the customer cancels** (#16): guarded `UPDATE ... WHERE status = :expected`;
+   the loser gets `409 BOOKING_STATE_CHANGED` and only one history row exists.
+4. **Daylight-saving gaps and overlaps, and local day versus UTC day** (#13, #14):
+   all conversion is in `app/core/timezones.py` and tested around real transitions.
+5. **A sign-in code submitted twice at once** (#100): only one verification can consume it
+   (`tests/concurrency/test_sign_in_races.py`); wrong tries are capped per code, in the database.
 
 ## How AI was used
 
-See [`AI_USAGE.md`](AI_USAGE.md).
+[`AI_USAGE.md`](AI_USAGE.md) is the running log: for each phase, what was asked, what
+the AI produced, how it was verified, what was changed or rejected, and which bugs
+were caught. It ends with a summary written for the submission form. In short: AI
+drafted code and docs; every rule that matters (double booking, status transitions,
+time handling) is covered by tests, including races against a real PostgreSQL with
+real commits and threads, and the author reads and can explain every line.
 
 ## Known limitations and next steps
-
-_Filled in as they are discovered._
 
 - **Login rate limiting is in-process.** Counters live in the app's memory: they
   reset on restart and are not shared across several instances. A per-IP limit
@@ -255,3 +309,11 @@ _Filled in as they are discovered._
   constraints applied unchanged, but CI does not run against 18.
 - **Email goes through one Gmail account** (about 500 messages a day). If Gmail
   refuses, sign-in requests fail and nobody can log in.
+- **Booking emails are not sent.** Requested, confirmed and cancelled messages are
+  stored in the outbox and logged, but no worker delivers them
+  ([ADR 0009](docs/decisions/0009-transactional-outbox.md)). Only sign-in codes are emailed.
+- **Any barber can change the shared services and settings.** There is no administrator
+  ([ADR 0010](docs/decisions/0010-barbers-replace-the-admin.md)); a barber's own bookings,
+  hours and profile are private to them.
+- **Barber accounts are created from the command line** (`scripts/create_barber.py`);
+  signing up always makes a customer.
