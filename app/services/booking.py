@@ -35,10 +35,18 @@ from app.models.user import User, UserRole
 from app.services.booking_rules import validate_booking_start
 from app.services.booking_state import STALE_PENDING_REASON, check_transition, is_stale_pending
 from app.services.business_settings import get_business_settings
+from app.services.notifications import NotificationEvent, notify_booking
 from app.services.slots import build_windows_for_date
 
 # Statuses that hold time. Cancelled and completed bookings free it.
 _ACTIVE = [BookingStatus.PENDING, BookingStatus.CONFIRMED]
+
+
+# Status changes the customer is told about. Completed is not: nothing to act on.
+_ANNOUNCED = {
+    BookingStatus.CONFIRMED: NotificationEvent.BOOKING_CONFIRMED,
+    BookingStatus.CANCELLED: NotificationEvent.BOOKING_CANCELLED,
+}
 
 
 def slot_taken() -> AppError:
@@ -76,6 +84,8 @@ def create_booking(
     rule in `booking_rules.validate_booking_start`; 409 `SLOT_TAKEN` (provider
     busy) or 409 `CUSTOMER_OVERLAP` (customer busy with anyone), from the
     pre-check or, if a concurrent request won the race, from the database.
+    A created booking also queues a notification for the customer in the same
+    transaction (`notifications.notify_booking`).
     """
     service = db.get(Service, service_id)
     provider = db.get(Provider, provider_id)
@@ -131,6 +141,8 @@ def create_booking(
             db.flush()
     except (IntegrityError, DBAPIError) as exc:
         raise _map_overlap_error(exc) from exc
+    # After the savepoint: a booking the constraint refused is never announced.
+    notify_booking(db, NotificationEvent.BOOKING_CREATED, booking)
     return booking
 
 
@@ -302,6 +314,9 @@ def transition(
     The status update and its `booking_events` row share the caller's
     transaction (ADR 0008).
 
+    Confirming or cancelling also queues a notification for the customer in the
+    same transaction (`notifications.notify_booking`).
+
     Raises: 404 `BOOKING_NOT_FOUND`; the `booking_state` errors (409
     `INVALID_TRANSITION`, `CANCELLATION_CUTOFF_PASSED`, `TOO_EARLY_TO_COMPLETE`,
     422 `REASON_REQUIRED`); 409 `BOOKING_STATE_CHANGED` when we lost a race.
@@ -350,6 +365,8 @@ def transition(
     db.flush()
     # The UPDATE bypassed the ORM object; reload it so callers see the new state.
     db.refresh(booking)
+    if to in _ANNOUNCED:
+        notify_booking(db, _ANNOUNCED[to], booking, actor)
     return booking
 
 

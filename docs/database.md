@@ -14,6 +14,8 @@ erDiagram
     providers ||--o{ bookings : "provider_id"
     services ||--o{ bookings : "service_id"
     bookings ||--|{ booking_events : "booking_id"
+    bookings ||--o{ outbox_messages : "booking_id"
+    users ||--o{ outbox_messages : "recipient_user_id"
     providers ||--o{ provider_services : "offers"
     services ||--o{ provider_services : "offered by"
     providers ||--o{ availability_rules : "works"
@@ -92,6 +94,17 @@ erDiagram
         int actor_id FK "null = system"
         string reason
         timestamptz created_at
+    }
+    outbox_messages {
+        int id PK
+        string event "booking_created | booking_confirmed | booking_cancelled"
+        int booking_id FK
+        int recipient_user_id FK
+        string recipient_email "snapshot"
+        string subject
+        text body
+        timestamptz created_at
+        timestamptz sent_at "null = not delivered yet"
     }
 ```
 
@@ -228,6 +241,14 @@ share `created_at` (`now()` is the transaction start), so ordering ties are
 broken by `id`. `ix_booking_events_booking_created (booking_id, created_at)`
 serves the history query. The three status columns share one Postgres enum type.
 
+### `outbox_messages`
+Notifications waiting for delivery (ADR 0009). A row is inserted in the same
+transaction as the booking change it announces, so a rolled-back booking leaves
+none. The recipient's email and the rendered subject and body are snapshots, so
+changing the user's address or renaming the service later does not rewrite what
+was sent. `sent_at` is NULL until a delivery worker (not built) sends it;
+`ix_outbox_messages_unsent` is a partial index over exactly those rows.
+
 ## Constraints and indexes
 
 Every constraint and index, with the reason it exists. Names are the real ones
@@ -256,6 +277,9 @@ Every constraint and index, with the reason it exists. Names are the real ones
 | `ix_bookings_provider_start` | `bookings` | A provider's day, and the slot query |
 | `ix_bookings_status` | `bookings` | Admin filter by status |
 | `ix_booking_events_booking_created` | `booking_events` | A booking's history in order |
+| `ck_outbox_messages_known_event` | `outbox_messages` | Only the three events the app sends |
+| `ix_outbox_messages_unsent` (partial, `sent_at IS NULL`) | `outbox_messages` | A worker's "oldest unsent first" |
+| `ix_outbox_messages_booking` | `outbox_messages` | Messages of one booking |
 
 The three exclusion constraints also create GiST indexes, which is what makes
 the overlap check fast as well as safe.

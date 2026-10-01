@@ -620,7 +620,7 @@ checklist (P11.4) is verified against this table.
 - Edge cases covered: special characters in notes/names.
 
 ### P10.2 — Notifier (console + outbox)
-- [ ] Status
+- [x] Status
 - Goal: notification hook points without an SMTP dependency.
 - Requirement(s) served: Bonus 8
 - Acceptance criteria: `services/notifications.py` — `Notifier` protocol; `ConsoleNotifier` (logs) and `OutboxNotifier` (writes an `outbox_messages` row in the **same transaction** as the booking change, so a rolled-back booking never "sends"); triggered on create, confirm, cancel. Migration for `outbox_messages`.

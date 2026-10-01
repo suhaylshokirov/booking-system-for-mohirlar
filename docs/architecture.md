@@ -52,6 +52,7 @@ sequenceDiagram
             S-->>C: 409 SLOT_TAKEN (no_provider_overlap) / CUSTOMER_OVERLAP (no_customer_overlap)
         else inserted
             DB-->>S: ok
+            S->>DB: INSERT outbox_messages (same transaction)
             S-->>R: booking
             R-->>C: 201 Created (commit)
         end
@@ -177,14 +178,6 @@ every request app-wide: unsafe methods authenticated by the cookie, without a
 Bearer header, must echo the CSRF cookie in `X-CSRF-Token` or a form field, else
 403 `CSRF_FAILED`. Reasoning and trade-offs are in ADR 0005.
 
-**Calendar file (`services/calendar.py`, P10.1).** `render_ics` is pure: it
-turns a booking, its service and provider names and the business name into an
-RFC 5545 `VEVENT`. Both the API route (`GET /api/v1/bookings/{id}/ics`) and the
-web route (`GET /me/bookings/{id}/ics`) authorise with the usual
-`get_booking` / `get_own_booking` and then call `booking_ics`, so the file
-format lives in one place. No library: the format is small and the tricky
-parts (escaping, 75-octet folding) are unit-tested.
-
 **Login rate limiting (`app/core/rate_limit.py`, `services/auth.login`, P2.5).**
 A sliding window of failed attempts per (client IP, email), checked before the
 password is verified. The store is an in-process dictionary behind a
@@ -303,6 +296,34 @@ calendar (Monday to Sunday weeks):
 
 The admin pages answer a customer with the 404 page, not a 403, so the area does
 not advertise itself (`web/deps.require_admin_page`).
+
+## Calendar file and notifications
+
+**Calendar file (`services/calendar.py`, P10.1).** `render_ics` is pure: it
+turns a booking, its service and provider names and the business name into an
+RFC 5545 `VEVENT`. Both the API route (`GET /api/v1/bookings/{id}/ics`) and the
+web route (`GET /me/bookings/{id}/ics`) authorise with the usual
+`get_booking` / `get_own_booking` and then call `booking_ics`, so the file
+format lives in one place. No library: the format is small and the tricky
+parts (escaping, 75-octet folding) are unit-tested.
+
+**Notifications (`services/notifications.py`, P10.2, ADR 0009).**
+`booking.create_booking` and `booking.transition` call `notify_booking` right
+after the change is flushed, for create, confirm and cancel (not complete). It
+composes the text once (`compose_message`, pure: local time with the zone
+named) and hands it to every notifier in `NOTIFIERS`:
+
+- `OutboxNotifier` inserts an `outbox_messages` row **in the request's
+  transaction**, so the message and the booking commit or roll back together.
+  A booking refused by the exclusion constraint, or rolled back later, leaves
+  no message; a committed booking cannot lose its message.
+- `ConsoleNotifier` logs it (`navbat.notifications`), the development view. It
+  is not transactional, so it is a log, not a record.
+
+`Notifier` is a one-method protocol, so an SMTP sender is one more class, or a
+worker that reads unsent rows (`sent_at IS NULL`) and delivers them. Neither is
+built: no SMTP dependency. Only the customer is told; there is no business
+email in the settings.
 
 ## Testing strategy
 Three layers: unit (pure logic, no database), integration (API + real
